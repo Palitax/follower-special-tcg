@@ -137,7 +137,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
 
   return (
     <div className="flex flex-col items-center justify-center p-1 sm:p-1.5 select-none group/card">
-      {/* Top Mini Controls Bar: Completely hidden in Fullscreen mode or when > 16 cards */}
+      {/* Top Mini Bar (only in normal mode & <= 16 cards) */}
       {!isFullscreen && !isMicro && !isMini && (
         <div className={`w-full ${getWidthClass()} flex items-center justify-between px-1 mb-1.5`}>
           <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/10 text-[10px] font-semibold text-slate-300">
@@ -199,37 +199,39 @@ export const TcgCard: React.FC<TcgCardProps> = ({
         }}
         onClick={handleCardClick}
       >
-        <motion.div
+        <div
           ref={cardRef}
-          className="w-full h-full relative rounded-[14px] sm:rounded-[18px] md:rounded-[22px]"
-          animate={{
-            rotateY: card.isFlipped ? 180 : 0,
-            rotateX: isInteracting ? tilt.x : 0,
-          }}
-          transition={{
-            rotateY: { duration: 0.6, ease: [0.23, 1, 0.32, 1] },
-            rotateX: { duration: 0.1, ease: 'easeOut' },
-          }}
+          className="w-full h-full relative"
           style={{
             transformStyle: 'preserve-3d',
+            transform: isInteracting ? `rotateX(${tilt.x}deg)` : 'none',
+            transition: 'transform 0.1s ease-out',
             filter: 'drop-shadow(0 15px 25px rgba(0, 0, 0, 0.75))',
           }}
         >
           {/* ======================================================== */}
-          {/* SEITE 1 (FRONT): AUSSCHLIESSLICH TEXT                    */}
+          {/* SEITE 1: AUSSCHLIESSLICH TEXT                            */}
+          {/* Rotates from 0deg (visible) to 180deg (hidden)           */}
           {/* ======================================================== */}
-          <div
+          <motion.div
             className={`absolute inset-0 w-full h-full rounded-[14px] sm:rounded-[18px] md:rounded-[22px] overflow-hidden border-2 border-purple-900/60 shadow-[0_0_20px_rgba(139,92,246,0.2)] bg-stone-950 flex flex-col justify-center items-center ${
               isMicro ? 'p-1' : isMini ? 'p-1.5' : isSmall ? 'p-2' : 'p-3'
             }`}
+            animate={{
+              rotateY: card.isFlipped ? 180 : 0,
+            }}
+            transition={{
+              duration: 0.6,
+              ease: [0.23, 1, 0.32, 1],
+            }}
             style={{
-              transform: 'rotateY(0deg)',
-              transformStyle: 'preserve-3d',
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden',
+              transformStyle: 'preserve-3d',
+              zIndex: card.isFlipped ? 0 : 2,
             }}
           >
-            {/* Custom ManaCards Background Image */}
+            {/* ManaCards Background Image (Solid & Upright) */}
             <div
               className="absolute inset-0 w-full h-full bg-cover bg-center transition-transform duration-500 pointer-events-none"
               style={{
@@ -238,8 +240,8 @@ export const TcgCard: React.FC<TcgCardProps> = ({
               }}
             />
 
-            {/* Subtle Vignette */}
-            <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+            {/* Dark Vignette Overlay for High Readability */}
+            <div className="absolute inset-0 bg-black/45 pointer-events-none" />
 
             {/* Holo Light Glare */}
             <div
@@ -251,7 +253,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
               }}
             />
 
-            {/* Center Area: Dashed Editable Text Box */}
+            {/* Dashed Editable Text Box */}
             <div className="relative z-10 w-full px-1 flex flex-col items-center justify-center">
               <div
                 onClick={(e) => {
@@ -262,7 +264,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                 className={`w-full max-w-[92%] rounded-xl border-2 border-dashed transition-all cursor-text flex flex-col items-center justify-center ${
                   isEditingFront
                     ? 'border-cyan-400 bg-black/95 shadow-2xl ring-2 ring-cyan-400/40 p-2.5'
-                    : 'border-white/30 hover:border-cyan-400/90 bg-black/60 hover:bg-black/80 shadow-lg p-2 sm:p-2.5 backdrop-blur-sm'
+                    : 'border-white/30 hover:border-cyan-400/90 bg-black/65 hover:bg-black/85 shadow-lg p-2 sm:p-2.5 backdrop-blur-sm'
                 }`}
                 title="Klicke hier, um den Text einzugeben"
               >
@@ -311,23 +313,31 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
 
           {/* ======================================================== */}
-          {/* SEITE 2 (BACK): AUSSCHLIESSLICH GROSSE ZAHL              */}
+          {/* SEITE 2: AUSSCHLIESSLICH GROSSE ZAHL                     */}
+          {/* Rotates from -180deg (hidden) to 0deg (visible & upright)*/}
           {/* ======================================================== */}
-          <div
+          <motion.div
             className={`absolute inset-0 w-full h-full rounded-[14px] sm:rounded-[18px] md:rounded-[22px] overflow-hidden border-2 border-purple-900/60 shadow-[0_0_20px_rgba(139,92,246,0.2)] bg-stone-950 flex flex-col justify-center items-center ${
               isMicro ? 'p-1' : isMini ? 'p-1.5' : isSmall ? 'p-2' : 'p-3'
             }`}
+            animate={{
+              rotateY: card.isFlipped ? 0 : -180,
+            }}
+            transition={{
+              duration: 0.6,
+              ease: [0.23, 1, 0.32, 1],
+            }}
             style={{
-              transform: 'rotateY(180deg)',
-              transformStyle: 'preserve-3d',
               backfaceVisibility: 'hidden',
               WebkitBackfaceVisibility: 'hidden',
+              transformStyle: 'preserve-3d',
+              zIndex: card.isFlipped ? 2 : 0,
             }}
           >
-            {/* Custom ManaCards Background Image */}
+            {/* ManaCards Background Image (Solid & Upright) */}
             <div
               className="absolute inset-0 w-full h-full bg-cover bg-center transition-transform duration-500 pointer-events-none"
               style={{
@@ -336,8 +346,8 @@ export const TcgCard: React.FC<TcgCardProps> = ({
               }}
             />
 
-            {/* Subtle Vignette */}
-            <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+            {/* Dark Vignette Overlay */}
+            <div className="absolute inset-0 bg-black/45 pointer-events-none" />
 
             {/* Holo Light Glare */}
             <div
@@ -349,7 +359,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
               }}
             />
 
-            {/* Center Area: Big Prominent Number Box */}
+            {/* Big Prominent Glowing Number Box */}
             <div className="relative z-10 w-full px-1 flex flex-col items-center justify-center">
               <div
                 onClick={(e) => {
@@ -360,7 +370,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                 className={`w-full max-w-[88%] rounded-xl border-2 border-dashed transition-all cursor-text flex flex-col items-center justify-center ${
                   isEditingBackNum
                     ? 'border-cyan-400 bg-black/95 shadow-2xl ring-2 ring-cyan-400/40 p-2.5'
-                    : 'border-white/30 hover:border-cyan-400/90 bg-black/60 hover:bg-black/80 shadow-lg p-2 sm:p-3 backdrop-blur-sm'
+                    : 'border-white/30 hover:border-cyan-400/90 bg-black/65 hover:bg-black/85 shadow-lg p-2 sm:p-3 backdrop-blur-sm'
                 }`}
                 title="Klicke hier, um die Zahl einzugeben"
               >
@@ -426,8 +436,8 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                 )}
               </div>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
+        </div>
       </motion.div>
     </div>
   );
