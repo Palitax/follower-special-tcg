@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { TcgCardData, PlaymatTheme } from '../types/card';
 import { TcgCard } from '../components/TcgCard';
 import { EmptyCardSlot } from '../components/EmptyCardSlot';
@@ -21,10 +21,11 @@ import {
   Dices,
   Home,
   Layers,
+  X,
 } from 'lucide-react';
 
-const STORAGE_KEY_CARDS = 'tcg_cards_manacards_v4';
-const STORAGE_KEY_THEME = 'tcg_theme_manacards_v4';
+const STORAGE_KEY_CARDS = 'tcg_cards_manacards_v5';
+const STORAGE_KEY_THEME = 'tcg_theme_manacards_v5';
 
 export default function HomeView() {
   const [cards, setCards] = useState<TcgCardData[]>([]);
@@ -68,13 +69,46 @@ export default function HomeView() {
     }
   }, [cards, theme, hasInitialized]);
 
-  // Keyboard Shortcuts
+  // Sync fullscreen change events (browser or Esc)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isDocFullscreen = !!document.fullscreenElement;
+      setIsFullscreen(isDocFullscreen);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const exitFullscreen = useCallback(async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      }
+    } catch (e) {
+      console.warn('Exit fullscreen failed', e);
+    }
+    setIsFullscreen(false);
+  }, []);
+
+  // Keyboard Shortcuts (Space: flip, Esc: exit fullscreen, C: confetti)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
-      if (e.code === 'Space') {
+      if (e.key === 'Escape' || e.code === 'Escape') {
+        if (isFullscreen) {
+          e.preventDefault();
+          exitFullscreen();
+          sound.playClick(600);
+        }
+      } else if (e.code === 'Space') {
         e.preventDefault();
         sound.playCardFlip();
         handleFlipAll();
@@ -85,9 +119,9 @@ export default function HomeView() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [cards]);
+  }, [cards, isFullscreen, exitFullscreen]);
 
-  // Create N cards (1 to 100) with custom ManaCards design
+  // Create N cards
   const handleGenerateCards = (count: number) => {
     const safeCount = Math.max(1, Math.min(100, count));
     const newCards: TcgCardData[] = [];
@@ -209,15 +243,13 @@ export default function HomeView() {
         setIsFullscreen(true);
         sound.playClick(800);
       } else {
-        if (document.exitFullscreen) {
-          await document.exitFullscreen();
-          setIsFullscreen(false);
-          sound.playClick(600);
-        }
+        await exitFullscreen();
+        sound.playClick(600);
       }
     } catch (e) {
-      console.warn('Fullscreen request failed', e);
-      alert('Tipp: Auf dem iPad im Safari Teilen-Menü "Zum Home-Bildschirm" wählen, um die App im echten randlosen Fullscreen-Modus zu nutzen!');
+      console.warn('Fullscreen request error', e);
+      // Custom fallback for browsers/iPad Safari that don't support requestFullscreen
+      setIsFullscreen(!isFullscreen);
     }
   };
 
@@ -234,28 +266,35 @@ export default function HomeView() {
       {/* Dynamic Playmat Background */}
       <PlaymatBackground theme={theme} />
 
-      {/* Top Header */}
-      <Header
-        onNewSetup={() => setIsSetupModalOpen(true)}
-        onResetCards={() => setCards([])}
-        hasCards={cards.length > 0}
-      />
+      {/* Top Header - Hidden in Fullscreen Mode */}
+      {!isFullscreen && (
+        <Header
+          onNewSetup={() => setIsSetupModalOpen(true)}
+          onResetCards={() => setCards([])}
+          hasCards={cards.length > 0}
+        />
+      )}
 
-      {/* Main Content Area */}
+      {/* Main Content Area: in Fullscreen occupies 100% height */}
       {cards.length === 0 ? (
         /* ================= EMPTY HOME SCREEN ================= */
         <div className="relative z-20 flex-1 flex flex-col items-center justify-center p-4">
           <EmptyCardSlot onClick={() => setIsSetupModalOpen(true)} />
         </div>
       ) : (
-        /* ================= CARDS ARENA VIEW ================= */
-        <div className="relative z-20 flex-1 flex flex-row flex-wrap items-center justify-center content-center gap-2 sm:gap-3 md:gap-4 lg:gap-6 px-3 py-2 overflow-y-auto max-h-[86vh]">
+        /* ================= CARDS ARENA VIEW (EXCLUSIVELY CARDS IN FULLSCREEN) ================= */
+        <div
+          className={`relative z-20 flex-1 flex flex-row flex-wrap items-center justify-center content-center gap-2 sm:gap-3 md:gap-4 lg:gap-6 px-3 py-2 overflow-y-auto ${
+            isFullscreen ? 'h-full max-h-screen w-full' : 'max-h-[86vh]'
+          }`}
+        >
           {cards.map((card, index) => (
             <TcgCard
               key={card.id}
               card={card}
               cardIndex={index}
               totalCards={cards.length}
+              isFullscreen={isFullscreen}
               onFlip={handleFlipCard}
               onRotate={handleRotateCard}
               onDelete={cards.length > 1 ? handleDeleteCard : undefined}
@@ -266,8 +305,25 @@ export default function HomeView() {
         </div>
       )}
 
-      {/* Bottom Floating Control Dock */}
-      {cards.length > 0 && (
+      {/* Discreet Exit Fullscreen Button in Fullscreen Mode */}
+      {isFullscreen && (
+        <div className="fixed top-3 right-3 z-50 opacity-20 hover:opacity-100 transition-opacity duration-300 pointer-events-auto">
+          <button
+            onClick={() => {
+              exitFullscreen();
+              sound.playClick(600);
+            }}
+            className="px-3 py-1.5 rounded-full bg-black/80 backdrop-blur-md border border-white/20 text-xs font-semibold text-slate-300 hover:text-white flex items-center gap-1.5 shadow-2xl active:scale-95 transition-all"
+            title="Vollbild beenden (Esc)"
+          >
+            <Minimize className="w-3.5 h-3.5" />
+            <span>Esc</span>
+          </button>
+        </div>
+      )}
+
+      {/* Bottom Floating Control Dock - Hidden in Fullscreen Mode */}
+      {!isFullscreen && cards.length > 0 && (
         <div className="fixed bottom-3 inset-x-0 z-40 flex items-center justify-center px-3 pointer-events-none">
           <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 p-2 rounded-2xl bg-black/85 backdrop-blur-xl border border-white/20 shadow-2xl">
             
@@ -389,9 +445,9 @@ export default function HomeView() {
             <button
               onClick={toggleFullscreen}
               className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white active:scale-95 transition-all"
-              title="Vollbildmodus"
+              title="Vollbildmodus aktivieren"
             >
-              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+              <Maximize className="w-4 h-4" />
             </button>
           </div>
         </div>

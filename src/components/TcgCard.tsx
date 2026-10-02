@@ -15,6 +15,7 @@ interface TcgCardProps {
   card: TcgCardData;
   cardIndex: number;
   totalCards: number;
+  isFullscreen?: boolean;
   onFlip: (id: string) => void;
   onRotate?: (id: string) => void;
   onDelete?: (id: string) => void;
@@ -26,6 +27,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
   card,
   cardIndex,
   totalCards,
+  isFullscreen = false,
   onFlip,
   onDelete,
   onUpdateFrontText,
@@ -56,13 +58,22 @@ export const TcgCard: React.FC<TcgCardProps> = ({
   const isMedium = totalCards > 4 && totalCards <= 8;
 
   const getWidthClass = () => {
+    if (isFullscreen) {
+      if (totalCards === 1) return 'w-[360px] sm:w-[440px] md:w-[480px] lg:w-[520px]';
+      if (totalCards === 2) return 'w-[320px] sm:w-[380px] md:w-[420px] lg:w-[460px]';
+      if (totalCards <= 4) return 'w-[240px] sm:w-[280px] md:w-[320px]';
+      if (totalCards <= 8) return 'w-[180px] sm:w-[210px] md:w-[240px]';
+      if (totalCards <= 16) return 'w-[135px] sm:w-[155px] md:w-[175px]';
+      if (totalCards <= 36) return 'w-[100px] sm:w-[115px] md:w-[130px]';
+      return 'w-[80px] sm:w-[90px] md:w-[105px]';
+    }
     if (totalCards === 1) return 'w-[320px] sm:w-[380px] md:w-[420px]';
     if (totalCards === 2) return 'w-[280px] sm:w-[320px] md:w-[360px] lg:w-[390px]';
     if (totalCards <= 4) return 'w-[210px] sm:w-[250px] md:w-[280px]';
     if (totalCards <= 8) return 'w-[160px] sm:w-[190px] md:w-[220px]';
     if (totalCards <= 16) return 'w-[125px] sm:w-[145px] md:w-[165px]';
     if (totalCards <= 36) return 'w-[95px] sm:w-[110px] md:w-[125px]';
-    return 'w-[75px] sm:w-[85px] md:w-[95px]'; // up to 100 cards
+    return 'w-[75px] sm:w-[85px] md:w-[95px]';
   };
 
   // 3D Tilt calculation
@@ -122,13 +133,12 @@ export const TcgCard: React.FC<TcgCardProps> = ({
     onUpdateBackNumber(card.id, next);
   };
 
-  // Background image: use the custom Manacards design
   const cardBgImage = '/images/manacards.jpg';
 
   return (
     <div className="flex flex-col items-center justify-center p-1 sm:p-1.5 select-none group/card">
-      {/* Top Mini Controls Bar (when <= 16 cards) */}
-      {!isMicro && !isMini && (
+      {/* Top Mini Controls Bar: Completely hidden in Fullscreen mode or when > 16 cards */}
+      {!isFullscreen && !isMicro && !isMini && (
         <div className={`w-full ${getWidthClass()} flex items-center justify-between px-1 mb-1.5`}>
           <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/10 text-[10px] font-semibold text-slate-300">
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
@@ -393,7 +403,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                       {backNumValue || '0'}
                     </span>
 
-                    {/* Stepper Buttons (when <= 16 cards) */}
+                    {/* Stepper Buttons (when <= 16 cards and not in minimal view) */}
                     {!isMicro && !isMini && (
                       <div className="flex items-center gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
                         <button
