@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect } from 'react';
 import { TcgCardData, PlaymatTheme } from '../types/card';
-import { PRESETS } from '../data/presets';
 import { TcgCard } from '../components/TcgCard';
 import { EmptyCardSlot } from '../components/EmptyCardSlot';
 import { CardSetupModal } from '../components/CardSetupModal';
@@ -20,13 +19,12 @@ import {
   VolumeX,
   Palette,
   Dices,
-  PlusCircle,
   Home,
   Layers,
 } from 'lucide-react';
 
-const STORAGE_KEY_CARDS = 'tcg_cards_custom_v2';
-const STORAGE_KEY_THEME = 'tcg_theme_v2';
+const STORAGE_KEY_CARDS = 'tcg_cards_custom_v3';
+const STORAGE_KEY_THEME = 'tcg_theme_v3';
 
 const SAMPLE_IMAGES = [
   'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop',
@@ -98,10 +96,11 @@ export default function HomeView() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [cards]);
 
-  // Create N cards
+  // Create N cards (up to 100)
   const handleGenerateCards = (count: number) => {
+    const safeCount = Math.max(1, Math.min(100, count));
     const newCards: TcgCardData[] = [];
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < safeCount; i++) {
       const img = SAMPLE_IMAGES[i % SAMPLE_IMAGES.length];
       newCards.push({
         id: 'card_' + (i + 1) + '_' + Date.now(),
@@ -110,16 +109,16 @@ export default function HomeView() {
         rotation: 0,
         borderStyle: i % 2 === 0 ? 'gold-border' : 'neon-cyan',
         front: {
-          title: `TCG Karte #${i + 1}`,
-          subtitle: 'Klicke zum Bearbeiten',
-          notes: 'Hier Text eingeben...',
+          title: `Karte #${i + 1}`,
+          subtitle: '',
+          notes: '',
           imageUrl: img,
           holoEffect: 'rainbow',
           counters: [],
         },
         back: {
           title: 'Rückseite',
-          subtitle: 'Zahlen & Werte',
+          subtitle: '',
           notes: '',
           imageUrl: SAMPLE_IMAGES[(i + 2) % SAMPLE_IMAGES.length],
           holoEffect: 'cosmo',
@@ -127,7 +126,7 @@ export default function HomeView() {
             {
               id: 'cnt_1',
               label: 'Wert',
-              value: (i + 1) * 100,
+              value: i + 1,
               step: 1,
             },
           ],
@@ -247,7 +246,7 @@ export default function HomeView() {
       {/* Dynamic Background */}
       <PlaymatBackground theme={theme} />
 
-      {/* Top Header (Clean - No Logo on Left) */}
+      {/* Top Header */}
       <Header
         onNewSetup={() => setIsSetupModalOpen(true)}
         onResetCards={() => setCards([])}
@@ -261,8 +260,8 @@ export default function HomeView() {
           <EmptyCardSlot onClick={() => setIsSetupModalOpen(true)} />
         </div>
       ) : (
-        /* ================= CARDS ARENA VIEW ================= */
-        <div className="relative z-20 flex-1 flex flex-row flex-wrap items-center justify-center gap-4 sm:gap-6 md:gap-8 lg:gap-12 px-4 py-2 overflow-y-auto max-h-[85vh]">
+        /* ================= CARDS ARENA VIEW (DYNAMIALLY SCALED UP TO 100) ================= */
+        <div className="relative z-20 flex-1 flex flex-row flex-wrap items-center justify-center content-center gap-2 sm:gap-3 md:gap-4 lg:gap-6 px-3 py-2 overflow-y-auto max-h-[86vh]">
           {cards.map((card, index) => (
             <TcgCard
               key={card.id}
@@ -282,7 +281,7 @@ export default function HomeView() {
       {/* Bottom Floating Control Dock */}
       {cards.length > 0 && (
         <div className="fixed bottom-3 inset-x-0 z-40 flex items-center justify-center px-3 pointer-events-none">
-          <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 p-2 rounded-2xl bg-black/80 backdrop-blur-xl border border-white/20 shadow-2xl">
+          <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 p-2 rounded-2xl bg-black/85 backdrop-blur-xl border border-white/20 shadow-2xl">
             
             {/* Flip All Cards */}
             <button
@@ -294,10 +293,10 @@ export default function HomeView() {
               title="Alle Karten gleichzeitig umdrehen"
             >
               <RotateCcw className="w-4 h-4" />
-              <span>Alle umdrehen</span>
+              <span>Alle umdrehen ({cards.length})</span>
             </button>
 
-            {/* Swap Order (if >= 2 cards) */}
+            {/* Swap Order */}
             {cards.length > 1 && (
               <button
                 onClick={() => {
@@ -305,7 +304,7 @@ export default function HomeView() {
                   handleSwapCards();
                 }}
                 className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white active:scale-95 transition-all"
-                title="Kartenreihenfolge tauschen"
+                title="Kartenreihenfolge umkehren"
               >
                 <ArrowLeftRight className="w-4 h-4 text-cyan-400" />
               </button>
@@ -410,7 +409,7 @@ export default function HomeView() {
         </div>
       )}
 
-      {/* Card Setup Modal */}
+      {/* Card Setup Modal (1 to 100 cards) */}
       <CardSetupModal
         isOpen={isSetupModalOpen}
         onClose={() => setIsSetupModalOpen(false)}
