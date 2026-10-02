@@ -2,273 +2,423 @@
 
 import React, { useState, useEffect } from 'react';
 import { TcgCardData, PlaymatTheme } from '../types/card';
-import { PRESETS, TcgPreset } from '../data/presets';
+import { PRESETS } from '../data/presets';
 import { TcgCard } from '../components/TcgCard';
+import { EmptyCardSlot } from '../components/EmptyCardSlot';
+import { CardSetupModal } from '../components/CardSetupModal';
 import { PlaymatBackground } from '../components/PlaymatBackground';
-import { ControlToolbar } from '../components/ControlToolbar';
-import { CardEditorModal } from '../components/CardEditorModal';
-import { PresetsModal } from '../components/PresetsModal';
-import { DiceCoinTool } from '../components/DiceCoinTool';
 import { Header } from '../components/Header';
+import { DiceCoinTool } from '../components/DiceCoinTool';
 import { sound } from '../utils/sound';
 import confetti from 'canvas-confetti';
+import {
+  RotateCcw,
+  ArrowLeftRight,
+  Maximize,
+  Minimize,
+  Volume2,
+  VolumeX,
+  Palette,
+  Dices,
+  PlusCircle,
+  Home,
+  Layers,
+} from 'lucide-react';
 
-const STORAGE_KEY_CARDS = 'tcg_cards_v1';
-const STORAGE_KEY_THEME = 'tcg_theme_v1';
+const STORAGE_KEY_CARDS = 'tcg_cards_custom_v2';
+const STORAGE_KEY_THEME = 'tcg_theme_v2';
 
-export default function Home() {
-  const [cards, setCards] = useState<[TcgCardData, TcgCardData]>(() => {
-    const defaultPreset = PRESETS[0];
-    return [defaultPreset.card1, defaultPreset.card2];
-  });
+const SAMPLE_IMAGES = [
+  'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?q=80&w=1000&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=1000&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1000&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=1000&auto=format&fit=crop',
+  'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?q=80&w=1000&auto=format&fit=crop',
+];
 
+export default function HomeView() {
+  const [cards, setCards] = useState<TcgCardData[]>([]);
+  const [hasInitialized, setHasInitialized] = useState(false);
   const [theme, setTheme] = useState<PlaymatTheme>('dark-carbon');
-  const [isEditMode, setIsEditMode] = useState(false);
-
-  // Modals state
-  const [editorCard, setEditorCard] = useState<TcgCardData | null>(null);
-  const [editorSide, setEditorSide] = useState<'front' | 'back'>('front');
-  const [isEditorOpen, setIsEditorOpen] = useState(false);
-  const [isPresetsOpen, setIsPresetsOpen] = useState(false);
+  const [isSetupModalOpen, setIsSetupModalOpen] = useState(false);
   const [isToolsOpen, setIsToolsOpen] = useState(false);
+  const [isMuted, setIsMuted] = useState(sound.getMuted());
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
 
-  // Load from LocalStorage on mount
+  // Load from LocalStorage
   useEffect(() => {
     try {
       const savedCards = localStorage.getItem(STORAGE_KEY_CARDS);
       if (savedCards) {
         const parsed = JSON.parse(savedCards);
-        if (Array.isArray(parsed) && parsed.length === 2) {
-          setCards(parsed as [TcgCardData, TcgCardData]);
+        if (Array.isArray(parsed)) {
+          setCards(parsed);
         }
       }
-
       const savedTheme = localStorage.getItem(STORAGE_KEY_THEME) as PlaymatTheme | null;
       if (savedTheme) {
         setTheme(savedTheme);
       }
     } catch (e) {
-      console.warn('Failed to load saved state from localStorage', e);
+      console.warn('LocalStorage load error', e);
+    } finally {
+      setHasInitialized(true);
     }
   }, []);
 
-  // Save to LocalStorage on change
+  // Save to LocalStorage
   useEffect(() => {
+    if (!hasInitialized) return;
     try {
       localStorage.setItem(STORAGE_KEY_CARDS, JSON.stringify(cards));
       localStorage.setItem(STORAGE_KEY_THEME, theme);
     } catch (e) {
-      console.warn('Failed to save state to localStorage', e);
+      console.warn('LocalStorage save error', e);
     }
-  }, [cards, theme]);
+  }, [cards, theme, hasInitialized]);
 
-  // Keyboard shortcuts for convenience
+  // Keyboard Shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if user is currently typing in an input / textarea
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
       if (e.code === 'Space') {
         e.preventDefault();
         sound.playCardFlip();
-        handleFlipBoth();
-      } else if (e.key === '1') {
-        sound.playCardFlip();
-        handleFlipCard(cards[0].id);
-      } else if (e.key === '2') {
-        sound.playCardFlip();
-        handleFlipCard(cards[1].id);
-      } else if (e.key.toLowerCase() === 'e') {
-        setIsEditMode((prev) => !prev);
-      } else if (e.key.toLowerCase() === 'c') {
+        handleFlipAll();
+      } else if (e.key === 'c' || e.key === 'C') {
         sound.playShimmer();
         confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
       }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [cards]);
 
-  // Flip a single card
+  // Create N cards
+  const handleGenerateCards = (count: number) => {
+    const newCards: TcgCardData[] = [];
+    for (let i = 0; i < count; i++) {
+      const img = SAMPLE_IMAGES[i % SAMPLE_IMAGES.length];
+      newCards.push({
+        id: 'card_' + (i + 1) + '_' + Date.now(),
+        name: `TCG Karte #${i + 1}`,
+        isFlipped: false,
+        rotation: 0,
+        borderStyle: i % 2 === 0 ? 'gold-border' : 'neon-cyan',
+        front: {
+          title: `TCG Karte #${i + 1}`,
+          subtitle: 'Klicke zum Bearbeiten',
+          notes: 'Hier Text eingeben...',
+          imageUrl: img,
+          holoEffect: 'rainbow',
+          counters: [],
+        },
+        back: {
+          title: 'Rückseite',
+          subtitle: 'Zahlen & Werte',
+          notes: '',
+          imageUrl: SAMPLE_IMAGES[(i + 2) % SAMPLE_IMAGES.length],
+          holoEffect: 'cosmo',
+          counters: [
+            {
+              id: 'cnt_1',
+              label: 'Wert',
+              value: (i + 1) * 100,
+              step: 1,
+            },
+          ],
+        },
+      });
+    }
+    setCards(newCards);
+  };
+
+  // Flip Single Card
   const handleFlipCard = (cardId: string) => {
     setCards((prev) =>
-      prev.map((c) => (c.id === cardId ? { ...c, isFlipped: !c.isFlipped } : c)) as [
-        TcgCardData,
-        TcgCardData
-      ]
+      prev.map((c) => (c.id === cardId ? { ...c, isFlipped: !c.isFlipped } : c))
     );
   };
 
-  // Rotate a card by 90 degrees (tapped/exhausted state in TCGs)
+  // Flip All Cards
+  const handleFlipAll = () => {
+    setCards((prev) => prev.map((c) => ({ ...c, isFlipped: !c.isFlipped })));
+  };
+
+  // Rotate Card (90 deg)
   const handleRotateCard = (cardId: string) => {
     setCards((prev) =>
       prev.map((c) =>
         c.id === cardId ? { ...c, rotation: (c.rotation + 90) % 360 } : c
-      ) as [TcgCardData, TcgCardData]
+      )
     );
   };
 
-  // Flip both cards simultaneously
-  const handleFlipBoth = () => {
+  // Delete Single Card
+  const handleDeleteCard = (cardId: string) => {
+    setCards((prev) => prev.filter((c) => c.id !== cardId));
+  };
+
+  // Update Front Text
+  const handleUpdateFrontText = (cardId: string, text: string, title?: string) => {
     setCards((prev) =>
-      prev.map((c) => ({ ...c, isFlipped: !c.isFlipped })) as [
-        TcgCardData,
-        TcgCardData
-      ]
+      prev.map((c) => {
+        if (c.id !== cardId) return c;
+        return {
+          ...c,
+          front: {
+            ...c.front,
+            notes: text,
+            title: title || c.front.title,
+          },
+        };
+      })
     );
   };
 
-  // Swap Left & Right cards
+  // Update Back Number
+  const handleUpdateBackNumber = (cardId: string, numberValue: number, label?: string) => {
+    setCards((prev) =>
+      prev.map((c) => {
+        if (c.id !== cardId) return c;
+        const currentCounter = c.back.counters[0] || { id: 'c1', label: 'Wert', value: 0 };
+        return {
+          ...c,
+          back: {
+            ...c.back,
+            counters: [
+              {
+                ...currentCounter,
+                value: numberValue,
+                label: label !== undefined ? label : currentCounter.label,
+              },
+            ],
+          },
+        };
+      })
+    );
+  };
+
+  // Swap first two cards or reverse order
   const handleSwapCards = () => {
-    setCards(([c1, c2]) => [c2, c1]);
+    setCards((prev) => [...prev].reverse());
   };
 
-  // Reset to default Follower Special preset
-  const handleResetAll = () => {
-    const defaultPreset = PRESETS[0];
-    setCards([
-      { ...defaultPreset.card1, isFlipped: false, rotation: 0 },
-      { ...defaultPreset.card2, isFlipped: false, rotation: 0 },
-    ]);
+  const toggleMute = () => {
+    const next = !isMuted;
+    setIsMuted(next);
+    sound.setMuted(next);
+    if (!next) sound.playClick(700);
   };
 
-  // Counter delta update (+ / -)
-  const handleUpdateCounter = (
-    cardId: string,
-    side: 'front' | 'back',
-    counterId: string,
-    delta: number
-  ) => {
-    setCards((prev) =>
-      prev.map((card) => {
-        if (card.id !== cardId) return card;
-        const sideData = card[side];
-        const updatedCounters = sideData.counters.map((cnt) => {
-          if (cnt.id !== counterId) return cnt;
-          const nextVal = cnt.value + delta;
-          const clamped = cnt.min !== undefined ? Math.max(cnt.min, nextVal) : nextVal;
-          return { ...cnt, value: clamped };
-        });
-        return {
-          ...card,
-          [side]: {
-            ...sideData,
-            counters: updatedCounters,
-          },
-        };
-      }) as [TcgCardData, TcgCardData]
-    );
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+        setIsFullscreen(true);
+        sound.playClick(800);
+      } else {
+        if (document.exitFullscreen) {
+          await document.exitFullscreen();
+          setIsFullscreen(false);
+          sound.playClick(600);
+        }
+      }
+    } catch (e) {
+      console.warn('Fullscreen request failed', e);
+      alert('Tipp: Auf dem iPad im Safari Teilen-Menü "Zum Home-Bildschirm" wählen, um die App im echten randlosen Fullscreen-Modus zu nutzen!');
+    }
   };
 
-  // Set counter direct number
-  const handleSetCounterValue = (
-    cardId: string,
-    side: 'front' | 'back',
-    counterId: string,
-    value: number
-  ) => {
-    setCards((prev) =>
-      prev.map((card) => {
-        if (card.id !== cardId) return card;
-        const sideData = card[side];
-        const updatedCounters = sideData.counters.map((cnt) => {
-          if (cnt.id !== counterId) return cnt;
-          return { ...cnt, value };
-        });
-        return {
-          ...card,
-          [side]: {
-            ...sideData,
-            counters: updatedCounters,
-          },
-        };
-      }) as [TcgCardData, TcgCardData]
-    );
-  };
-
-  // Open Editor
-  const handleOpenEdit = (card: TcgCardData, side: 'front' | 'back') => {
-    setEditorCard(card);
-    setEditorSide(side);
-    setIsEditorOpen(true);
-  };
-
-  // Save Card from Editor
-  const handleSaveCard = (updatedCard: TcgCardData) => {
-    setCards((prev) =>
-      prev.map((c) => (c.id === updatedCard.id ? updatedCard : c)) as [
-        TcgCardData,
-        TcgCardData
-      ]
-    );
-  };
-
-  // Select Preset
-  const handleSelectPreset = (preset: TcgPreset) => {
-    setCards([
-      { ...preset.card1, isFlipped: false, rotation: 0 },
-      { ...preset.card2, isFlipped: false, rotation: 0 },
-    ]);
-  };
+  const THEMES: { id: PlaymatTheme; label: string; color: string }[] = [
+    { id: 'dark-carbon', label: 'Dark Carbon', color: 'bg-zinc-800' },
+    { id: 'felt-green', label: 'Felt Green', color: 'bg-emerald-800' },
+    { id: 'cyber-neon', label: 'Cyber Neon', color: 'bg-cyan-700' },
+    { id: 'mystic-violet', label: 'Mystic Galaxy', color: 'bg-purple-800' },
+    { id: 'wood-mahogany', label: 'Wood Table', color: 'bg-amber-900' },
+  ];
 
   return (
     <main className="relative w-screen h-screen overflow-hidden flex flex-col justify-between bg-black select-none">
-      {/* Dynamic Themed Playmat Background */}
+      {/* Dynamic Background */}
       <PlaymatBackground theme={theme} />
 
-      {/* Top Header */}
-      <Header />
-
-      {/* Center Dual Cards Arena */}
-      <div className="relative z-20 flex-1 flex flex-col lg:flex-row items-center justify-center gap-6 sm:gap-10 lg:gap-16 px-4 py-2 overflow-y-auto lg:overflow-visible">
-        {cards.map((card, index) => (
-          <TcgCard
-            key={card.id}
-            card={card}
-            cardIndex={index}
-            isEditMode={isEditMode}
-            onFlip={handleFlipCard}
-            onRotate={handleRotateCard}
-            onEdit={handleOpenEdit}
-            onUpdateCounter={handleUpdateCounter}
-            onSetCounterValue={handleSetCounterValue}
-          />
-        ))}
-      </div>
-
-      {/* Spacer for bottom toolbar */}
-      <div className="h-16 w-full pointer-events-none" />
-
-      {/* Floating Bottom Control Toolbar */}
-      <ControlToolbar
-        isEditMode={isEditMode}
-        onToggleEditMode={() => setIsEditMode(!isEditMode)}
-        onFlipBoth={handleFlipBoth}
-        onSwapCards={handleSwapCards}
-        onResetAll={handleResetAll}
-        currentTheme={theme}
-        onChangeTheme={setTheme}
-        onOpenPresets={() => setIsPresetsOpen(true)}
-        onOpenTools={() => setIsToolsOpen(true)}
+      {/* Top Header (Clean - No Logo on Left) */}
+      <Header
+        onNewSetup={() => setIsSetupModalOpen(true)}
+        onResetCards={() => setCards([])}
+        hasCards={cards.length > 0}
       />
 
-      {/* Modals & Dialogs */}
-      <CardEditorModal
-        card={editorCard}
-        initialSide={editorSide}
-        isOpen={isEditorOpen}
-        onClose={() => setIsEditorOpen(false)}
-        onSave={handleSaveCard}
+      {/* Main Content Area */}
+      {cards.length === 0 ? (
+        /* ================= EMPTY HOME SCREEN ================= */
+        <div className="relative z-20 flex-1 flex flex-col items-center justify-center p-4">
+          <EmptyCardSlot onClick={() => setIsSetupModalOpen(true)} />
+        </div>
+      ) : (
+        /* ================= CARDS ARENA VIEW ================= */
+        <div className="relative z-20 flex-1 flex flex-row flex-wrap items-center justify-center gap-4 sm:gap-6 md:gap-8 lg:gap-12 px-4 py-2 overflow-y-auto max-h-[85vh]">
+          {cards.map((card, index) => (
+            <TcgCard
+              key={card.id}
+              card={card}
+              cardIndex={index}
+              totalCards={cards.length}
+              onFlip={handleFlipCard}
+              onRotate={handleRotateCard}
+              onDelete={cards.length > 1 ? handleDeleteCard : undefined}
+              onUpdateFrontText={handleUpdateFrontText}
+              onUpdateBackNumber={handleUpdateBackNumber}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Bottom Floating Control Dock */}
+      {cards.length > 0 && (
+        <div className="fixed bottom-3 inset-x-0 z-40 flex items-center justify-center px-3 pointer-events-none">
+          <div className="pointer-events-auto flex items-center gap-1.5 sm:gap-2 p-2 rounded-2xl bg-black/80 backdrop-blur-xl border border-white/20 shadow-2xl">
+            
+            {/* Flip All Cards */}
+            <button
+              onClick={() => {
+                sound.playCardFlip();
+                handleFlipAll();
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs shadow-md active:scale-95 transition-all"
+              title="Alle Karten gleichzeitig umdrehen"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Alle umdrehen</span>
+            </button>
+
+            {/* Swap Order (if >= 2 cards) */}
+            {cards.length > 1 && (
+              <button
+                onClick={() => {
+                  sound.playClick(600);
+                  handleSwapCards();
+                }}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white active:scale-95 transition-all"
+                title="Kartenreihenfolge tauschen"
+              >
+                <ArrowLeftRight className="w-4 h-4 text-cyan-400" />
+              </button>
+            )}
+
+            {/* Adjust Card Setup / Count */}
+            <button
+              onClick={() => {
+                sound.playClick(600);
+                setIsSetupModalOpen(true);
+              }}
+              className="flex items-center gap-1 px-2.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold active:scale-95 transition-all"
+              title="Kartenanzahl ändern"
+            >
+              <Layers className="w-4 h-4 text-yellow-400" />
+              <span className="hidden sm:inline">Anzahl ({cards.length})</span>
+            </button>
+
+            {/* Dice & Coin Tools */}
+            <button
+              onClick={() => {
+                sound.playClick(700);
+                setIsToolsOpen(true);
+              }}
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-yellow-400 active:scale-95 transition-all"
+              title="Würfel & Münzwurf Tool"
+            >
+              <Dices className="w-4 h-4" />
+            </button>
+
+            {/* Playmat Theme Selector */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  sound.playClick(500);
+                  setShowThemeMenu(!showThemeMenu);
+                }}
+                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-emerald-400 active:scale-95 transition-all"
+                title="Hintergrund Design ändern"
+              >
+                <Palette className="w-4 h-4" />
+              </button>
+
+              {showThemeMenu && (
+                <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-44 bg-stone-900 border border-white/20 rounded-xl p-2 shadow-2xl space-y-1">
+                  {THEMES.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => {
+                        setTheme(t.id);
+                        setShowThemeMenu(false);
+                        sound.playClick(600);
+                      }}
+                      className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                        theme === t.id
+                          ? 'bg-yellow-400/20 text-yellow-300 font-bold'
+                          : 'text-slate-300 hover:bg-white/10'
+                      }`}
+                    >
+                      <span className={`w-3 h-3 rounded-full ${t.color}`} />
+                      <span>{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Sound Toggle */}
+            <button
+              onClick={toggleMute}
+              className={`p-2 rounded-xl transition-all active:scale-95 ${
+                isMuted ? 'bg-rose-500/20 text-rose-400' : 'bg-white/10 text-white hover:bg-white/20'
+              }`}
+              title={isMuted ? 'Sound an' : 'Sound aus'}
+            >
+              {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4 text-emerald-400" />}
+            </button>
+
+            {/* Home Screen / Clear Cards */}
+            <button
+              onClick={() => {
+                if (confirm('Zurück zum Home-Screen?')) {
+                  sound.playClick(400);
+                  setCards([]);
+                }
+              }}
+              className="p-2 rounded-xl bg-white/10 hover:bg-rose-500/20 text-slate-300 hover:text-rose-400 active:scale-95 transition-all"
+              title="Zurück zum leeren Home-Screen"
+            >
+              <Home className="w-4 h-4" />
+            </button>
+
+            {/* Fullscreen Toggle */}
+            <button
+              onClick={toggleFullscreen}
+              className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white active:scale-95 transition-all"
+              title="Vollbildmodus"
+            >
+              {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Card Setup Modal */}
+      <CardSetupModal
+        isOpen={isSetupModalOpen}
+        onClose={() => setIsSetupModalOpen(false)}
+        onConfirm={handleGenerateCards}
+        initialCount={cards.length > 0 ? cards.length : 2}
       />
 
-      <PresetsModal
-        isOpen={isPresetsOpen}
-        onClose={() => setIsPresetsOpen(false)}
-        onSelectPreset={handleSelectPreset}
-      />
-
+      {/* Dice & Coin Tool Modal */}
       <DiceCoinTool
         isOpen={isToolsOpen}
         onClose={() => setIsToolsOpen(false)}
