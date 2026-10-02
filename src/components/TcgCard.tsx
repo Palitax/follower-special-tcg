@@ -6,13 +6,9 @@ import { TcgCardData } from '../types/card';
 import { sound } from '../utils/sound';
 import {
   RotateCcw,
-  Sparkles,
-  RotateCw,
-  Plus,
   Minus,
+  Plus,
   Trash2,
-  Type,
-  Hash,
 } from 'lucide-react';
 
 interface TcgCardProps {
@@ -20,10 +16,10 @@ interface TcgCardProps {
   cardIndex: number;
   totalCards: number;
   onFlip: (id: string) => void;
-  onRotate: (id: string) => void;
+  onRotate?: (id: string) => void;
   onDelete?: (id: string) => void;
-  onUpdateFrontText: (id: string, text: string, title?: string) => void;
-  onUpdateBackNumber: (id: string, numberValue: number, label?: string) => void;
+  onUpdateFrontText: (id: string, text: string) => void;
+  onUpdateBackNumber: (id: string, numberValue: number) => void;
 }
 
 export const TcgCard: React.FC<TcgCardProps> = ({
@@ -31,7 +27,6 @@ export const TcgCard: React.FC<TcgCardProps> = ({
   cardIndex,
   totalCards,
   onFlip,
-  onRotate,
   onDelete,
   onUpdateFrontText,
   onUpdateBackNumber,
@@ -45,23 +40,20 @@ export const TcgCard: React.FC<TcgCardProps> = ({
   });
   const [isInteracting, setIsInteracting] = useState(false);
 
-  // Inline editing states for Front Text
+  // Inline editing states for Front Text (ausschließlich Text)
   const [isEditingFront, setIsEditingFront] = useState(false);
   const [frontTextValue, setFrontTextValue] = useState(card.front.notes || '');
-  const [frontTitleValue, setFrontTitleValue] = useState(card.front.title || `Karte #${cardIndex + 1}`);
 
-  // Inline editing states for Back Number
+  // Inline editing states for Back Number (ausschließlich Zahl)
   const [isEditingBackNum, setIsEditingBackNum] = useState(false);
-  const backCounter = card.back.counters[0] || { id: 'c1', label: 'Zahl', value: cardIndex + 1 };
+  const backCounter = card.back.counters[0] || { id: 'c1', label: '', value: cardIndex + 1 };
   const [backNumValue, setBackNumValue] = useState<string>(backCounter.value.toString());
-  const [backLabelValue, setBackLabelValue] = useState<string>(backCounter.label || 'Wert');
 
-  // Determine size tier based on total cards
+  // Dynamic responsive card sizing
   const isMicro = totalCards > 36;
   const isMini = totalCards > 16 && totalCards <= 36;
   const isSmall = totalCards > 8 && totalCards <= 16;
   const isMedium = totalCards > 4 && totalCards <= 8;
-  const isLarge = totalCards <= 4;
 
   const getWidthClass = () => {
     if (totalCards === 1) return 'w-[320px] sm:w-[380px] md:w-[420px]';
@@ -70,7 +62,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
     if (totalCards <= 8) return 'w-[160px] sm:w-[190px] md:w-[220px]';
     if (totalCards <= 16) return 'w-[125px] sm:w-[145px] md:w-[165px]';
     if (totalCards <= 36) return 'w-[95px] sm:w-[110px] md:w-[125px]';
-    return 'w-[75px] sm:w-[85px] md:w-[95px]'; // 37 to 100 cards
+    return 'w-[75px] sm:w-[85px] md:w-[95px]'; // up to 100 cards
   };
 
   // 3D Tilt calculation
@@ -110,7 +102,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
 
   const handleSaveFront = () => {
     setIsEditingFront(false);
-    onUpdateFrontText(card.id, frontTextValue, frontTitleValue);
+    onUpdateFrontText(card.id, frontTextValue);
     sound.playClick(800, 0.05);
   };
 
@@ -118,7 +110,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
     setIsEditingBackNum(false);
     const parsed = parseInt(backNumValue, 10);
     const finalVal = isNaN(parsed) ? 0 : parsed;
-    onUpdateBackNumber(card.id, finalVal, backLabelValue);
+    onUpdateBackNumber(card.id, finalVal);
     sound.playClick(850, 0.05);
   };
 
@@ -127,17 +119,20 @@ export const TcgCard: React.FC<TcgCardProps> = ({
     const current = parseInt(backNumValue, 10) || 0;
     const next = current + delta;
     setBackNumValue(next.toString());
-    onUpdateBackNumber(card.id, next, backLabelValue);
+    onUpdateBackNumber(card.id, next);
   };
+
+  // Background image: use the custom Manacards design
+  const cardBgImage = '/images/manacards.jpg';
 
   return (
     <div className="flex flex-col items-center justify-center p-1 sm:p-1.5 select-none group/card">
-      {/* Top Mini Controls Bar (only shown when cards <= 16 for clean layout) */}
+      {/* Top Mini Controls Bar (when <= 16 cards) */}
       {!isMicro && !isMini && (
         <div className={`w-full ${getWidthClass()} flex items-center justify-between px-1 mb-1.5`}>
           <div className="flex items-center gap-1 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full border border-white/10 text-[10px] font-semibold text-slate-300">
-            <span className="w-1.5 h-1.5 rounded-full bg-yellow-400" />
-            <span>#{cardIndex + 1}</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+            <span>#{cardIndex + 1} {card.isFlipped ? '(Zahl)' : '(Text)'}</span>
           </div>
 
           <div className="flex items-center gap-1">
@@ -147,8 +142,8 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                 sound.playCardFlip();
                 onFlip(card.id);
               }}
-              title="Umdrehen"
-              className="p-1 rounded-full bg-amber-500/80 hover:bg-amber-400 text-black font-bold active:scale-95 transition-all text-[10px]"
+              title="Karte umdrehen"
+              className="p-1 rounded-full bg-cyan-500/80 hover:bg-cyan-400 text-black font-bold active:scale-95 transition-all text-[10px]"
             >
               <RotateCcw className="w-3 h-3" />
             </button>
@@ -173,7 +168,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
       <motion.div
         animate={{
           y: isMicro ? [-2, 2, -2] : [-4, 4, -4],
-          rotate: isMicro ? [-0.2, 0.2, -0.2] : [-0.4, 0.4, -0.4],
+          rotate: isMicro ? [-0.2, 0.2, -0.2] : [-0.3, 0.3, -0.3],
         }}
         transition={{
           duration: 4 + (cardIndex % 4) * 0.5,
@@ -184,6 +179,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
         className={`perspective-container relative touch-manipulation cursor-pointer ${getWidthClass()}`}
         style={{
           aspectRatio: '5 / 7',
+          perspective: '1200px',
         }}
         onPointerMove={handlePointerMove}
         onPointerEnter={() => setIsInteracting(true)}
@@ -195,195 +191,166 @@ export const TcgCard: React.FC<TcgCardProps> = ({
       >
         <motion.div
           ref={cardRef}
-          className="w-full h-full relative preserve-3d rounded-[14px] sm:rounded-[18px] md:rounded-[22px]"
+          className="w-full h-full relative rounded-[14px] sm:rounded-[18px] md:rounded-[22px]"
           animate={{
             rotateY: card.isFlipped ? 180 : 0,
-            rotateZ: card.rotation,
             rotateX: isInteracting ? tilt.x : 0,
           }}
           transition={{
-            rotateY: { duration: 0.55, ease: [0.23, 1, 0.32, 1] },
-            rotateZ: { duration: 0.3, ease: 'easeOut' },
+            rotateY: { duration: 0.6, ease: [0.23, 1, 0.32, 1] },
             rotateX: { duration: 0.1, ease: 'easeOut' },
           }}
           style={{
             transformStyle: 'preserve-3d',
-            filter: 'drop-shadow(0 12px 20px rgba(0, 0, 0, 0.6))',
+            filter: 'drop-shadow(0 15px 25px rgba(0, 0, 0, 0.75))',
           }}
         >
           {/* ======================================================== */}
-          {/* FRONT FACE                                               */}
+          {/* SEITE 1 (FRONT): AUSSCHLIESSLICH TEXT                    */}
           {/* ======================================================== */}
           <div
-            className={`absolute inset-0 w-full h-full rounded-[12px] sm:rounded-[16px] md:rounded-[20px] overflow-hidden backface-hidden border border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.15)] bg-gradient-to-b from-stone-900 via-neutral-900 to-black flex flex-col justify-between ${
-              isMicro ? 'p-1.5' : isMini ? 'p-2' : isSmall ? 'p-2.5' : 'p-3.5'
+            className={`absolute inset-0 w-full h-full rounded-[14px] sm:rounded-[18px] md:rounded-[22px] overflow-hidden border-2 border-purple-900/60 shadow-[0_0_20px_rgba(139,92,246,0.2)] bg-stone-950 flex flex-col justify-center items-center ${
+              isMicro ? 'p-1' : isMini ? 'p-1.5' : isSmall ? 'p-2' : 'p-3'
             }`}
-            style={{ transform: 'rotateY(0deg)' }}
+            style={{
+              transform: 'rotateY(0deg)',
+              transformStyle: 'preserve-3d',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+            }}
           >
-            {/* Background Texture */}
-            {card.front.imageUrl && (
-              <div
-                className="absolute inset-0 w-full h-full bg-cover bg-center opacity-35 transition-transform duration-700 pointer-events-none"
-                style={{
-                  backgroundImage: `url(${card.front.imageUrl})`,
-                  transform: isInteracting ? 'scale(1.05)' : 'scale(1)',
-                }}
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-black/90 pointer-events-none" />
+            {/* Custom ManaCards Background Image */}
+            <div
+              className="absolute inset-0 w-full h-full bg-cover bg-center transition-transform duration-500 pointer-events-none"
+              style={{
+                backgroundImage: `url(${cardBgImage})`,
+                transform: isInteracting ? 'scale(1.03)' : 'scale(1)',
+              }}
+            />
 
-            {/* Holo Glare */}
+            {/* Subtle Vignette */}
+            <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+
+            {/* Holo Light Glare */}
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
-                background: `radial-gradient(circle at ${tilt.glareX}% ${tilt.glareY}%, rgba(255, 255, 255, ${
-                  isInteracting ? '0.25' : '0.05'
+                background: `radial-gradient(circle at ${tilt.glareX}% ${tilt.glareY}%, rgba(147, 197, 253, ${
+                  isInteracting ? '0.3' : '0.06'
                 }) 0%, transparent 60%)`,
               }}
             />
 
-            {/* Top Bar */}
-            <div className="relative z-10 flex items-center justify-between">
-              <span className={`font-black uppercase rounded bg-yellow-500/20 text-yellow-300 border border-yellow-500/30 ${
-                isMicro ? 'text-[7px] px-1' : isMini ? 'text-[8px] px-1' : 'text-[10px] px-2 py-0.5'
-              }`}>
-                #{cardIndex + 1}
-              </span>
-              {!isMicro && (
-                <Sparkles className={`text-yellow-400 animate-pulse ${isMini ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'}`} />
-              )}
-            </div>
-
-            {/* Dashed Text Area on Hover */}
-            <div className="relative z-10 my-auto py-1">
+            {/* Center Area: Dashed Editable Text Box */}
+            <div className="relative z-10 w-full px-1 flex flex-col items-center justify-center">
               <div
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsEditingFront(true);
                   sound.playClick(600);
                 }}
-                className={`w-full rounded-xl border-2 border-dashed transition-all cursor-text ${
+                className={`w-full max-w-[92%] rounded-xl border-2 border-dashed transition-all cursor-text flex flex-col items-center justify-center ${
                   isEditingFront
-                    ? 'border-yellow-400 bg-black/95 shadow-xl ring-1 ring-yellow-400/40 p-2'
-                    : 'border-white/25 hover:border-yellow-400/80 bg-black/50 hover:bg-black/75 p-1.5 sm:p-2'
+                    ? 'border-cyan-400 bg-black/95 shadow-2xl ring-2 ring-cyan-400/40 p-2.5'
+                    : 'border-white/30 hover:border-cyan-400/90 bg-black/60 hover:bg-black/80 shadow-lg p-2 sm:p-2.5 backdrop-blur-sm'
                 }`}
-                title="Klicke hier, um den Kartentext zu bearbeiten"
+                title="Klicke hier, um den Text einzugeben"
               >
                 {isEditingFront ? (
-                  <div className="space-y-1.5">
-                    <input
-                      type="text"
+                  <div className="space-y-1.5 w-full">
+                    <textarea
+                      rows={3}
                       autoFocus
-                      value={frontTitleValue}
-                      onChange={(e) => setFrontTitleValue(e.target.value)}
-                      placeholder="Titel..."
-                      className="w-full px-1.5 py-0.5 bg-white/10 border border-yellow-400/50 rounded text-xs font-black text-yellow-300 focus:outline-none"
+                      value={frontTextValue}
+                      onChange={(e) => setFrontTextValue(e.target.value)}
+                      placeholder="Text hier eingeben..."
+                      className="w-full px-2 py-1 bg-white/10 border border-cyan-400/60 rounded text-xs sm:text-sm text-cyan-200 focus:outline-none resize-none font-medium text-center"
                     />
-                    {!isMicro && !isMini && (
-                      <textarea
-                        rows={2}
-                        value={frontTextValue}
-                        onChange={(e) => setFrontTextValue(e.target.value)}
-                        placeholder="Text..."
-                        className="w-full px-1.5 py-0.5 bg-white/10 border border-white/20 rounded text-[11px] text-white focus:outline-none resize-none"
-                      />
-                    )}
-                    <div className="flex justify-end gap-1">
+                    <div className="flex justify-center">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleSaveFront();
                         }}
-                        className="px-2 py-0.5 bg-yellow-400 hover:bg-yellow-300 text-black font-bold rounded text-[10px]"
+                        className="px-3 py-1 bg-cyan-400 hover:bg-cyan-300 text-black font-extrabold rounded-lg text-xs active:scale-95"
                       >
-                        OK
+                        Speichern
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="text-center space-y-0.5">
-                    <h3 className={`font-extrabold text-yellow-300 drop-shadow line-clamp-1 ${
-                      isMicro ? 'text-[9px]' : isMini ? 'text-[11px]' : isSmall ? 'text-xs' : 'text-sm sm:text-base'
+                  <div className="text-center w-full">
+                    <p className={`font-bold text-cyan-100 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] leading-snug break-words ${
+                      isMicro
+                        ? 'text-[8px]'
+                        : isMini
+                        ? 'text-[10px]'
+                        : isSmall
+                        ? 'text-xs'
+                        : isMedium
+                        ? 'text-sm sm:text-base'
+                        : 'text-base sm:text-lg'
                     }`}>
-                      {frontTitleValue || `Karte #${cardIndex + 1}`}
-                    </h3>
-                    {!isMicro && (
-                      <p className={`text-slate-200 font-medium leading-tight drop-shadow italic line-clamp-2 ${
-                        isMini ? 'text-[9px]' : isSmall ? 'text-[10px]' : 'text-xs'
-                      }`}>
-                        {frontTextValue ? `"${frontTextValue}"` : (
-                          <span className="text-slate-400 not-italic">Text bearbeiten...</span>
-                        )}
-                      </p>
-                    )}
+                      {frontTextValue || (
+                        <span className="text-slate-400/80 font-normal italic text-xs">
+                          {isMicro || isMini ? 'Text' : 'Text hier eingeben...'}
+                        </span>
+                      )}
+                    </p>
                   </div>
                 )}
               </div>
             </div>
-
-            {/* Bottom Hint */}
-            <div className="relative z-10 text-center">
-              <span className={`text-slate-400/70 uppercase tracking-widest font-semibold ${
-                isMicro ? 'text-[6px]' : isMini ? 'text-[8px]' : 'text-[10px]'
-              }`}>
-                Flip ➔
-              </span>
-            </div>
           </div>
 
           {/* ======================================================== */}
-          {/* BACK FACE                                                */}
+          {/* SEITE 2 (BACK): AUSSCHLIESSLICH GROSSE ZAHL              */}
           {/* ======================================================== */}
           <div
-            className={`absolute inset-0 w-full h-full rounded-[12px] sm:rounded-[16px] md:rounded-[20px] overflow-hidden backface-hidden border border-cyan-500/40 shadow-[0_0_15px_rgba(6,182,212,0.15)] bg-gradient-to-b from-slate-950 via-cyan-950/60 to-black flex flex-col justify-between ${
-              isMicro ? 'p-1.5' : isMini ? 'p-2' : isSmall ? 'p-2.5' : 'p-3.5'
+            className={`absolute inset-0 w-full h-full rounded-[14px] sm:rounded-[18px] md:rounded-[22px] overflow-hidden border-2 border-purple-900/60 shadow-[0_0_20px_rgba(139,92,246,0.2)] bg-stone-950 flex flex-col justify-center items-center ${
+              isMicro ? 'p-1' : isMini ? 'p-1.5' : isSmall ? 'p-2' : 'p-3'
             }`}
-            style={{ transform: 'rotateY(180deg)' }}
+            style={{
+              transform: 'rotateY(180deg)',
+              transformStyle: 'preserve-3d',
+              backfaceVisibility: 'hidden',
+              WebkitBackfaceVisibility: 'hidden',
+            }}
           >
-            {/* Background Texture */}
-            {card.back.imageUrl && (
-              <div
-                className="absolute inset-0 w-full h-full bg-cover bg-center opacity-30 transition-transform duration-700 pointer-events-none"
-                style={{
-                  backgroundImage: `url(${card.back.imageUrl})`,
-                  transform: isInteracting ? 'scale(1.05)' : 'scale(1)',
-                }}
-              />
-            )}
-            <div className="absolute inset-0 bg-gradient-to-b from-black/80 via-black/40 to-black/90 pointer-events-none" />
+            {/* Custom ManaCards Background Image */}
+            <div
+              className="absolute inset-0 w-full h-full bg-cover bg-center transition-transform duration-500 pointer-events-none"
+              style={{
+                backgroundImage: `url(${cardBgImage})`,
+                transform: isInteracting ? 'scale(1.03)' : 'scale(1)',
+              }}
+            />
 
-            {/* Holo Glare */}
+            {/* Subtle Vignette */}
+            <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+
+            {/* Holo Light Glare */}
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
-                background: `radial-gradient(circle at ${tilt.glareX}% ${tilt.glareY}%, rgba(6, 182, 212, ${
-                  isInteracting ? '0.3' : '0.08'
+                background: `radial-gradient(circle at ${tilt.glareX}% ${tilt.glareY}%, rgba(147, 197, 253, ${
+                  isInteracting ? '0.3' : '0.06'
                 }) 0%, transparent 60%)`,
               }}
             />
 
-            {/* Top Bar */}
-            <div className="relative z-10 flex items-center justify-between">
-              <span className={`font-black uppercase rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 ${
-                isMicro ? 'text-[7px] px-1' : isMini ? 'text-[8px] px-1' : 'text-[10px] px-2 py-0.5'
-              }`}>
-                Wert
-              </span>
-              {!isMicro && <Hash className={`text-cyan-400 ${isMini ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'}`} />}
-            </div>
-
-            {/* Big Floating Number Area */}
-            <div className="relative z-10 my-auto py-1 flex flex-col items-center justify-center">
+            {/* Center Area: Big Prominent Number Box */}
+            <div className="relative z-10 w-full px-1 flex flex-col items-center justify-center">
               <div
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsEditingBackNum(true);
                   sound.playClick(600);
                 }}
-                className={`w-full rounded-xl border-2 border-dashed transition-all cursor-text flex flex-col items-center justify-center ${
+                className={`w-full max-w-[88%] rounded-xl border-2 border-dashed transition-all cursor-text flex flex-col items-center justify-center ${
                   isEditingBackNum
-                    ? 'border-cyan-400 bg-black/95 shadow-xl ring-1 ring-cyan-400/40 p-2'
-                    : 'border-white/25 hover:border-cyan-400/80 bg-black/50 hover:bg-black/75 p-1.5 sm:p-2'
+                    ? 'border-cyan-400 bg-black/95 shadow-2xl ring-2 ring-cyan-400/40 p-2.5'
+                    : 'border-white/30 hover:border-cyan-400/90 bg-black/60 hover:bg-black/80 shadow-lg p-2 sm:p-3 backdrop-blur-sm'
                 }`}
                 title="Klicke hier, um die Zahl einzugeben"
               >
@@ -395,74 +362,59 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                       value={backNumValue}
                       onChange={(e) => setBackNumValue(e.target.value)}
                       placeholder="0"
-                      className="w-20 px-1 py-0.5 text-center bg-black border border-cyan-400 rounded text-base sm:text-xl font-black text-cyan-300 focus:outline-none"
+                      className="w-24 px-1 py-0.5 text-center bg-black border border-cyan-400 rounded text-xl sm:text-2xl font-black text-cyan-300 focus:outline-none"
                     />
-                    <div className="flex justify-center gap-1">
+                    <div className="flex justify-center">
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
                           handleSaveBackNum();
                         }}
-                        className="px-2 py-0.5 bg-cyan-400 hover:bg-cyan-300 text-black font-extrabold rounded text-[10px]"
+                        className="px-3 py-1 bg-cyan-400 hover:bg-cyan-300 text-black font-extrabold rounded-lg text-xs active:scale-95"
                       >
-                        OK
+                        Speichern
                       </button>
                     </div>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center space-y-0.5 text-center">
-                    {!isMicro && (
-                      <span className={`uppercase font-extrabold text-cyan-400/90 drop-shadow ${
-                        isMini ? 'text-[8px]' : 'text-[10px]'
-                      }`}>
-                        {backLabelValue || 'Wert'}
-                      </span>
-                    )}
-
-                    {/* Large Floating Number */}
-                    <span className={`font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-cyan-200 to-cyan-400 drop-shadow-[0_0_15px_rgba(6,182,212,0.6)] ${
+                  <div className="flex flex-col items-center justify-center space-y-1 text-center">
+                    {/* Exclusively Large Floating Glowing Number */}
+                    <span className={`font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-cyan-200 to-cyan-400 drop-shadow-[0_0_25px_rgba(6,182,212,0.8)] tracking-tight ${
                       isMicro
-                        ? 'text-lg sm:text-xl'
+                        ? 'text-2xl'
                         : isMini
-                        ? 'text-2xl sm:text-3xl'
-                        : isSmall
                         ? 'text-3xl sm:text-4xl'
-                        : 'text-4xl sm:text-5xl md:text-6xl'
+                        : isSmall
+                        ? 'text-4xl sm:text-5xl'
+                        : isMedium
+                        ? 'text-5xl sm:text-6xl'
+                        : 'text-6xl sm:text-7xl md:text-8xl'
                     }`}>
                       {backNumValue || '0'}
                     </span>
 
-                    {/* Stepper Buttons (when cards <= 16) */}
+                    {/* Stepper Buttons (when <= 16 cards) */}
                     {!isMicro && !isMini && (
-                      <div className="flex items-center gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-1.5 pt-1" onClick={(e) => e.stopPropagation()}>
                         <button
                           onClick={() => changeBackNumberDelta(-1)}
-                          className="w-5 h-5 sm:w-6 sm:h-6 rounded bg-white/10 hover:bg-rose-500/80 text-white flex items-center justify-center font-bold text-xs active:scale-90"
+                          className="w-6 h-6 rounded bg-white/10 hover:bg-rose-500/80 text-white flex items-center justify-center font-bold text-xs active:scale-90"
                           title="-1"
                         >
-                          <Minus className="w-3 h-3" />
+                          <Minus className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => changeBackNumberDelta(1)}
-                          className="w-5 h-5 sm:w-6 sm:h-6 rounded bg-white/10 hover:bg-emerald-500/80 text-white flex items-center justify-center font-bold text-xs active:scale-90"
+                          className="w-6 h-6 rounded bg-white/10 hover:bg-emerald-500/80 text-white flex items-center justify-center font-bold text-xs active:scale-90"
                           title="+1"
                         >
-                          <Plus className="w-3 h-3" />
+                          <Plus className="w-3.5 h-3.5" />
                         </button>
                       </div>
                     )}
                   </div>
                 )}
               </div>
-            </div>
-
-            {/* Bottom Hint */}
-            <div className="relative z-10 text-center">
-              <span className={`text-slate-400/70 uppercase tracking-widest font-semibold ${
-                isMicro ? 'text-[6px]' : isMini ? 'text-[8px]' : 'text-[10px]'
-              }`}>
-                Flip ➔
-              </span>
             </div>
           </div>
         </motion.div>

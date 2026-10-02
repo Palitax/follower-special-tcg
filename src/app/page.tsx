@@ -23,17 +23,8 @@ import {
   Layers,
 } from 'lucide-react';
 
-const STORAGE_KEY_CARDS = 'tcg_cards_custom_v3';
-const STORAGE_KEY_THEME = 'tcg_theme_v3';
-
-const SAMPLE_IMAGES = [
-  'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1000&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1579783900882-c0d3dad7b119?q=80&w=1000&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1563089145-599997674d42?q=80&w=1000&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1542751371-adc38448a05e?q=80&w=1000&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=1000&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1634017839464-5c339ebe3cb4?q=80&w=1000&auto=format&fit=crop',
-];
+const STORAGE_KEY_CARDS = 'tcg_cards_manacards_v4';
+const STORAGE_KEY_THEME = 'tcg_theme_manacards_v4';
 
 export default function HomeView() {
   const [cards, setCards] = useState<TcgCardData[]>([]);
@@ -96,36 +87,35 @@ export default function HomeView() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [cards]);
 
-  // Create N cards (up to 100)
+  // Create N cards (1 to 100) with custom ManaCards design
   const handleGenerateCards = (count: number) => {
     const safeCount = Math.max(1, Math.min(100, count));
     const newCards: TcgCardData[] = [];
     for (let i = 0; i < safeCount; i++) {
-      const img = SAMPLE_IMAGES[i % SAMPLE_IMAGES.length];
       newCards.push({
         id: 'card_' + (i + 1) + '_' + Date.now(),
-        name: `TCG Karte #${i + 1}`,
+        name: `Karte #${i + 1}`,
         isFlipped: false,
         rotation: 0,
-        borderStyle: i % 2 === 0 ? 'gold-border' : 'neon-cyan',
+        borderStyle: 'neon-cyan',
         front: {
           title: `Karte #${i + 1}`,
           subtitle: '',
           notes: '',
-          imageUrl: img,
-          holoEffect: 'rainbow',
+          imageUrl: '/images/manacards.jpg',
+          holoEffect: 'none',
           counters: [],
         },
         back: {
-          title: 'Rückseite',
+          title: '',
           subtitle: '',
           notes: '',
-          imageUrl: SAMPLE_IMAGES[(i + 2) % SAMPLE_IMAGES.length],
-          holoEffect: 'cosmo',
+          imageUrl: '/images/manacards.jpg',
+          holoEffect: 'none',
           counters: [
             {
               id: 'cnt_1',
-              label: 'Wert',
+              label: '',
               value: i + 1,
               step: 1,
             },
@@ -148,7 +138,7 @@ export default function HomeView() {
     setCards((prev) => prev.map((c) => ({ ...c, isFlipped: !c.isFlipped })));
   };
 
-  // Rotate Card (90 deg)
+  // Rotate Card
   const handleRotateCard = (cardId: string) => {
     setCards((prev) =>
       prev.map((c) =>
@@ -163,7 +153,7 @@ export default function HomeView() {
   };
 
   // Update Front Text
-  const handleUpdateFrontText = (cardId: string, text: string, title?: string) => {
+  const handleUpdateFrontText = (cardId: string, text: string) => {
     setCards((prev) =>
       prev.map((c) => {
         if (c.id !== cardId) return c;
@@ -172,7 +162,6 @@ export default function HomeView() {
           front: {
             ...c.front,
             notes: text,
-            title: title || c.front.title,
           },
         };
       })
@@ -180,11 +169,11 @@ export default function HomeView() {
   };
 
   // Update Back Number
-  const handleUpdateBackNumber = (cardId: string, numberValue: number, label?: string) => {
+  const handleUpdateBackNumber = (cardId: string, numberValue: number) => {
     setCards((prev) =>
       prev.map((c) => {
         if (c.id !== cardId) return c;
-        const currentCounter = c.back.counters[0] || { id: 'c1', label: 'Wert', value: 0 };
+        const currentCounter = c.back.counters[0] || { id: 'c1', label: '', value: 0 };
         return {
           ...c,
           back: {
@@ -193,7 +182,6 @@ export default function HomeView() {
               {
                 ...currentCounter,
                 value: numberValue,
-                label: label !== undefined ? label : currentCounter.label,
               },
             ],
           },
@@ -202,7 +190,7 @@ export default function HomeView() {
     );
   };
 
-  // Swap first two cards or reverse order
+  // Swap / Reverse Order
   const handleSwapCards = () => {
     setCards((prev) => [...prev].reverse());
   };
@@ -243,7 +231,7 @@ export default function HomeView() {
 
   return (
     <main className="relative w-screen h-screen overflow-hidden flex flex-col justify-between bg-black select-none">
-      {/* Dynamic Background */}
+      {/* Dynamic Playmat Background */}
       <PlaymatBackground theme={theme} />
 
       {/* Top Header */}
@@ -260,7 +248,7 @@ export default function HomeView() {
           <EmptyCardSlot onClick={() => setIsSetupModalOpen(true)} />
         </div>
       ) : (
-        /* ================= CARDS ARENA VIEW (DYNAMIALLY SCALED UP TO 100) ================= */
+        /* ================= CARDS ARENA VIEW ================= */
         <div className="relative z-20 flex-1 flex flex-row flex-wrap items-center justify-center content-center gap-2 sm:gap-3 md:gap-4 lg:gap-6 px-3 py-2 overflow-y-auto max-h-[86vh]">
           {cards.map((card, index) => (
             <TcgCard
@@ -289,7 +277,7 @@ export default function HomeView() {
                 sound.playCardFlip();
                 handleFlipAll();
               }}
-              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-extrabold text-xs shadow-md active:scale-95 transition-all"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-extrabold text-xs shadow-md shadow-cyan-500/20 active:scale-95 transition-all"
               title="Alle Karten gleichzeitig umdrehen"
             >
               <RotateCcw className="w-4 h-4" />
@@ -319,7 +307,7 @@ export default function HomeView() {
               className="flex items-center gap-1 px-2.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold active:scale-95 transition-all"
               title="Kartenanzahl ändern"
             >
-              <Layers className="w-4 h-4 text-yellow-400" />
+              <Layers className="w-4 h-4 text-cyan-400" />
               <span className="hidden sm:inline">Anzahl ({cards.length})</span>
             </button>
 
@@ -360,7 +348,7 @@ export default function HomeView() {
                       }}
                       className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-colors ${
                         theme === t.id
-                          ? 'bg-yellow-400/20 text-yellow-300 font-bold'
+                          ? 'bg-cyan-400/20 text-cyan-300 font-bold'
                           : 'text-slate-300 hover:bg-white/10'
                       }`}
                     >
@@ -409,7 +397,7 @@ export default function HomeView() {
         </div>
       )}
 
-      {/* Card Setup Modal (1 to 100 cards) */}
+      {/* Card Setup Modal */}
       <CardSetupModal
         isOpen={isSetupModalOpen}
         onClose={() => setIsSetupModalOpen(false)}
