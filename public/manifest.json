@@ -1,0 +1,22 @@
+{
+  "name": "TCG Dual Card Display",
+  "short_name": "TCG Arena",
+  "description": "Fullscreen iPad Tool for 3D TCG Cards with interactive flip animations and counters.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090a0f",
+  "theme_color": "#090a0f",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
