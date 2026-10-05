@@ -291,7 +291,7 @@ export default function HomeView() {
         /* ================= CARDS ARENA VIEW (EXCLUSIVELY CARDS IN FULLSCREEN) ================= */
         <div
           className={`relative z-20 flex-1 flex flex-row flex-wrap items-center justify-center content-center gap-2 sm:gap-3 md:gap-4 lg:gap-6 px-3 py-2 overflow-y-auto ${
-            isFullscreen ? 'h-full max-h-screen w-full' : 'max-h-[86vh]'
+            isFullscreen ? 'h-full max-h-screen w-full' : 'max-h-[calc(100vh-70px)] pb-20 sm:pb-24'
           }`}
         >
           {cards.map((card, index) => (

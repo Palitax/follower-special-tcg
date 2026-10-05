@@ -189,7 +189,9 @@ export const TcgCard: React.FC<TcgCardProps> = ({
         }}
         className={`perspective-container relative touch-manipulation cursor-pointer ${getWidthClass()}`}
         style={{
-          aspectRatio: '660 / 920', // Exact aspect ratio of the complete Pokémon card
+          aspectRatio: '63 / 88', // Authentic Pokémon TCG (2.5 x 3.5 in / 63 x 88 mm) proportion
+          maxHeight: isFullscreen ? 'calc(94vh - 20px)' : 'calc(100vh - 215px)',
+          maxWidth: 'calc(100vw - 24px)',
           perspective: '1200px',
         }}
         onPointerMove={handlePointerMove}
@@ -215,7 +217,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
           {/* Rotates from 0deg (visible) to 180deg (hidden)           */}
           {/* ======================================================== */}
           <motion.div
-            className="absolute inset-0 w-full h-full rounded-[14px] sm:rounded-[18px] md:rounded-[22px] overflow-hidden shadow-2xl bg-black flex flex-col justify-center items-center"
+            className="absolute inset-0 w-full h-full rounded-[4%] overflow-hidden flex flex-col justify-center items-center"
             animate={{
               rotateY: card.isFlipped ? 180 : 0,
             }}
@@ -232,17 +234,16 @@ export const TcgCard: React.FC<TcgCardProps> = ({
           >
             {/* Full Pokémon Energy Card Image (100% visible, no crop) */}
             <div
-              className="absolute inset-0 w-full h-full bg-no-repeat bg-center transition-transform duration-500 pointer-events-none"
+              className="absolute inset-0 w-full h-full bg-no-repeat bg-contain bg-center transition-transform duration-500 pointer-events-none rounded-[4%]"
               style={{
                 backgroundImage: `url(${cardFrontImage})`,
-                backgroundSize: '100% 100%',
                 transform: isInteracting ? 'scale(1.015)' : 'scale(1)',
               }}
             />
 
             {/* Subtle Holo Light Glare */}
             <div
-              className="absolute inset-0 pointer-events-none"
+              className="absolute inset-0 pointer-events-none rounded-[4%]"
               style={{
                 background: `radial-gradient(circle at ${tilt.glareX}% ${tilt.glareY}%, rgba(255, 255, 255, ${
                   isInteracting ? '0.25' : '0.04'
@@ -267,7 +268,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                       : 'border-2 border-dashed border-cyan-400/60 bg-black/70 hover:bg-black/85 shadow-lg p-2 sm:p-2.5 backdrop-blur-md'
                     : isFullscreen
                     ? 'opacity-0 hover:opacity-100 p-2'
-                    : 'border-2 border-dashed border-cyan-400/30 hover:border-cyan-400 hover:bg-black/60 p-2 backdrop-blur-[2px]'
+                    : 'border-2 border-dashed border-transparent hover:border-cyan-400/50 hover:bg-black/50 p-2 transition-all group-hover/card:border-cyan-400/30'
                 }`}
                 title="Klicke hier, um Text auf der Karte einzugeben"
               >
@@ -325,7 +326,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
           {/* Rotates from -180deg (hidden) to 0deg (visible & upright)*/}
           {/* ======================================================== */}
           <motion.div
-            className="absolute inset-0 w-full h-full rounded-[14px] sm:rounded-[18px] md:rounded-[22px] overflow-hidden shadow-2xl bg-black flex flex-col justify-between p-2 sm:p-3"
+            className="absolute inset-0 w-full h-full rounded-[4%] overflow-hidden shadow-2xl bg-black flex flex-col justify-between p-2 sm:p-3"
             animate={{
               rotateY: card.isFlipped ? 0 : -180,
             }}
@@ -342,10 +343,9 @@ export const TcgCard: React.FC<TcgCardProps> = ({
           >
             {/* ManaCards Background Image (Fully Visible & Vibrant) */}
             <div
-              className="absolute inset-0 w-full h-full bg-no-repeat bg-center transition-transform duration-500 pointer-events-none"
+              className="absolute inset-0 w-full h-full bg-no-repeat bg-cover bg-center transition-transform duration-500 pointer-events-none rounded-[4%]"
               style={{
                 backgroundImage: `url(${cardBackImage})`,
-                backgroundSize: '100% 100%',
                 opacity: 1,
                 transform: isInteracting ? 'scale(1.015)' : 'scale(1)',
               }}

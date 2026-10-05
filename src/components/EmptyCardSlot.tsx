@@ -25,17 +25,16 @@ export const EmptyCardSlot: React.FC<EmptyCardSlotProps> = ({ onClick }) => {
           sound.playClick(600);
           onClick();
         }}
-        className="relative group cursor-pointer w-[260px] sm:w-[300px] md:w-[340px] rounded-[22px] border-2 border-dashed border-cyan-400/50 hover:border-cyan-300 bg-black/60 hover:bg-black/75 p-6 flex flex-col items-center justify-center text-center shadow-2xl hover:shadow-[0_0_40px_rgba(6,182,212,0.35)] transition-all active:scale-[0.98] overflow-hidden"
+        className="relative group cursor-pointer w-[260px] sm:w-[300px] md:w-[340px] rounded-[4%] border-2 border-dashed border-cyan-400/50 hover:border-cyan-300 bg-black/60 hover:bg-black/75 p-6 flex flex-col items-center justify-center text-center shadow-2xl hover:shadow-[0_0_40px_rgba(6,182,212,0.35)] transition-all active:scale-[0.98] overflow-hidden"
         style={{
-          aspectRatio: '660 / 920',
+          aspectRatio: '63 / 88',
         }}
       >
         {/* Pokémon Energy Card Background Preview */}
         <div
-          className="absolute inset-0 bg-no-repeat bg-center opacity-40 group-hover:opacity-60 transition-opacity"
+          className="absolute inset-0 bg-no-repeat bg-contain bg-center opacity-40 group-hover:opacity-60 transition-opacity rounded-[4%]"
           style={{
             backgroundImage: `url(/images/pokemon-energy-front.png)`,
-            backgroundSize: '100% 100%',
           }}
         />
         <div className="absolute inset-0 bg-black/40" />
