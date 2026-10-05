@@ -21,11 +21,10 @@ import {
   Dices,
   Home,
   Layers,
-  X,
 } from 'lucide-react';
 
-const STORAGE_KEY_CARDS = 'tcg_cards_manacards_v5';
-const STORAGE_KEY_THEME = 'tcg_theme_manacards_v5';
+const STORAGE_KEY_CARDS = 'tcg_cards_pokemon_front_v7';
+const STORAGE_KEY_THEME = 'tcg_theme_pokemon_front_v7';
 
 export default function HomeView() {
   const [cards, setCards] = useState<TcgCardData[]>([]);
@@ -44,7 +43,15 @@ export default function HomeView() {
       if (savedCards) {
         const parsed = JSON.parse(savedCards);
         if (Array.isArray(parsed)) {
-          setCards(parsed);
+          // Ensure front image points to the new pokemon energy card
+          const updated = parsed.map((c) => ({
+            ...c,
+            front: {
+              ...c.front,
+              imageUrl: '/images/pokemon-energy-front.png',
+            },
+          }));
+          setCards(updated);
         }
       }
       const savedTheme = localStorage.getItem(STORAGE_KEY_THEME) as PlaymatTheme | null;
@@ -121,7 +128,7 @@ export default function HomeView() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [cards, isFullscreen, exitFullscreen]);
 
-  // Create N cards
+  // Create N cards with Pokémon card front & ManaCards back
   const handleGenerateCards = (count: number) => {
     const safeCount = Math.max(1, Math.min(100, count));
     const newCards: TcgCardData[] = [];
@@ -136,7 +143,7 @@ export default function HomeView() {
           title: `Karte #${i + 1}`,
           subtitle: '',
           notes: '',
-          imageUrl: '/images/manacards.jpg',
+          imageUrl: '/images/pokemon-energy-front.png',
           holoEffect: 'none',
           counters: [],
         },
@@ -248,7 +255,6 @@ export default function HomeView() {
       }
     } catch (e) {
       console.warn('Fullscreen request error', e);
-      // Custom fallback for browsers/iPad Safari that don't support requestFullscreen
       setIsFullscreen(!isFullscreen);
     }
   };

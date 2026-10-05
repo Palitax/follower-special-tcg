@@ -133,9 +133,8 @@ export const TcgCard: React.FC<TcgCardProps> = ({
     onUpdateBackNumber(card.id, next);
   };
 
-  const cardBgImage = '/images/manacards.jpg';
-  const paddedCardNumber = String(cardIndex + 1).padStart(2, '0');
-  const paddedTotalCards = String(totalCards).padStart(2, '0');
+  const cardFrontImage = '/images/pokemon-energy-front.png';
+  const cardBackImage = '/images/manacards.jpg';
 
   return (
     <div className="flex flex-col items-center justify-center p-1 sm:p-1.5 select-none group/card">
@@ -190,7 +189,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
         }}
         className={`perspective-container relative touch-manipulation cursor-pointer ${getWidthClass()}`}
         style={{
-          aspectRatio: '63 / 88', // Authentic TCG 2.5 x 3.5 in (63 x 88 mm) proportion
+          aspectRatio: '660 / 920', // Exact aspect ratio of the complete Pokémon card
           perspective: '1200px',
         }}
         onPointerMove={handlePointerMove}
@@ -212,11 +211,11 @@ export const TcgCard: React.FC<TcgCardProps> = ({
           }}
         >
           {/* ======================================================== */}
-          {/* SEITE 1: AUSSCHLIESSLICH TEXT                            */}
+          {/* SEITE 1 (FRONT): POKÉMON ENERGY CARD (KOMPLETT DARGESTELLT) */}
           {/* Rotates from 0deg (visible) to 180deg (hidden)           */}
           {/* ======================================================== */}
           <motion.div
-            className="absolute inset-0 w-full h-full rounded-[14px] sm:rounded-[18px] md:rounded-[22px] overflow-hidden border-[3px] border-[#2e1d44] shadow-[0_0_20px_rgba(147,51,234,0.3)] bg-[#180e29] flex flex-col justify-between p-2 sm:p-3"
+            className="absolute inset-0 w-full h-full rounded-[14px] sm:rounded-[18px] md:rounded-[22px] overflow-hidden shadow-2xl bg-black flex flex-col justify-center items-center"
             animate={{
               rotateY: card.isFlipped ? 180 : 0,
             }}
@@ -231,62 +230,56 @@ export const TcgCard: React.FC<TcgCardProps> = ({
               zIndex: card.isFlipped ? 0 : 2,
             }}
           >
-            {/* ManaCards Background Image (Fully Visible & Vibrant) */}
+            {/* Full Pokémon Energy Card Image (100% visible, no crop) */}
             <div
-              className="absolute inset-0 w-full h-full bg-cover bg-center transition-transform duration-500 pointer-events-none"
+              className="absolute inset-0 w-full h-full bg-no-repeat bg-center transition-transform duration-500 pointer-events-none"
               style={{
-                backgroundImage: `url(${cardBgImage})`,
-                opacity: 1,
-                transform: isInteracting ? 'scale(1.02)' : 'scale(1)',
+                backgroundImage: `url(${cardFrontImage})`,
+                backgroundSize: '100% 100%',
+                transform: isInteracting ? 'scale(1.015)' : 'scale(1)',
               }}
             />
 
-            {/* Inner TCG Card Border Frame (Pokémon TCG style inner line) */}
-            <div className="absolute inset-1.5 sm:inset-2 rounded-[10px] sm:rounded-[14px] border border-cyan-400/30 pointer-events-none shadow-[inset_0_0_12px_rgba(6,182,212,0.15)]" />
-
-            {/* Holo Light Glare */}
+            {/* Subtle Holo Light Glare */}
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
-                background: `radial-gradient(circle at ${tilt.glareX}% ${tilt.glareY}%, rgba(147, 197, 253, ${
-                  isInteracting ? '0.35' : '0.08'
+                background: `radial-gradient(circle at ${tilt.glareX}% ${tilt.glareY}%, rgba(255, 255, 255, ${
+                  isInteracting ? '0.25' : '0.04'
                 }) 0%, transparent 60%)`,
               }}
             />
 
-            {/* Top Bar of Front Side: Clean Card Number badge */}
-            <div className="relative z-10 flex items-center justify-between px-1">
-              <span className="text-[9px] sm:text-[11px] font-black tracking-wider uppercase text-cyan-300 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full border border-cyan-400/40">
-                #{cardIndex + 1}
-              </span>
-            </div>
-
-            {/* Center Area: Text Plate (TCG Attack/Description Style) */}
-            <div className="relative z-10 w-full my-auto px-1 flex flex-col items-center justify-center">
+            {/* Middle Center Area: Editable Text Overlay (Unobtrusive) */}
+            <div className="relative z-10 w-full px-3 flex flex-col items-center justify-center">
               <div
                 onClick={(e) => {
                   e.stopPropagation();
                   setIsEditingFront(true);
                   sound.playClick(600);
                 }}
-                className={`w-full max-w-[94%] rounded-xl transition-all cursor-text flex flex-col items-center justify-center ${
+                className={`w-full max-w-[88%] rounded-2xl transition-all cursor-text flex flex-col items-center justify-center ${
                   isEditingFront
                     ? 'border-2 border-cyan-400 bg-black/95 shadow-2xl ring-2 ring-cyan-400/40 p-2.5'
+                    : frontTextValue
+                    ? isFullscreen
+                      ? 'bg-black/70 shadow-xl p-2 sm:p-2.5 backdrop-blur-md rounded-xl'
+                      : 'border-2 border-dashed border-cyan-400/60 bg-black/70 hover:bg-black/85 shadow-lg p-2 sm:p-2.5 backdrop-blur-md'
                     : isFullscreen
-                    ? 'bg-black/60 hover:bg-black/75 shadow-xl p-2.5 sm:p-3 backdrop-blur-sm border border-cyan-400/30'
-                    : 'border-2 border-dashed border-cyan-400/50 hover:border-cyan-300 bg-black/65 hover:bg-black/80 shadow-lg p-2 sm:p-2.5 backdrop-blur-sm'
+                    ? 'opacity-0 hover:opacity-100 p-2'
+                    : 'border-2 border-dashed border-cyan-400/30 hover:border-cyan-400 hover:bg-black/60 p-2 backdrop-blur-[2px]'
                 }`}
-                title="Klicke hier, um den Text einzugeben"
+                title="Klicke hier, um Text auf der Karte einzugeben"
               >
                 {isEditingFront ? (
                   <div className="space-y-1.5 w-full">
                     <textarea
-                      rows={3}
+                      rows={2}
                       autoFocus
                       value={frontTextValue}
                       onChange={(e) => setFrontTextValue(e.target.value)}
                       placeholder="Text hier eingeben..."
-                      className="w-full px-2 py-1 bg-white/10 border border-cyan-400/60 rounded text-xs sm:text-sm text-cyan-200 focus:outline-none resize-none font-medium text-center"
+                      className="w-full px-2 py-1 bg-white/10 border border-cyan-400/60 rounded text-xs sm:text-sm text-cyan-100 focus:outline-none resize-none font-bold text-center"
                     />
                     <div className="flex justify-center">
                       <button
@@ -302,41 +295,37 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                   </div>
                 ) : (
                   <div className="text-center w-full">
-                    <p className={`font-bold text-cyan-100 drop-shadow-[0_2px_4px_rgba(0,0,0,0.95)] leading-snug break-words ${
-                      isMicro
-                        ? 'text-[8px]'
-                        : isMini
-                        ? 'text-[10px]'
-                        : isSmall
-                        ? 'text-xs'
-                        : isMedium
-                        ? 'text-sm sm:text-base'
-                        : 'text-base sm:text-lg'
-                    }`}>
-                      {frontTextValue || (
-                        <span className="text-cyan-300/70 font-normal italic text-xs">
-                          {isMicro || isMini ? 'Text' : 'Text hier eingeben...'}
-                        </span>
-                      )}
-                    </p>
+                    {frontTextValue ? (
+                      <p className={`font-black text-white drop-shadow-[0_2px_4px_rgba(0,0,0,1)] leading-snug break-words ${
+                        isMicro
+                          ? 'text-[8px]'
+                          : isMini
+                          ? 'text-[10px]'
+                          : isSmall
+                          ? 'text-xs'
+                          : isMedium
+                          ? 'text-sm sm:text-base'
+                          : 'text-base sm:text-lg'
+                      }`}>
+                        {frontTextValue}
+                      </p>
+                    ) : (
+                      <span className="text-cyan-200/90 font-bold italic text-xs drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)] opacity-0 group-hover/card:opacity-100 transition-opacity">
+                        {isMicro || isMini ? 'Text' : '+ Text hinzufügen'}
+                      </span>
+                    )}
                   </div>
                 )}
               </div>
             </div>
-
-            {/* Bottom TCG Collector Bar */}
-            <div className="relative z-10 flex items-center justify-between px-1 text-[8px] sm:text-[9px] text-cyan-300/80 font-mono font-bold drop-shadow">
-              <span>{paddedCardNumber}/{paddedTotalCards}</span>
-              <span>★ TCG</span>
-            </div>
           </motion.div>
 
           {/* ======================================================== */}
-          {/* SEITE 2: AUSSCHLIESSLICH GROSSE ZAHL                     */}
+          {/* SEITE 2 (BACK): MANACARDS ARTWORK & GROSSE ZAHL          */}
           {/* Rotates from -180deg (hidden) to 0deg (visible & upright)*/}
           {/* ======================================================== */}
           <motion.div
-            className="absolute inset-0 w-full h-full rounded-[14px] sm:rounded-[18px] md:rounded-[22px] overflow-hidden border-[3px] border-[#2e1d44] shadow-[0_0_20px_rgba(147,51,234,0.3)] bg-[#180e29] flex flex-col justify-between p-2 sm:p-3"
+            className="absolute inset-0 w-full h-full rounded-[14px] sm:rounded-[18px] md:rounded-[22px] overflow-hidden shadow-2xl bg-black flex flex-col justify-between p-2 sm:p-3"
             animate={{
               rotateY: card.isFlipped ? 0 : -180,
             }}
@@ -353,30 +342,28 @@ export const TcgCard: React.FC<TcgCardProps> = ({
           >
             {/* ManaCards Background Image (Fully Visible & Vibrant) */}
             <div
-              className="absolute inset-0 w-full h-full bg-cover bg-center transition-transform duration-500 pointer-events-none"
+              className="absolute inset-0 w-full h-full bg-no-repeat bg-center transition-transform duration-500 pointer-events-none"
               style={{
-                backgroundImage: `url(${cardBgImage})`,
+                backgroundImage: `url(${cardBackImage})`,
+                backgroundSize: '100% 100%',
                 opacity: 1,
-                transform: isInteracting ? 'scale(1.02)' : 'scale(1)',
+                transform: isInteracting ? 'scale(1.015)' : 'scale(1)',
               }}
             />
 
-            {/* Inner TCG Card Border Frame (Pokémon TCG style inner line) */}
-            <div className="absolute inset-1.5 sm:inset-2 rounded-[10px] sm:rounded-[14px] border border-cyan-400/30 pointer-events-none shadow-[inset_0_0_12px_rgba(6,182,212,0.15)]" />
-
-            {/* Holo Light Glare */}
+            {/* Subtle Holo Light Glare */}
             <div
               className="absolute inset-0 pointer-events-none"
               style={{
                 background: `radial-gradient(circle at ${tilt.glareX}% ${tilt.glareY}%, rgba(147, 197, 253, ${
-                  isInteracting ? '0.35' : '0.08'
+                  isInteracting ? '0.3' : '0.06'
                 }) 0%, transparent 60%)`,
               }}
             />
 
             {/* Top Bar on Flipped Card: Small Card Number Badge */}
             <div className="relative z-10 flex items-center justify-between px-1">
-              <span className="text-[9px] sm:text-[11px] font-black tracking-wider uppercase text-cyan-300 drop-shadow-[0_1px_3px_rgba(0,0,0,0.9)] bg-black/60 backdrop-blur-sm px-2 py-0.5 rounded-full border border-cyan-400/40">
+              <span className="text-[9px] sm:text-[11px] font-black tracking-wider uppercase text-cyan-300 drop-shadow-[0_1px_3px_rgba(0,0,0,0.95)] bg-black/70 backdrop-blur-sm px-2 py-0.5 rounded-full border border-cyan-400/40">
                 #{cardIndex + 1}
               </span>
             </div>
@@ -423,7 +410,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                 ) : (
                   <div className="flex flex-col items-center justify-center space-y-1 text-center">
                     {/* Exclusively Large Floating Glowing Number */}
-                    <span className={`font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-cyan-200 to-cyan-400 drop-shadow-[0_0_30px_rgba(6,182,212,0.9)] tracking-tight ${
+                    <span className={`font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-cyan-200 to-cyan-400 drop-shadow-[0_0_30px_rgba(6,182,212,0.95)] tracking-tight ${
                       isMicro
                         ? 'text-2xl'
                         : isMini
@@ -461,11 +448,8 @@ export const TcgCard: React.FC<TcgCardProps> = ({
               </div>
             </div>
 
-            {/* Bottom TCG Collector Bar */}
-            <div className="relative z-10 flex items-center justify-between px-1 text-[8px] sm:text-[9px] text-cyan-300/80 font-mono font-bold drop-shadow">
-              <span>{paddedCardNumber}/{paddedTotalCards}</span>
-              <span>★ TCG</span>
-            </div>
+            {/* Bottom Spacer */}
+            <div className="h-2" />
           </motion.div>
         </div>
       </motion.div>
