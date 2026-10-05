@@ -43,12 +43,16 @@ export default function HomeView() {
       if (savedCards) {
         const parsed = JSON.parse(savedCards);
         if (Array.isArray(parsed)) {
-          // Ensure front image points to the new pokemon energy card
+          // Ensure front and back images point to authentic card artwork
           const updated = parsed.map((c) => ({
             ...c,
             front: {
               ...c.front,
               imageUrl: '/images/pokemon-energy-front.png',
+            },
+            back: {
+              ...c.back,
+              imageUrl: '/images/card-back-water.jpg',
             },
           }));
           setCards(updated);
@@ -151,7 +155,7 @@ export default function HomeView() {
           title: '',
           subtitle: '',
           notes: '',
-          imageUrl: '/images/manacards.jpg',
+          imageUrl: '/images/card-back-water.jpg',
           holoEffect: 'none',
           counters: [
             {

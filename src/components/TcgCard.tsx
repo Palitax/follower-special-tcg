@@ -134,7 +134,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
   };
 
   const cardFrontImage = '/images/pokemon-energy-front.png';
-  const cardBackImage = '/images/manacards.jpg';
+  const cardBackImage = '/images/card-back-water.jpg';
 
   return (
     <div className="flex flex-col items-center justify-center p-1 sm:p-1.5 select-none group/card">
@@ -326,7 +326,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
           {/* Rotates from -180deg (hidden) to 0deg (visible & upright)*/}
           {/* ======================================================== */}
           <motion.div
-            className="absolute inset-0 w-full h-full rounded-[4%] overflow-hidden shadow-2xl bg-black flex flex-col justify-between p-2 sm:p-3"
+            className="absolute inset-0 w-full h-full rounded-[4%] overflow-hidden shadow-2xl bg-white flex flex-col justify-between p-2 sm:p-3"
             animate={{
               rotateY: card.isFlipped ? 0 : -180,
             }}
@@ -410,7 +410,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                 ) : (
                   <div className="flex flex-col items-center justify-center space-y-1 text-center">
                     {/* Exclusively Large Floating Glowing Number */}
-                    <span className={`font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-cyan-200 to-cyan-400 drop-shadow-[0_0_30px_rgba(6,182,212,0.95)] tracking-tight ${
+                    <span className={`font-black text-transparent bg-clip-text bg-gradient-to-b from-white via-cyan-200 to-cyan-400 drop-shadow-[0_2px_10px_rgba(0,0,0,0.8)] drop-shadow-[0_0_30px_rgba(6,182,212,0.95)] tracking-tight ${
                       isMicro
                         ? 'text-2xl'
                         : isMini
