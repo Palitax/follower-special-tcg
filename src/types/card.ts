@@ -1,5 +1,7 @@
 export type HoloEffectType = 'none' | 'rainbow' | 'cosmo' | 'gold' | 'silver' | 'galaxy' | 'neon';
 
+export type CardRarity = 'rare' | 'epic' | 'legendary';
+
 export interface CardCounter {
   id: string;
   label: string;

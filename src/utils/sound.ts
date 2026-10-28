@@ -204,6 +204,46 @@ class SoundManager {
       console.warn('Dice roll audio failed', e);
     }
   }
+
+  // Epic / Legendary Giveaway Level Up Fanfare
+  public playLevelUp(tier: 'rare' | 'epic' | 'legendary') {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      const notes =
+        tier === 'legendary'
+          ? [523.25, 659.25, 783.99, 1046.5, 1318.5, 1567.98] // C5 -> G6 triumphant fanfare
+          : tier === 'epic'
+          ? [440, 554.37, 659.25, 880, 1108.73] // A4 major rising chord
+          : [392, 493.88, 587.33, 783.99]; // G4 mana chime
+
+      notes.forEach((freq, idx) => {
+        if (!this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        const start = now + idx * 0.055;
+
+        osc.type = tier === 'legendary' ? 'sawtooth' : 'triangle';
+        osc.frequency.setValueAtTime(freq, start);
+        osc.frequency.exponentialRampToValueAtTime(freq * 1.02, start + 0.35);
+
+        gain.gain.setValueAtTime(0.001, start);
+        gain.gain.linearRampToValueAtTime(tier === 'legendary' ? 0.14 : 0.12, start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, start + 0.4);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+
+        osc.start(start);
+        osc.stop(start + 0.42);
+      });
+    } catch (e) {
+      console.warn('Level up audio failed', e);
+    }
+  }
 }
 
 export const sound = new SoundManager();

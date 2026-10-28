@@ -179,6 +179,122 @@ input, textarea {
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 }
 
+/* ============================================================
+   RARITY FRAMES & ANIMATED PARTICLE AURAS (RARE, EPIC, LEGENDARY)
+   ============================================================ */
+
+@keyframes manaPulseBlue {
+  0%, 100% {
+    box-shadow:
+      0 0 14px rgba(56, 189, 248, 0.8),
+      0 0 28px rgba(14, 165, 233, 0.5),
+      inset 0 0 12px rgba(56, 189, 248, 0.45);
+    border-color: rgba(125, 211, 252, 0.95);
+  }
+  50% {
+    box-shadow:
+      0 0 22px rgba(56, 189, 248, 1),
+      0 0 42px rgba(2, 132, 199, 0.75),
+      inset 0 0 18px rgba(125, 211, 252, 0.65);
+    border-color: rgba(224, 242, 254, 1);
+  }
+}
+
+@keyframes arcanePulsePurple {
+  0%, 100% {
+    box-shadow:
+      0 0 20px rgba(192, 132, 252, 0.95),
+      0 0 44px rgba(147, 51, 234, 0.8),
+      0 0 70px rgba(126, 34, 206, 0.5),
+      inset 0 0 18px rgba(216, 180, 254, 0.65);
+    border-color: rgba(216, 180, 254, 1);
+  }
+  50% {
+    box-shadow:
+      0 0 32px rgba(232, 121, 249, 1),
+      0 0 64px rgba(168, 85, 247, 0.95),
+      0 0 95px rgba(147, 51, 234, 0.7),
+      inset 0 0 26px rgba(240, 171, 252, 0.85);
+    border-color: rgba(250, 232, 255, 1);
+  }
+}
+
+@keyframes moltenLavaPulse {
+  0%, 100% {
+    box-shadow:
+      0 0 24px rgba(251, 191, 36, 1),
+      0 0 50px rgba(249, 115, 22, 0.95),
+      0 0 85px rgba(220, 38, 38, 0.75),
+      inset 0 0 22px rgba(251, 146, 60, 0.85);
+    border-color: #fde047;
+  }
+  50% {
+    box-shadow:
+      0 0 36px rgba(254, 240, 138, 1),
+      0 0 70px rgba(251, 146, 60, 1),
+      0 0 115px rgba(234, 88, 12, 0.9),
+      inset 0 0 32px rgba(253, 224, 71, 0.95);
+    border-color: #fffbeb;
+  }
+}
+
+@keyframes lavaBorderFlow {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes floatParticle {
+  0% {
+    transform: translateY(0px) scale(0.75);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  75% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-28px) scale(1.2);
+    opacity: 0;
+  }
+}
+
+.rarity-frame-rare {
+  border: 3px solid rgba(125, 211, 252, 0.95);
+  animation: manaPulseBlue 2.8s infinite ease-in-out;
+}
+
+.rarity-frame-epic {
+  border: 3.5px solid rgba(216, 180, 254, 1);
+  animation: arcanePulsePurple 2s infinite ease-in-out;
+}
+
+.rarity-frame-legendary {
+  border: 4px solid #fde047;
+  animation: moltenLavaPulse 1.5s infinite ease-in-out;
+}
+
+.molten-lava-rim {
+  background: linear-gradient(
+    135deg,
+    #7f1d1d 0%,
+    #ea580c 25%,
+    #facc15 50%,
+    #f97316 75%,
+    #dc2626 100%
+  );
+  background-size: 300% 300%;
+  animation: lavaBorderFlow 3s ease infinite;
+}
+
 /* Custom Scrollbar for Drawer / Modal */
 ::-webkit-scrollbar {
   width: 6px;
