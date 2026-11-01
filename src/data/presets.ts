@@ -201,7 +201,7 @@ export const PRESETS: TcgPreset[] = [
         },
         counters: [
           { id: 'm1_life', label: '❤️ Life Total', value: 40, step: 1, color: 'text-rose-400' },
-          { id: 'm1_mana', label: '✨ Mana Pool', value: 7, step: 1, color: 'text-cyan-300' },
+          { id: 'm1_mana', label: '💧 Mana Pool', value: 7, step: 1, color: 'text-cyan-300' },
           { id: 'm1_tax', label: 'Commander Tax', value: 2, step: 2, color: 'text-amber-300' },
         ],
       },

@@ -22,7 +22,9 @@ import {
   Home,
   Layers,
   Flame,
-  Sparkles,
+  Zap,
+  Waves,
+  Crown,
   Smartphone,
   Monitor,
   Eye,
@@ -45,7 +47,7 @@ const RARITY_CONFIG: Record<
   }
 > = {
   rare: {
-    label: 'Rare (Blau Mana)',
+    label: 'Rare (Blau Elektro)',
     phaseLabel: 'Phase 1 · Rare',
     badgeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-400/50 shadow-[0_0_12px_rgba(56,189,248,0.35)]',
     buttonClass: 'from-cyan-500 via-sky-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-cyan-500/30',
@@ -59,11 +61,11 @@ const RARITY_CONFIG: Record<
     confettiColors: ['#c084fc', '#e879f9', '#9333ea', '#f0abfc'],
   },
   legendary: {
-    label: 'Legendary (Molten Lava)',
+    label: 'Legendary (Gold)',
     phaseLabel: 'Phase 3 · Legendary',
-    badgeClass: 'bg-amber-500/25 text-amber-200 border-amber-400/70 shadow-[0_0_18px_rgba(251,146,60,0.65)]',
-    buttonClass: 'from-amber-400 via-orange-500 to-red-600 hover:from-amber-300 hover:to-red-500 shadow-orange-500/50',
-    confettiColors: ['#facc15', '#f97316', '#ef4444', '#fde047'],
+    badgeClass: 'bg-amber-400/20 text-amber-200 border-amber-300/70 shadow-[0_0_18px_rgba(250,204,21,0.55)]',
+    buttonClass: 'from-yellow-300 via-amber-400 to-amber-600 hover:from-yellow-200 hover:to-amber-500 shadow-amber-400/50',
+    confettiColors: ['#facc15', '#fde047', '#fef3c7', '#f59e0b'],
   },
 };
 
@@ -427,7 +429,7 @@ export default function HomeView() {
   ];
 
   const nextRarityLabel =
-    rarity === 'rare' ? 'Epic (Lila)' : rarity === 'epic' ? 'Legendary (Lava)' : 'Rare (Reset)';
+    rarity === 'rare' ? 'Epic (Lila)' : rarity === 'epic' ? 'Legendary (Gold)' : 'Rare (Reset)';
 
   return (
     <main className="relative w-screen h-screen overflow-hidden flex items-center justify-center bg-black select-none">
@@ -467,7 +469,7 @@ export default function HomeView() {
                   className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${
                     rarity === r
                       ? r === 'legendary'
-                        ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-red-600 text-black shadow-[0_0_12px_rgba(251,146,60,0.8)]'
+                        ? 'bg-gradient-to-r from-yellow-300 via-amber-400 to-amber-600 text-black shadow-[0_0_12px_rgba(250,204,21,0.8)]'
                         : r === 'epic'
                         ? 'bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white shadow-[0_0_12px_rgba(192,132,252,0.8)]'
                         : 'bg-gradient-to-r from-cyan-400 to-blue-500 text-black shadow-[0_0_10px_rgba(56,189,248,0.8)]'
@@ -489,7 +491,7 @@ export default function HomeView() {
                     rarity === 'rare'
                       ? 'from-purple-600 via-fuchsia-500 to-indigo-600 text-white shadow-[0_0_20px_rgba(192,132,252,0.7)]'
                       : rarity === 'epic'
-                      ? 'from-amber-400 via-orange-500 to-red-600 text-black shadow-[0_0_24px_rgba(251,146,60,0.85)]'
+                      ? 'from-yellow-300 via-amber-400 to-amber-600 text-black shadow-[0_0_24px_rgba(250,204,21,0.85)]'
                       : 'from-cyan-400 via-sky-500 to-blue-600 text-black shadow-[0_0_18px_rgba(56,189,248,0.7)]'
                   } font-black text-xs active:scale-95 transition-all border border-white/30`}
                   title={`Giveaway Level Up (${nextRarityLabel}) – dreht alle Karten auf 1 bis ${cards.length}`}
@@ -599,7 +601,7 @@ export default function HomeView() {
                   rarity === 'rare'
                     ? 'from-purple-600 via-fuchsia-500 to-indigo-600 text-white shadow-purple-500/30'
                     : rarity === 'epic'
-                    ? 'from-amber-400 via-orange-500 to-red-600 text-black shadow-orange-500/40'
+                    ? 'from-yellow-300 via-amber-400 to-amber-600 text-black shadow-amber-400/40'
                     : 'from-cyan-400 via-sky-500 to-blue-600 text-black shadow-cyan-500/30'
                 } font-black text-xs shadow-lg active:scale-95 transition-all`}
                 title={`Giveaway Level Up: Wechselt zu ${nextRarityLabel} und dreht alle Karten auf 1–${cards.length}`}
@@ -619,7 +621,13 @@ export default function HomeView() {
                   className={`flex items-center gap-1.5 px-2.5 py-2 rounded-xl border text-xs font-extrabold active:scale-95 transition-all ${RARITY_CONFIG[rarity].badgeClass}`}
                   title="Rarität direkt auswählen (Rare / Epic / Legendary)"
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
+                  {rarity === 'legendary' ? (
+                    <Crown className="w-3.5 h-3.5" />
+                  ) : rarity === 'epic' ? (
+                    <Waves className="w-3.5 h-3.5" />
+                  ) : (
+                    <Zap className="w-3.5 h-3.5" />
+                  )}
                   <span className="hidden md:inline">{RARITY_CONFIG[rarity].phaseLabel}</span>
                 </button>
 
@@ -646,7 +654,7 @@ export default function HomeView() {
                           <span
                             className={`w-3 h-3 rounded-full ${
                               r === 'legendary'
-                                ? 'bg-gradient-to-tr from-red-500 via-orange-400 to-yellow-300 shadow-[0_0_8px_#f97316]'
+                                ? 'bg-gradient-to-tr from-amber-500 via-yellow-400 to-yellow-100 shadow-[0_0_8px_#facc15]'
                                 : r === 'epic'
                                 ? 'bg-gradient-to-tr from-purple-600 to-fuchsia-400 shadow-[0_0_8px_#c084fc]'
                                 : 'bg-gradient-to-tr from-blue-500 to-cyan-300 shadow-[0_0_8px_#38bdf8]'

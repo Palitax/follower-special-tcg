@@ -8,7 +8,6 @@ import {
   Plus,
   Trash2,
   Image as ImageIcon,
-  Sparkles,
   Upload,
   Check,
   Palette,
@@ -268,7 +267,7 @@ export const CardEditorModal: React.FC<CardEditorModalProps> = ({
             {/* Holo Effect Selector */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5 flex items-center gap-1">
-                <Sparkles className="w-3.5 h-3.5 text-yellow-400" />
+                <Palette className="w-3.5 h-3.5 text-yellow-400" />
                 <span>Holographischer Foil-Effekt</span>
               </label>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">

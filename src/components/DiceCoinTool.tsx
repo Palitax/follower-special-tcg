@@ -8,7 +8,6 @@ import {
   CircleDot,
   PartyPopper,
   X,
-  Sparkles,
 } from 'lucide-react';
 
 interface DiceCoinToolProps {

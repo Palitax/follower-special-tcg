@@ -180,119 +180,449 @@ input, textarea {
 }
 
 /* ============================================================
-   RARITY FRAMES & ANIMATED PARTICLE AURAS (RARE, EPIC, LEGENDARY)
+   RARITY FRAMES (RARE · EPIC · LEGENDARY)
    ============================================================ */
 
-@keyframes manaPulseBlue {
+/* RARE – electric: hard, irregular flicker like an unstable current */
+@keyframes rareFrameCrackle {
   0%, 100% {
-    box-shadow:
-      0 0 14px rgba(56, 189, 248, 0.8),
-      0 0 28px rgba(14, 165, 233, 0.5),
-      inset 0 0 12px rgba(56, 189, 248, 0.45);
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.75), 0 0 26px rgba(14, 165, 233, 0.45), inset 0 0 10px rgba(56, 189, 248, 0.4);
     border-color: rgba(125, 211, 252, 0.95);
   }
-  50% {
-    box-shadow:
-      0 0 22px rgba(56, 189, 248, 1),
-      0 0 42px rgba(2, 132, 199, 0.75),
-      inset 0 0 18px rgba(125, 211, 252, 0.65);
-    border-color: rgba(224, 242, 254, 1);
+  6% {
+    box-shadow: 0 0 22px rgba(186, 230, 253, 1), 0 0 44px rgba(56, 189, 248, 0.85), inset 0 0 18px rgba(186, 230, 253, 0.75);
+    border-color: #f0f9ff;
+  }
+  9% {
+    box-shadow: 0 0 10px rgba(56, 189, 248, 0.6), 0 0 20px rgba(14, 165, 233, 0.35), inset 0 0 8px rgba(56, 189, 248, 0.3);
+    border-color: rgba(56, 189, 248, 0.9);
+  }
+  12% {
+    box-shadow: 0 0 20px rgba(186, 230, 253, 0.95), 0 0 40px rgba(56, 189, 248, 0.8), inset 0 0 16px rgba(186, 230, 253, 0.65);
+    border-color: #e0f2fe;
+  }
+  15%, 58% {
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.75), 0 0 26px rgba(14, 165, 233, 0.45), inset 0 0 10px rgba(56, 189, 248, 0.4);
+    border-color: rgba(125, 211, 252, 0.95);
+  }
+  61% {
+    box-shadow: 0 0 24px rgba(224, 242, 254, 1), 0 0 48px rgba(56, 189, 248, 0.9), inset 0 0 20px rgba(186, 230, 253, 0.8);
+    border-color: #ffffff;
+  }
+  64% {
+    box-shadow: 0 0 12px rgba(56, 189, 248, 0.75), 0 0 26px rgba(14, 165, 233, 0.45), inset 0 0 10px rgba(56, 189, 248, 0.4);
+    border-color: rgba(125, 211, 252, 0.95);
   }
 }
 
-@keyframes arcanePulsePurple {
+/* EPIC – arcane: slow breathing, colour drifts violet ↔ fuchsia */
+@keyframes epicFrameBreath {
   0%, 100% {
-    box-shadow:
-      0 0 20px rgba(192, 132, 252, 0.95),
-      0 0 44px rgba(147, 51, 234, 0.8),
-      0 0 70px rgba(126, 34, 206, 0.5),
-      inset 0 0 18px rgba(216, 180, 254, 0.65);
-    border-color: rgba(216, 180, 254, 1);
+    box-shadow: 0 0 18px rgba(168, 85, 247, 0.85), 0 0 40px rgba(126, 34, 206, 0.55), inset 0 0 16px rgba(192, 132, 252, 0.55);
+    border-color: rgba(196, 181, 253, 1);
   }
   50% {
-    box-shadow:
-      0 0 32px rgba(232, 121, 249, 1),
-      0 0 64px rgba(168, 85, 247, 0.95),
-      0 0 95px rgba(147, 51, 234, 0.7),
-      inset 0 0 26px rgba(240, 171, 252, 0.85);
-    border-color: rgba(250, 232, 255, 1);
+    box-shadow: 0 0 26px rgba(217, 70, 239, 0.95), 0 0 58px rgba(168, 85, 247, 0.7), inset 0 0 24px rgba(232, 121, 249, 0.7);
+    border-color: rgba(245, 208, 254, 1);
   }
 }
 
-@keyframes moltenLavaPulse {
+/* LEGENDARY – divine gold: radiant, warm, confident pulse */
+@keyframes legendaryFrameRadiance {
   0%, 100% {
-    box-shadow:
-      0 0 24px rgba(251, 191, 36, 1),
-      0 0 50px rgba(249, 115, 22, 0.95),
-      0 0 85px rgba(220, 38, 38, 0.75),
-      inset 0 0 22px rgba(251, 146, 60, 0.85);
-    border-color: #fde047;
+    box-shadow: 0 0 20px rgba(250, 204, 21, 0.95), 0 0 46px rgba(245, 158, 11, 0.7), 0 0 80px rgba(234, 179, 8, 0.35), inset 0 0 18px rgba(253, 224, 71, 0.7);
+    border-color: #facc15;
   }
   50% {
-    box-shadow:
-      0 0 36px rgba(254, 240, 138, 1),
-      0 0 70px rgba(251, 146, 60, 1),
-      0 0 115px rgba(234, 88, 12, 0.9),
-      inset 0 0 32px rgba(253, 224, 71, 0.95);
-    border-color: #fffbeb;
-  }
-}
-
-@keyframes lavaBorderFlow {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-@keyframes floatParticle {
-  0% {
-    transform: translateY(0px) scale(0.75);
-    opacity: 0;
-  }
-  25% {
-    opacity: 1;
-  }
-  75% {
-    opacity: 0.9;
-  }
-  100% {
-    transform: translateY(-28px) scale(1.2);
-    opacity: 0;
+    box-shadow: 0 0 30px rgba(254, 240, 138, 1), 0 0 64px rgba(250, 204, 21, 0.85), 0 0 110px rgba(245, 158, 11, 0.5), inset 0 0 26px rgba(254, 240, 138, 0.9);
+    border-color: #fef9c3;
   }
 }
 
 .rarity-frame-rare {
   border: 3px solid rgba(125, 211, 252, 0.95);
-  animation: manaPulseBlue 2.8s infinite ease-in-out;
+  animation: rareFrameCrackle 2.6s infinite steps(1, end);
 }
 
 .rarity-frame-epic {
-  border: 3.5px solid rgba(216, 180, 254, 1);
-  animation: arcanePulsePurple 2s infinite ease-in-out;
+  border: 3.5px solid rgba(196, 181, 253, 1);
+  animation: epicFrameBreath 3.2s infinite ease-in-out;
 }
 
 .rarity-frame-legendary {
-  border: 4px solid #fde047;
-  animation: moltenLavaPulse 1.5s infinite ease-in-out;
+  border: 4px solid #facc15;
+  animation: legendaryFrameRadiance 2.2s infinite ease-in-out;
 }
 
-.molten-lava-rim {
-  background: linear-gradient(
-    135deg,
-    #7f1d1d 0%,
-    #ea580c 25%,
-    #facc15 50%,
-    #f97316 75%,
-    #dc2626 100%
+/* ============================================================
+   RARITY ENERGY EFFECTS (see components/RarityEffects.tsx)
+   ============================================================ */
+
+.rfx-root {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: visible;
+}
+.rfx-root--front {
+  z-index: 30;
+}
+
+.rfx-svg {
+  position: absolute;
+  top: -9%;
+  left: -9%;
+  width: 118%;
+  height: 118%;
+  overflow: visible;
+  pointer-events: none;
+}
+.rfx-svg--glow-blue {
+  filter: drop-shadow(0 0 3px rgba(56, 189, 248, 0.9));
+}
+.rfx-svg--glow-violet {
+  filter: drop-shadow(0 0 3px rgba(192, 132, 252, 0.85));
+}
+
+/* Tier change flash */
+.rfx-enter {
+  position: absolute;
+  inset: 0;
+  border-radius: 4.5%;
+  border: 2px solid var(--rfx-c);
+  box-shadow: 0 0 28px var(--rfx-c), inset 0 0 28px var(--rfx-c);
+  opacity: 0;
+  animation: rfxEnter 1s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+.rfx-enter--rare { --rfx-c: rgba(125, 211, 252, 0.95); }
+.rfx-enter--epic { --rfx-c: rgba(216, 180, 254, 0.95); }
+.rfx-enter--legendary { --rfx-c: rgba(253, 224, 71, 1); }
+@keyframes rfxEnter {
+  0% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.3, 1.22); }
+}
+
+/* ---------------- RARE · ELECTRIC ---------------- */
+.rfx-rare-field {
+  position: absolute;
+  inset: -13%;
+  border-radius: 16%;
+  background: radial-gradient(ellipse at center, rgba(56, 189, 248, 0.55) 0%, rgba(14, 165, 233, 0.28) 45%, transparent 70%);
+  animation: rareFieldFlicker 3.4s infinite steps(1, end);
+}
+@keyframes rareFieldFlicker {
+  0%, 100% { opacity: 0.5; }
+  7% { opacity: 1; }
+  8% { opacity: 0.35; }
+  10% { opacity: 0.9; }
+  12%, 46% { opacity: 0.5; }
+  47% { opacity: 0.95; }
+  49%, 74% { opacity: 0.5; }
+  75% { opacity: 1; }
+  77% { opacity: 0.5; }
+}
+
+.rfx-bolt {
+  opacity: 0;
+  animation-name: boltFlash;
+  animation-iteration-count: infinite;
+  animation-timing-function: steps(1, end);
+}
+@keyframes boltFlash {
+  0% { opacity: 0; }
+  2% { opacity: 1; }
+  5% { opacity: 0.25; }
+  8% { opacity: 1; }
+  13% { opacity: 0.6; }
+  17% { opacity: 1; }
+  23%, 100% { opacity: 0; }
+}
+.rfx-bolt--live {
+  animation-name: boltLive;
+}
+@keyframes boltLive {
+  0% { opacity: 0.95; }
+  30% { opacity: 0.45; }
+  45% { opacity: 1; }
+  70%, 100% { opacity: 0; }
+}
+.rfx-bolt path {
+  fill: none;
+  stroke-linecap: round;
+}
+.rfx-bolt-glow { stroke: rgba(56, 189, 248, 0.38); stroke-linejoin: round; }
+.rfx-bolt-mid { stroke: #7dd3fc; stroke-linejoin: miter; }
+.rfx-bolt-core { stroke: #ffffff; stroke-linejoin: miter; }
+
+.rfx-rare-rim,
+.rfx-rare-rim-glow,
+.rfx-rare-rim-fast {
+  fill: none;
+  stroke-linecap: round;
+}
+.rfx-rare-rim-glow {
+  stroke: rgba(56, 189, 248, 0.55);
+  stroke-dasharray: 9 41;
+  animation: rimRace 1.9s linear infinite, rimFlicker 0.7s steps(1, end) infinite;
+}
+.rfx-rare-rim {
+  stroke: #f0f9ff;
+  stroke-dasharray: 9 41;
+  animation: rimRace 1.9s linear infinite, rimFlicker 0.7s steps(1, end) infinite;
+}
+.rfx-rare-rim-fast {
+  stroke: #bae6fd;
+  stroke-dasharray: 1.5 11;
+  opacity: 0.75;
+  animation: rimRace 1.1s linear infinite reverse;
+}
+@keyframes rimRace {
+  to { stroke-dashoffset: -100; }
+}
+@keyframes rimFlicker {
+  0%, 100% { opacity: 1; }
+  20% { opacity: 0.45; }
+  28% { opacity: 1; }
+  60% { opacity: 0.7; }
+  66% { opacity: 1; }
+}
+
+.rfx-spark {
+  position: absolute;
+  width: 2px;
+  height: 7px;
+  border-radius: 2px;
+  background: linear-gradient(to top, rgba(56, 189, 248, 0), #e0f2fe 60%, #ffffff);
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.95), 0 0 10px rgba(14, 165, 233, 0.7);
+  opacity: 0;
+  animation-name: sparkPop;
+  animation-iteration-count: infinite;
+  animation-timing-function: cubic-bezier(0.15, 0.7, 0.3, 1);
+}
+@keyframes sparkPop {
+  0% { opacity: 0; transform: translate(-50%, -50%) rotate(var(--rot)) scale(1); }
+  4% { opacity: 1; }
+  32% { opacity: 0.9; }
+  46%, 100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) rotate(var(--rot)) scale(0.3);
+  }
+}
+
+/* ---------------- EPIC · ARCANE WAVES & SMOKE ---------------- */
+.rfx-epic-glow {
+  position: absolute;
+  inset: -8%;
+  border-radius: 12%;
+  background: radial-gradient(ellipse at center, rgba(168, 85, 247, 0.45) 0%, rgba(126, 34, 206, 0.22) 50%, transparent 72%);
+  animation: epicBreath 3.2s ease-in-out infinite;
+}
+@keyframes epicBreath {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.03); }
+}
+
+.rfx-smoke {
+  position: absolute;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  filter: blur(8px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation-name: smokeDrift;
+  animation-iteration-count: infinite;
+  animation-timing-function: cubic-bezier(0.25, 0.6, 0.35, 1);
+}
+.rfx-smoke--violet {
+  background:
+    radial-gradient(ellipse 48% 40% at 38% 46%, rgba(192, 132, 252, 0.75), transparent 70%),
+    radial-gradient(ellipse 42% 48% at 64% 58%, rgba(126, 34, 206, 0.7), transparent 72%);
+}
+.rfx-smoke--fuchsia {
+  background:
+    radial-gradient(ellipse 46% 38% at 60% 42%, rgba(232, 121, 249, 0.65), transparent 70%),
+    radial-gradient(ellipse 40% 50% at 36% 60%, rgba(147, 51, 234, 0.7), transparent 72%);
+}
+@keyframes smokeDrift {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.45) rotate(0deg); }
+  20% { opacity: var(--op); }
+  55% { opacity: calc(var(--op) * 0.55); }
+  85%, 100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--dx)), calc(-50% + var(--dy))) scale(1.55) rotate(var(--rot));
+  }
+}
+
+.rfx-ripple {
+  position: absolute;
+  inset: 0;
+  border-radius: 4.5%;
+  border: 1.5px solid rgba(216, 180, 254, 0.85);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.7), inset 0 0 8px rgba(168, 85, 247, 0.4);
+  opacity: 0;
+  animation: epicRipple 3.3s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+@keyframes epicRipple {
+  0% { opacity: 0; transform: scale(1); }
+  10% { opacity: 0.9; }
+  100% { opacity: 0; transform: scale(1.16, 1.11); }
+}
+
+.rfx-wave-glow,
+.rfx-wave-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.rfx-wave-glow.rfx-wave-violet { stroke: rgba(147, 51, 234, 0.45); }
+.rfx-wave-glow.rfx-wave-fuchsia { stroke: rgba(217, 70, 239, 0.35); }
+.rfx-wave-line.rfx-wave-violet { stroke: #ede9fe; }
+.rfx-wave-line.rfx-wave-fuchsia { stroke: #fae8ff; }
+
+/* SVG user units: one wavelength = 34 → seamless upward loop */
+.rfx-wave-v { animation: waveFlowV 3.2s linear infinite; }
+@keyframes waveFlowV {
+  from { transform: translateY(0); }
+  to { transform: translateY(-34px); }
+}
+
+/* ---------------- LEGENDARY · DIVINE GOLD ---------------- */
+.rfx-legend-rays {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 190%;
+  aspect-ratio: 1;
+  background: repeating-conic-gradient(
+    from 0deg,
+    rgba(253, 224, 71, 0) 0deg,
+    rgba(253, 224, 71, 0.34) 5deg,
+    rgba(253, 224, 71, 0) 10deg,
+    rgba(253, 224, 71, 0) 20deg
   );
-  background-size: 300% 300%;
-  animation: lavaBorderFlow 3s ease infinite;
+  -webkit-mask-image: radial-gradient(closest-side, #000 32%, transparent 100%);
+  mask-image: radial-gradient(closest-side, #000 32%, transparent 100%);
+  mix-blend-mode: screen;
+  animation: raysSpin 28s linear infinite;
+}
+.rfx-legend-rays--compact { width: 150%; }
+.rfx-legend-rays--counter {
+  width: 160%;
+  opacity: 0.55;
+  background: repeating-conic-gradient(
+    from 7deg,
+    rgba(255, 251, 235, 0) 0deg,
+    rgba(255, 251, 235, 0.3) 3deg,
+    rgba(255, 251, 235, 0) 6deg,
+    rgba(255, 251, 235, 0) 15deg
+  );
+  animation-duration: 40s;
+  animation-direction: reverse;
+}
+@keyframes raysSpin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+.rfx-legend-glow {
+  position: absolute;
+  inset: -9%;
+  border-radius: 12%;
+  background: radial-gradient(ellipse at center, rgba(250, 204, 21, 0.5) 0%, rgba(245, 158, 11, 0.24) 50%, transparent 72%);
+  animation: legendGlow 2.2s ease-in-out infinite;
+}
+@keyframes legendGlow {
+  0%, 100% { opacity: 0.75; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.04); }
+}
+
+.rfx-ember-track {
+  position: absolute;
+  top: -32%;
+  height: 140%;
+  width: 0;
+}
+.rfx-ember-rise {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  animation-name: emberRise;
+  animation-iteration-count: infinite;
+  animation-timing-function: cubic-bezier(0.35, 0.1, 0.65, 0.9);
+}
+@keyframes emberRise {
+  0% { transform: translateY(calc(var(--from) * -1%)); opacity: 0; }
+  12% { opacity: 1; }
+  72% { opacity: 0.9; }
+  100% { transform: translateY(calc(var(--to) * -1%)); opacity: 0; }
+}
+.rfx-ember-sway {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  animation-name: emberSway;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+  animation-timing-function: ease-in-out;
+}
+@keyframes emberSway {
+  from { transform: translateX(calc(var(--sway) * -1px)); }
+  to { transform: translateX(calc(var(--sway) * 1px)); }
+}
+.rfx-ember {
+  display: block;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  transform: translate(-50%, 50%);
+  background: radial-gradient(circle, #fffbeb 0%, #fde047 38%, rgba(245, 158, 11, 0.9) 62%, rgba(245, 158, 11, 0) 72%);
+  box-shadow: 0 0 6px rgba(250, 204, 21, 0.95), 0 0 14px rgba(245, 158, 11, 0.6);
+  animation: emberTwinkle 0.9s ease-in-out infinite alternate;
+}
+.rfx-ember--streak {
+  width: 2px;
+  border-radius: 2px;
+  background: linear-gradient(to top, rgba(253, 230, 138, 0), #fde68a 55%, #fffbeb);
+  box-shadow: 0 0 6px rgba(250, 204, 21, 0.8);
+  animation: none;
+}
+.rfx-ember--faint {
+  opacity: 0.7;
+}
+@keyframes emberTwinkle {
+  from { filter: brightness(1); }
+  to { filter: brightness(1.35); }
+}
+
+/* Gold foil light sweep across the card faces (legendary only) */
+.rfx-gold-sweep {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.rfx-gold-sweep::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 45%;
+  background: linear-gradient(
+    90deg,
+    rgba(255, 236, 170, 0) 0%,
+    rgba(255, 236, 170, 0.18) 30%,
+    rgba(255, 248, 220, 0.6) 50%,
+    rgba(255, 236, 170, 0.18) 70%,
+    rgba(255, 236, 170, 0) 100%
+  );
+  transform: translateX(-130%) skewX(-18deg);
+  animation: goldSweep 4.6s cubic-bezier(0.45, 0, 0.25, 1) infinite;
+}
+@keyframes goldSweep {
+  0% { transform: translateX(-130%) skewX(-18deg); }
+  42%, 100% { transform: translateX(340%) skewX(-18deg); }
 }
 
 /* Custom Scrollbar for Drawer / Modal */

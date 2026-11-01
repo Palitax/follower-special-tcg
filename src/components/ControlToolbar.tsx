@@ -12,7 +12,6 @@ import {
   VolumeX,
   Palette,
   Dices,
-  Sparkles,
   LayoutGrid,
   RefreshCw,
   Sliders,

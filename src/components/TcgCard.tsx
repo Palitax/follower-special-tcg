@@ -12,7 +12,11 @@ import {
   ImagePlus,
   Maximize2,
   RotateCw,
+  Zap,
+  Waves,
+  Crown,
 } from 'lucide-react';
+import { RarityEffects, EffectDensity } from './RarityEffects';
 
 interface TcgCardProps {
   card: TcgCardData;
@@ -68,22 +72,6 @@ async function compressImageFile(file: File, maxDim = 900): Promise<string> {
     reader.readAsDataURL(file);
   });
 }
-
-// Particle configurations around the card per rarity tier
-const PARTICLE_POSITIONS = [
-  { left: '6%', top: '8%', delay: '0s', duration: '2.4s', size: 6 },
-  { left: '92%', top: '12%', delay: '0.4s', duration: '2.1s', size: 7 },
-  { left: '4%', top: '38%', delay: '0.8s', duration: '2.6s', size: 5 },
-  { left: '95%', top: '44%', delay: '0.2s', duration: '2.3s', size: 8 },
-  { left: '8%', top: '72%', delay: '1.1s', duration: '2.5s', size: 6 },
-  { left: '93%', top: '76%', delay: '0.6s', duration: '2.0s', size: 7 },
-  { left: '24%', top: '3%', delay: '0.9s', duration: '2.2s', size: 6 },
-  { left: '76%', top: '4%', delay: '0.3s', duration: '2.4s', size: 7 },
-  { left: '28%', top: '95%', delay: '0.5s', duration: '2.1s', size: 6 },
-  { left: '72%', top: '96%', delay: '1.2s', duration: '2.3s', size: 8 },
-  { left: '50%', top: '2%', delay: '0.7s', duration: '1.9s', size: 8 },
-  { left: '50%', top: '97%', delay: '0.1s', duration: '2.0s', size: 7 },
-];
 
 export const TcgCard: React.FC<TcgCardProps> = ({
   card,
@@ -302,12 +290,17 @@ export const TcgCard: React.FC<TcgCardProps> = ({
       ? 'rarity-frame-epic'
       : 'rarity-frame-rare';
 
-  const visibleParticles =
-    rarity === 'legendary'
-      ? PARTICLE_POSITIONS
-      : rarity === 'epic'
-      ? PARTICLE_POSITIONS.slice(0, 10)
-      : PARTICLE_POSITIONS.slice(0, 6);
+  // Effect intensity scales down with the number of cards on screen (keeps iPad smooth)
+  const effectDensity: EffectDensity = isMicro
+    ? 'none'
+    : isMini
+    ? 'minimal'
+    : isSmall || (isVerticalMode && totalCards > 4)
+    ? 'reduced'
+    : 'full';
+  const effectSeed = cardIndex + 1;
+
+  const TierIcon = rarity === 'legendary' ? Crown : rarity === 'epic' ? Waves : Zap;
 
   return (
     <div
@@ -329,7 +322,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
       {/* Top Mini Bar (ONLY in Preview Mode !isFullscreen & <= 20 cards) */}
       {!isFullscreen && !isMicro && (
         <div
-          className={`w-full ${getWidthClass()} flex items-center justify-between px-0.5 mb-1 gap-1`}
+          className={`relative z-40 w-full ${getWidthClass()} flex items-center justify-between px-0.5 mb-1 gap-1`}
         >
           <div className="flex items-center gap-1 bg-black/75 backdrop-blur-md px-2 py-0.5 rounded-full border border-cyan-500/30 text-[9px] sm:text-[10px] font-bold text-cyan-200 truncate">
             <span
@@ -426,43 +419,8 @@ export const TcgCard: React.FC<TcgCardProps> = ({
         onDrop={handleDrop}
         onClick={handleCardClick}
       >
-        {/* ============================================================ */}
-        {/* RARITY AMBIENT AURA & FLOATING PARTICLES AROUND THE CARD     */}
-        {/* ============================================================ */}
-        <div
-          className={`absolute -inset-1.5 sm:-inset-2 rounded-[6%] pointer-events-none transition-all duration-700 ${
-            rarity === 'legendary'
-              ? 'bg-gradient-to-tr from-red-600/50 via-orange-500/55 to-yellow-300/60 blur-md animate-pulse'
-              : rarity === 'epic'
-              ? 'bg-gradient-to-tr from-purple-700/50 via-fuchsia-500/45 to-violet-400/55 blur-md animate-pulse'
-              : 'bg-gradient-to-tr from-blue-600/35 via-cyan-400/35 to-sky-300/40 blur-sm'
-          }`}
-        />
-
-        {/* Animated Floating Rarity Particles */}
-        {!isMicro && (
-          <div className="absolute -inset-2 pointer-events-none overflow-visible z-30">
-            {visibleParticles.map((p, idx) => (
-              <span
-                key={idx}
-                style={{
-                  left: p.left,
-                  top: p.top,
-                  width: `${rarity === 'legendary' ? p.size + 2 : rarity === 'epic' ? p.size + 1 : p.size}px`,
-                  height: `${rarity === 'legendary' ? p.size + 2 : rarity === 'epic' ? p.size + 1 : p.size}px`,
-                  animation: `floatParticle ${p.duration} ease-in-out ${p.delay} infinite`,
-                }}
-                className={`absolute rounded-full ${
-                  rarity === 'legendary'
-                    ? 'bg-gradient-to-t from-red-500 via-orange-400 to-yellow-200 shadow-[0_0_12px_#facc15,0_0_20px_#ea580c]'
-                    : rarity === 'epic'
-                    ? 'bg-gradient-to-t from-purple-500 via-fuchsia-300 to-white shadow-[0_0_12px_#d946ef,0_0_18px_#9333ea]'
-                    : 'bg-gradient-to-t from-blue-400 via-cyan-200 to-white shadow-[0_0_10px_#38bdf8,0_0_15px_#0284c7]'
-                }`}
-              />
-            ))}
-          </div>
-        )}
+        {/* Rarity energy effects BEHIND the card (glow field, smoke, god-rays) */}
+        <RarityEffects rarity={rarity} layer="back" density={effectDensity} seed={effectSeed} />
 
         <div
           ref={cardRef}
@@ -495,12 +453,18 @@ export const TcgCard: React.FC<TcgCardProps> = ({
               zIndex: card.isFlipped ? 0 : 2,
             }}
           >
-            {/* Molten Lava Inner Border Rim for Legendary */}
+            {/* Inner Rarity Rim + Gold Foil Sweep (Legendary) */}
             {rarity === 'legendary' && (
-              <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[3px] border-orange-500/80 shadow-[inset_0_0_20px_rgba(234,88,12,0.85)] z-20" />
+              <>
+                <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[3px] border-amber-300/90 shadow-[inset_0_0_22px_rgba(250,204,21,0.75)] z-20" />
+                <div className="rfx-gold-sweep rounded-[4%] z-[15]" />
+              </>
             )}
             {rarity === 'epic' && (
-              <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[2px] border-fuchsia-400/70 shadow-[inset_0_0_18px_rgba(192,132,252,0.75)] z-20" />
+              <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[2px] border-violet-300/70 shadow-[inset_0_0_18px_rgba(168,85,247,0.7)] z-20" />
+            )}
+            {rarity === 'rare' && (
+              <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[1.5px] border-sky-300/60 shadow-[inset_0_0_14px_rgba(56,189,248,0.5)] z-20" />
             )}
 
             {/* Card Front Image (Custom Uploaded Prize / Slab or Default Energy Card) */}
@@ -686,10 +650,16 @@ export const TcgCard: React.FC<TcgCardProps> = ({
           >
             {/* Inner Rarity Border Accent on Back */}
             {rarity === 'legendary' && (
-              <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[3px] border-orange-500/85 shadow-[inset_0_0_22px_rgba(234,88,12,0.85)] z-20" />
+              <>
+                <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[3px] border-amber-300/90 shadow-[inset_0_0_24px_rgba(250,204,21,0.8)] z-20" />
+                <div className="rfx-gold-sweep rounded-[4%] z-[15]" />
+              </>
             )}
             {rarity === 'epic' && (
-              <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[2.5px] border-purple-500/80 shadow-[inset_0_0_20px_rgba(168,85,247,0.75)] z-20" />
+              <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[2.5px] border-violet-400/80 shadow-[inset_0_0_20px_rgba(168,85,247,0.75)] z-20" />
+            )}
+            {rarity === 'rare' && (
+              <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[2px] border-sky-400/70 shadow-[inset_0_0_16px_rgba(56,189,248,0.55)] z-20" />
             )}
 
             {/* ManaCards Background Image */}
@@ -715,14 +685,15 @@ export const TcgCard: React.FC<TcgCardProps> = ({
             {/* Top Bar on Flipped Card: Small Card Number Badge */}
             <div className="relative z-20 flex items-center justify-between px-0.5 pointer-events-none">
               <span
-                className={`text-[8px] sm:text-[10px] font-black tracking-wider uppercase px-2 py-0.5 rounded-full border backdrop-blur-sm ${
+                className={`inline-flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[10px] font-black tracking-wider uppercase px-1.5 sm:px-2 py-0.5 rounded-full border backdrop-blur-sm ${
                   rarity === 'legendary'
-                    ? 'bg-amber-950/85 text-amber-200 border-amber-400/60'
+                    ? 'bg-amber-950/85 text-amber-200 border-amber-300/70 shadow-[0_0_10px_rgba(250,204,21,0.45)]'
                     : rarity === 'epic'
                     ? 'bg-purple-950/85 text-purple-200 border-purple-400/60'
                     : 'bg-slate-950/80 text-cyan-200 border-cyan-400/50'
                 }`}
               >
+                {!isMicro && <TierIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" strokeWidth={2.5} />}
                 #{cardIndex + 1}
               </span>
             </div>
@@ -842,6 +813,15 @@ export const TcgCard: React.FC<TcgCardProps> = ({
             <div className="h-2" />
           </motion.div>
         </div>
+
+        {/* Rarity energy effects IN FRONT of the card (bolts, waves, embers) – remounts on tier change */}
+        <RarityEffects
+          key={rarity}
+          rarity={rarity}
+          layer="front"
+          density={effectDensity}
+          seed={effectSeed}
+        />
       </motion.div>
     </div>
   );

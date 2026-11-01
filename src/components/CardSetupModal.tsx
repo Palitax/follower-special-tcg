@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { sound } from '../utils/sound';
-import { Layers, Plus, Check, X, Sparkles } from 'lucide-react';
+import { Layers, Plus, Check, X } from 'lucide-react';
 
 interface CardSetupModalProps {
   isOpen: boolean;

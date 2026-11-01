@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Tablet, X, PlusCircle, RotateCcw } from 'lucide-react';
+import { Tablet, X, PlusCircle, RotateCcw, LogOut } from 'lucide-react';
 import { sound } from '../utils/sound';
 
 interface HeaderProps {
@@ -61,6 +61,22 @@ export const Header: React.FC<HeaderProps> = ({ onNewSetup, onResetCards, hasCar
           <Tablet className="w-3.5 h-3.5 text-yellow-400" />
           <span className="hidden sm:inline">iPad Info</span>
         </button>
+
+        <button
+          onClick={async () => {
+            sound.playClick(450);
+            try {
+              await fetch('/api/logout', { method: 'POST' });
+            } finally {
+              window.location.replace('/login');
+            }
+          }}
+          className="p-1.5 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-slate-400 hover:text-rose-400 hover:border-rose-400/40 active:scale-95 transition-all"
+          title="Abmelden"
+          aria-label="Abmelden"
+        >
+          <LogOut className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* iPad Setup Guide Modal */}
@@ -91,7 +107,7 @@ export const Header: React.FC<HeaderProps> = ({ onNewSetup, onResetCards, hasCar
               </div>
 
               <div className="space-y-1.5">
-                <p className="font-semibold text-white">✨ Schnellanleitung:</p>
+                <p className="font-semibold text-white">Schnellanleitung:</p>
                 <ul className="list-disc list-inside space-y-1 text-slate-400">
                   <li><strong>Vorderseite:</strong> Auf den umstrichelten Bereich klicken für Text.</li>
                   <li><strong>Rückseite:</strong> Karte umdrehen und auf die Zahl klicken zur Eingabe.</li>

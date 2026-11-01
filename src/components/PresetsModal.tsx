@@ -3,7 +3,7 @@
 import React from 'react';
 import { PRESETS, TcgPreset } from '../data/presets';
 import { sound } from '../utils/sound';
-import { LayoutGrid, X, Check, Sparkles } from 'lucide-react';
+import { LayoutGrid, X, Check } from 'lucide-react';
 
 interface PresetsModalProps {
   isOpen: boolean;
