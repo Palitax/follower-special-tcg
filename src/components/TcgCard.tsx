@@ -12,8 +12,8 @@ import {
   ImagePlus,
   Maximize2,
   RotateCw,
-  Zap,
-  Waves,
+  Droplets,
+  Flame,
   Crown,
 } from 'lucide-react';
 import { RarityEffects, EffectDensity } from './RarityEffects';
@@ -124,6 +124,17 @@ export const TcgCard: React.FC<TcgCardProps> = ({
       setIsEditingBackNum(false);
     }
   }, [isFullscreen]);
+
+  // One-shot flash in the new tier colour – only when the rarity actually changes
+  const [showTierFlash, setShowTierFlash] = useState(false);
+  const prevRarityRef = useRef(rarity);
+  useEffect(() => {
+    if (prevRarityRef.current === rarity) return;
+    prevRarityRef.current = rarity;
+    setShowTierFlash(true);
+    const t = setTimeout(() => setShowTierFlash(false), 1200);
+    return () => clearTimeout(t);
+  }, [rarity]);
 
   // Dynamic responsive card sizing
   const isMicro = totalCards > 36;
@@ -293,20 +304,39 @@ export const TcgCard: React.FC<TcgCardProps> = ({
   // Effect intensity scales down with the number of cards on screen (keeps iPad smooth)
   const effectDensity: EffectDensity = isMicro
     ? 'none'
-    : isMini
-    ? 'minimal'
-    : isSmall || (isVerticalMode && totalCards > 4)
+    : totalCards <= 4
+    ? 'full'
+    : totalCards <= 12
     ? 'reduced'
-    : 'full';
+    : 'minimal';
   const effectSeed = cardIndex + 1;
 
-  const TierIcon = rarity === 'legendary' ? Crown : rarity === 'epic' ? Waves : Zap;
+  // Reserved space around every card. The outer rarity glow is capped to exactly this
+  // distance, so glows of neighbouring cards can never overlap (incl. 9:16 vertical mode).
+  const effectBleed = isVerticalMode
+    ? totalCards <= 2
+      ? 12
+      : totalCards <= 6
+      ? 8
+      : totalCards <= 16
+      ? 6
+      : 4
+    : totalCards <= 2
+    ? 20
+    : totalCards <= 4
+    ? 16
+    : totalCards <= 8
+    ? 12
+    : totalCards <= 16
+    ? 9
+    : 6;
+
+  const TierIcon = rarity === 'legendary' ? Crown : rarity === 'epic' ? Flame : Droplets;
 
   return (
     <div
-      className={`flex flex-col items-center justify-center ${
-        isVerticalMode ? 'p-0.5 sm:p-1' : 'p-1 sm:p-1.5'
-      } select-none group/card`}
+      className="flex flex-col items-center justify-center select-none group/card"
+      style={{ padding: effectBleed }}
     >
       {/* Hidden file input for individual prize image upload */}
       {!isFullscreen && (
@@ -330,7 +360,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                 rarity === 'legendary'
                   ? 'bg-amber-400'
                   : rarity === 'epic'
-                  ? 'bg-purple-400'
+                  ? 'bg-fuchsia-400'
                   : 'bg-cyan-400'
               }`}
             />
@@ -403,7 +433,8 @@ export const TcgCard: React.FC<TcgCardProps> = ({
           maxHeight: isFullscreen ? 'calc(94vh - 20px)' : 'calc(100vh - 215px)',
           maxWidth: 'calc(100vw - 24px)',
           perspective: '1200px',
-        }}
+          ['--rfx-bleed' as string]: `${effectBleed}px`,
+        } as React.CSSProperties}
         onPointerMove={handlePointerMove}
         onPointerEnter={() => setIsInteracting(true)}
         onPointerLeave={() => {
@@ -419,9 +450,6 @@ export const TcgCard: React.FC<TcgCardProps> = ({
         onDrop={handleDrop}
         onClick={handleCardClick}
       >
-        {/* Rarity energy effects BEHIND the card (glow field, smoke, god-rays) */}
-        <RarityEffects rarity={rarity} layer="back" density={effectDensity} seed={effectSeed} />
-
         <div
           ref={cardRef}
           className="w-full h-full relative"
@@ -453,19 +481,8 @@ export const TcgCard: React.FC<TcgCardProps> = ({
               zIndex: card.isFlipped ? 0 : 2,
             }}
           >
-            {/* Inner Rarity Rim + Gold Foil Sweep (Legendary) */}
-            {rarity === 'legendary' && (
-              <>
-                <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[3px] border-amber-300/90 shadow-[inset_0_0_22px_rgba(250,204,21,0.75)] z-20" />
-                <div className="rfx-gold-sweep rounded-[4%] z-[15]" />
-              </>
-            )}
-            {rarity === 'epic' && (
-              <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[2px] border-violet-300/70 shadow-[inset_0_0_18px_rgba(168,85,247,0.7)] z-20" />
-            )}
-            {rarity === 'rare' && (
-              <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[1.5px] border-sky-300/60 shadow-[inset_0_0_14px_rgba(56,189,248,0.5)] z-20" />
-            )}
+            {/* Gold Foil Sweep (Legendary) */}
+            {rarity === 'legendary' && <div className="rfx-gold-sweep rounded-[4%] z-[15]" />}
 
             {/* Card Front Image (Custom Uploaded Prize / Slab or Default Energy Card) */}
             <div
@@ -477,6 +494,11 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                 transform: isInteracting ? 'scale(1.015)' : 'scale(1)',
               }}
             />
+
+            {/* Animated rarity frame art (only on the visible face) */}
+            {!card.isFlipped && (
+              <RarityEffects rarity={rarity} density={effectDensity} seed={effectSeed} flash={showTierFlash} />
+            )}
 
             {/* Subtle Holo Light Glare */}
             <div
@@ -648,19 +670,8 @@ export const TcgCard: React.FC<TcgCardProps> = ({
               zIndex: card.isFlipped ? 2 : 0,
             }}
           >
-            {/* Inner Rarity Border Accent on Back */}
-            {rarity === 'legendary' && (
-              <>
-                <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[3px] border-amber-300/90 shadow-[inset_0_0_24px_rgba(250,204,21,0.8)] z-20" />
-                <div className="rfx-gold-sweep rounded-[4%] z-[15]" />
-              </>
-            )}
-            {rarity === 'epic' && (
-              <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[2.5px] border-violet-400/80 shadow-[inset_0_0_20px_rgba(168,85,247,0.75)] z-20" />
-            )}
-            {rarity === 'rare' && (
-              <div className="absolute inset-0 pointer-events-none rounded-[4.5%] border-[2px] border-sky-400/70 shadow-[inset_0_0_16px_rgba(56,189,248,0.55)] z-20" />
-            )}
+            {/* Gold Foil Sweep (Legendary) */}
+            {rarity === 'legendary' && <div className="rfx-gold-sweep rounded-[4%] z-[15]" />}
 
             {/* ManaCards Background Image */}
             <div
@@ -671,6 +682,11 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                 transform: isInteracting ? 'scale(1.015)' : 'scale(1)',
               }}
             />
+
+            {/* Animated rarity frame art (only on the visible face) */}
+            {card.isFlipped && (
+              <RarityEffects rarity={rarity} density={effectDensity} seed={effectSeed} flash={showTierFlash} />
+            )}
 
             {/* Subtle Holo Light Glare */}
             <div
@@ -689,8 +705,8 @@ export const TcgCard: React.FC<TcgCardProps> = ({
                   rarity === 'legendary'
                     ? 'bg-amber-950/85 text-amber-200 border-amber-300/70 shadow-[0_0_10px_rgba(250,204,21,0.45)]'
                     : rarity === 'epic'
-                    ? 'bg-purple-950/85 text-purple-200 border-purple-400/60'
-                    : 'bg-slate-950/80 text-cyan-200 border-cyan-400/50'
+                    ? 'bg-fuchsia-950/85 text-pink-200 border-fuchsia-400/60'
+                    : 'bg-slate-950/80 text-sky-200 border-sky-300/50'
                 }`}
               >
                 {!isMicro && <TierIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" strokeWidth={2.5} />}
@@ -813,15 +829,6 @@ export const TcgCard: React.FC<TcgCardProps> = ({
             <div className="h-2" />
           </motion.div>
         </div>
-
-        {/* Rarity energy effects IN FRONT of the card (bolts, waves, embers) – remounts on tier change */}
-        <RarityEffects
-          key={rarity}
-          rarity={rarity}
-          layer="front"
-          density={effectDensity}
-          seed={effectSeed}
-        />
       </motion.div>
     </div>
   );

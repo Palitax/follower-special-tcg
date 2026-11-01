@@ -22,8 +22,7 @@ import {
   Home,
   Layers,
   Flame,
-  Zap,
-  Waves,
+  Droplets,
   Crown,
   Smartphone,
   Monitor,
@@ -47,18 +46,18 @@ const RARITY_CONFIG: Record<
   }
 > = {
   rare: {
-    label: 'Rare (Blau Elektro)',
+    label: 'Rare (Blau Wasser)',
     phaseLabel: 'Phase 1 · Rare',
     badgeClass: 'bg-cyan-500/20 text-cyan-300 border-cyan-400/50 shadow-[0_0_12px_rgba(56,189,248,0.35)]',
     buttonClass: 'from-cyan-500 via-sky-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-cyan-500/30',
-    confettiColors: ['#38bdf8', '#0ea5e9', '#bae6fd', '#0284c7'],
+    confettiColors: ['#bae6fd', '#7dd3fc', '#a5b4fc', '#e0f2fe'],
   },
   epic: {
-    label: 'Epic (Lila Arcane)',
+    label: 'Epic (Magenta Flamme)',
     phaseLabel: 'Phase 2 · Epic',
-    badgeClass: 'bg-purple-500/25 text-purple-200 border-purple-400/60 shadow-[0_0_15px_rgba(192,132,252,0.5)]',
-    buttonClass: 'from-purple-600 via-fuchsia-500 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 shadow-purple-500/40',
-    confettiColors: ['#c084fc', '#e879f9', '#9333ea', '#f0abfc'],
+    badgeClass: 'bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-400/60 shadow-[0_0_15px_rgba(232,121,249,0.5)]',
+    buttonClass: 'from-fuchsia-600 via-pink-500 to-orange-400 hover:from-fuchsia-500 hover:to-orange-300 shadow-fuchsia-500/40',
+    confettiColors: ['#e879f9', '#f472b6', '#fb923c', '#c026d3'],
   },
   legendary: {
     label: 'Legendary (Gold)',
@@ -429,7 +428,7 @@ export default function HomeView() {
   ];
 
   const nextRarityLabel =
-    rarity === 'rare' ? 'Epic (Lila)' : rarity === 'epic' ? 'Legendary (Gold)' : 'Rare (Reset)';
+    rarity === 'rare' ? 'Epic (Flamme)' : rarity === 'epic' ? 'Legendary (Gold)' : 'Rare (Reset)';
 
   return (
     <main className="relative w-screen h-screen overflow-hidden flex items-center justify-center bg-black select-none">
@@ -471,7 +470,7 @@ export default function HomeView() {
                       ? r === 'legendary'
                         ? 'bg-gradient-to-r from-yellow-300 via-amber-400 to-amber-600 text-black shadow-[0_0_12px_rgba(250,204,21,0.8)]'
                         : r === 'epic'
-                        ? 'bg-gradient-to-r from-purple-500 to-fuchsia-500 text-white shadow-[0_0_12px_rgba(192,132,252,0.8)]'
+                        ? 'bg-gradient-to-r from-fuchsia-600 via-pink-500 to-orange-400 text-white shadow-[0_0_12px_rgba(236,72,153,0.8)]'
                         : 'bg-gradient-to-r from-cyan-400 to-blue-500 text-black shadow-[0_0_10px_rgba(56,189,248,0.8)]'
                       : 'text-slate-400 hover:text-white'
                   }`}
@@ -489,7 +488,7 @@ export default function HomeView() {
                   onClick={() => handleGiveawayLevelUp()}
                   className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-gradient-to-r ${
                     rarity === 'rare'
-                      ? 'from-purple-600 via-fuchsia-500 to-indigo-600 text-white shadow-[0_0_20px_rgba(192,132,252,0.7)]'
+                      ? 'from-fuchsia-600 via-pink-500 to-orange-400 text-white shadow-[0_0_20px_rgba(236,72,153,0.7)]'
                       : rarity === 'epic'
                       ? 'from-yellow-300 via-amber-400 to-amber-600 text-black shadow-[0_0_24px_rgba(250,204,21,0.85)]'
                       : 'from-cyan-400 via-sky-500 to-blue-600 text-black shadow-[0_0_18px_rgba(56,189,248,0.7)]'
@@ -543,8 +542,8 @@ export default function HomeView() {
           <div
             className={`relative z-20 flex-1 flex flex-row flex-wrap items-center justify-center content-center ${
               isVerticalMode
-                ? 'gap-1.5 sm:gap-2 px-2 py-1'
-                : 'gap-2 sm:gap-3 md:gap-4 lg:gap-6 px-3 py-2'
+                ? 'gap-0 px-1 py-1'
+                : 'gap-0 sm:gap-1 md:gap-2 px-3 py-2'
             } overflow-y-auto ${
               isFullscreen
                 ? 'h-full max-h-[calc(100vh-48px)] w-full'
@@ -599,7 +598,7 @@ export default function HomeView() {
                 onClick={() => handleGiveawayLevelUp()}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r ${
                   rarity === 'rare'
-                    ? 'from-purple-600 via-fuchsia-500 to-indigo-600 text-white shadow-purple-500/30'
+                    ? 'from-fuchsia-600 via-pink-500 to-orange-400 text-white shadow-fuchsia-500/30'
                     : rarity === 'epic'
                     ? 'from-yellow-300 via-amber-400 to-amber-600 text-black shadow-amber-400/40'
                     : 'from-cyan-400 via-sky-500 to-blue-600 text-black shadow-cyan-500/30'
@@ -624,9 +623,9 @@ export default function HomeView() {
                   {rarity === 'legendary' ? (
                     <Crown className="w-3.5 h-3.5" />
                   ) : rarity === 'epic' ? (
-                    <Waves className="w-3.5 h-3.5" />
+                    <Flame className="w-3.5 h-3.5" />
                   ) : (
-                    <Zap className="w-3.5 h-3.5" />
+                    <Droplets className="w-3.5 h-3.5" />
                   )}
                   <span className="hidden md:inline">{RARITY_CONFIG[rarity].phaseLabel}</span>
                 </button>
@@ -656,7 +655,7 @@ export default function HomeView() {
                               r === 'legendary'
                                 ? 'bg-gradient-to-tr from-amber-500 via-yellow-400 to-yellow-100 shadow-[0_0_8px_#facc15]'
                                 : r === 'epic'
-                                ? 'bg-gradient-to-tr from-purple-600 to-fuchsia-400 shadow-[0_0_8px_#c084fc]'
+                                ? 'bg-gradient-to-tr from-fuchsia-600 via-pink-500 to-orange-300 shadow-[0_0_8px_#f472b6]'
                                 : 'bg-gradient-to-tr from-blue-500 to-cyan-300 shadow-[0_0_8px_#38bdf8]'
                             }`}
                           />
