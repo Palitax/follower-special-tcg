@@ -35,3 +35,28 @@ export async function isValidSession(token: string | undefined): Promise<boolean
   if (!token) return false;
   return timingSafeEqual(token, await createSessionToken());
 }
+
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+/**
+ * Deterministic encrypted channel credentials for authenticated sessions.
+ * Allows multiple windows / PCs logged into the same account to discover each other
+ * and end-to-end encrypt all real-time sync traffic with AES-256-GCM.
+ */
+export async function deriveSyncCredentials(): Promise<{
+  roomTopic: string;
+  aesKeyHex: string;
+}> {
+  const topicHash = await sha256Hex(`mc-live-topic-v1:${USERNAME}:${PASSWORD}:${SECRET}`);
+  const aesKeyHex = await sha256Hex(`mc-live-aes256-v1:${USERNAME}:${PASSWORD}:${SECRET}`);
+  return {
+    roomTopic: `mc/arena/v1/${topicHash.slice(0, 32)}`,
+    aesKeyHex,
+  };
+}

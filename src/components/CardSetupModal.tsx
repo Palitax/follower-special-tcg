@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { sound } from '../utils/sound';
-import { Layers, Plus, Check, X } from 'lucide-react';
+import { Layers, Check, X } from 'lucide-react';
 
 interface CardSetupModalProps {
   isOpen: boolean;
@@ -15,10 +15,17 @@ export const CardSetupModal: React.FC<CardSetupModalProps> = ({
   isOpen,
   onClose,
   onConfirm,
-  initialCount = 2,
+  initialCount = 10,
 }) => {
   const [count, setCount] = useState<number>(initialCount);
   const [inputValue, setInputValue] = useState<string>(initialCount.toString());
+
+  useEffect(() => {
+    if (isOpen) {
+      setCount(initialCount);
+      setInputValue(initialCount.toString());
+    }
+  }, [isOpen, initialCount]);
 
   if (!isOpen) return null;
 
@@ -44,7 +51,7 @@ export const CardSetupModal: React.FC<CardSetupModalProps> = ({
     onClose();
   };
 
-  const PRESET_COUNTS = [1, 2, 4, 6, 8, 12, 16, 20, 25, 50, 100];
+  const PRESET_COUNTS = [1, 2, 4, 6, 8, 10, 12, 16, 20, 25, 30, 50];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
@@ -63,7 +70,7 @@ export const CardSetupModal: React.FC<CardSetupModalProps> = ({
         <div className="space-y-1">
           <h3 className="text-xl font-black text-white">Kartenanzahl wählen</h3>
           <p className="text-xs text-slate-400">
-            Gib an, wie viele Karten generiert werden sollen (1 bis 100)
+            Die Karten werden automatisch von 1 bis {count} durchnummeriert
           </p>
         </div>
 

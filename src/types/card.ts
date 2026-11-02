@@ -32,6 +32,8 @@ export interface TcgCardData {
   id: string;
   name: string;
   isFlipped: boolean;
+  /** Marked as out of the active giveaway pool (grayed out with an X overlay) */
+  isEliminated?: boolean;
   rotation: number; // 0, 90, 180, 270 degrees
   borderStyle: 'classic-black' | 'gold-border' | 'silver-border' | 'neon-cyan' | 'neon-magenta' | 'minimal';
   front: CardSideData;
