@@ -184,7 +184,6 @@ interface VerticalLiquidMeterProps {
   completed: number;
   total: number;
   tubeWidthPx: number;
-  verticalExtendPx: number;
   overcharging: boolean;
   compactScale: boolean;
 }
@@ -194,7 +193,6 @@ const VerticalLiquidMeter: React.FC<VerticalLiquidMeterProps> = ({
   completed,
   total,
   tubeWidthPx,
-  verticalExtendPx,
   overcharging,
   compactScale,
 }) => {
@@ -226,11 +224,9 @@ const VerticalLiquidMeter: React.FC<VerticalLiquidMeterProps> = ({
 
   return (
     <div
-      className="relative self-stretch shrink-0 flex flex-col"
+      className="relative self-stretch shrink-0 flex flex-col items-center justify-center select-none"
       style={{
         width: `${tubeWidthPx}px`,
-        marginTop: verticalExtendPx ? `${-verticalExtendPx}px` : undefined,
-        marginBottom: verticalExtendPx ? `${-verticalExtendPx}px` : undefined,
       }}
     >
       {/* Accessible semantic <progress> element (screen-reader announcements, no tabindex/inner text) */}
@@ -244,10 +240,11 @@ const VerticalLiquidMeter: React.FC<VerticalLiquidMeterProps> = ({
         className="sr-only"
       />
 
-      {/* Full-Height Smoked-Glass Liquid Capsule */}
+      {/* Smoked-Glass Liquid Capsule — exactly 5% smaller top and bottom than the displayed element (height: 90%, centered) */}
       <div
-        className={`relative w-full h-full flex-1 rounded-full border ${theme.tubeBorderClass} bg-zinc-950/88 backdrop-blur-md`}
+        className={`relative w-full rounded-full border ${theme.tubeBorderClass} bg-zinc-950/88 backdrop-blur-md`}
         style={{
+          height: '90%',
           overflow: 'clip',
           boxShadow: overcharging
             ? `${theme.tubeGlowShadow}, 0 0 28px rgba(255,255,255,0.85)`
@@ -321,9 +318,9 @@ const VerticalLiquidMeter: React.FC<VerticalLiquidMeterProps> = ({
             />
           )}
 
-          {/* Rising Fluid Micro-Bubbles inside the Liquid (emerge cleanly above the bottom counter cap) */}
-          {fillPct > 14 && (
-            <div className="absolute inset-x-0 top-0 bottom-8 overflow-hidden pointer-events-none">
+          {/* Rising Fluid Micro-Bubbles inside the Liquid */}
+          {fillPct > 8 && (
+            <div className="absolute inset-x-0 top-0 bottom-2 overflow-hidden pointer-events-none">
               {BUBBLE_SPECS.map((b, idx) => (
                 <span
                   key={idx}
@@ -344,7 +341,7 @@ const VerticalLiquidMeter: React.FC<VerticalLiquidMeterProps> = ({
           )}
         </div>
 
-        {/* Exact Subdivision Calibration Chambers (e.g. 30 Rare / 15 Epic / 10 Legendary) */}
+        {/* Exact Subdivision Calibration Chambers (e.g. 30 Rare / 15 Epic / 10 Legendary or custom points) */}
         <div className="absolute inset-0 z-10 pointer-events-none">
           {segmentIndices.map((segIdx) => {
             const pct = (segIdx / safeTotal) * 100;
@@ -384,39 +381,6 @@ const VerticalLiquidMeter: React.FC<VerticalLiquidMeterProps> = ({
               'linear-gradient(90deg, rgba(255,255,255,0.26) 0%, rgba(255,255,255,0.06) 26%, rgba(255,255,255,0) 56%, rgba(0,0,0,0.34) 100%)',
           }}
         />
-
-        {/* Top Inner Tier Crest Icon */}
-        <div className="absolute inset-x-0 top-1.5 z-30 flex justify-center pointer-events-none">
-          <div className="w-[76%] aspect-square rounded-full bg-zinc-950/75 border border-white/15 flex items-center justify-center shadow-sm">
-            <TierCrestIcon
-              rarity={rarity}
-              className={`${compactScale ? 'w-2.5 h-2.5' : 'w-3.5 h-3.5'} ${theme.iconColorClass}`}
-            />
-          </div>
-        </div>
-
-        {/* Bottom Inner Compact Progress Counter (solid frosted dark cap so numerals are 100% crisp) */}
-        {total > 0 && (
-          <div className="absolute inset-x-[2px] bottom-[3px] z-30 flex justify-center pointer-events-none">
-            <div className="w-full py-1 rounded-full bg-zinc-950 border border-white/25 flex flex-col items-center justify-center leading-none tabular-nums shadow-[0_2px_8px_rgba(0,0,0,0.9)]">
-              <span
-                className={`font-black text-white ${
-                  compactScale ? 'text-[8.5px]' : 'text-[10px]'
-                }`}
-              >
-                {clampedCompleted}
-              </span>
-              <span className="w-2.5 h-[1px] bg-white/30 my-[2px]" />
-              <span
-                className={`font-extrabold ${theme.counterAccentClass} ${
-                  compactScale ? 'text-[8px]' : 'text-[9.5px]'
-                }`}
-              >
-                {safeTotal}
-              </span>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -682,8 +646,12 @@ export const GiveawayOverlayCard: React.FC<GiveawayOverlayCardProps> = ({
       ? activeCelebration.event.fromRarity
       : rarity;
 
+  const customTargetPoints = settings.tierBarPoints?.[meterRarity];
   const currentStats = tierProgress?.[meterRarity] ?? { completed: 0, total: 1 };
-  const meterTotal = Math.max(1, currentStats.total);
+  const meterTotal = Math.max(
+    1,
+    customTargetPoints && customTargetPoints > 0 ? customTargetPoints : currentStats.total
+  );
   const meterCompleted = isOvercharging ? meterTotal : currentStats.completed;
 
   const tierMeta = TIER_VISUALS[rarity];
@@ -719,7 +687,6 @@ export const GiveawayOverlayCard: React.FC<GiveawayOverlayCardProps> = ({
                 completed={meterCompleted}
                 total={meterTotal}
                 tubeWidthPx={tubeWidthPx}
-                verticalExtendPx={ringExtent}
                 overcharging={isOvercharging}
                 compactScale={compactScale}
               />

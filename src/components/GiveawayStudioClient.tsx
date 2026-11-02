@@ -963,7 +963,10 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
     );
   }, [pools]);
 
-  const tierProgress = useMemo(() => computeTierProgress(pools), [pools]);
+  const tierProgress = useMemo(
+    () => computeTierProgress(pools, overlaySettings.tierBarPoints),
+    [pools, overlaySettings.tierBarPoints]
+  );
 
   const activeTier = active?.rarity ?? 'rare';
   const activeTierItems = pools[activeTier] || [];
@@ -1380,6 +1383,97 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
                   </button>
                 </div>
 
+                {/* Liquid Bar Points Stepper */}
+                <div
+                  className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-black/55 border border-white/15 text-xs"
+                  title="Anzahl der Punkte / Segmente im Liquid-Balken für diese Stufe anpassen"
+                >
+                  <span className="text-slate-400 font-semibold mr-1 select-none">
+                    Balken-Punkte:
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sound.playCounter(false);
+                      const curVal =
+                        overlaySettings.tierBarPoints?.[selectedTab] &&
+                        overlaySettings.tierBarPoints[selectedTab] > 0
+                          ? overlaySettings.tierBarPoints[selectedTab]
+                          : currentTabItems.length || 1;
+                      const nextVal = Math.max(1, curVal - 1);
+                      updateOverlaySetting('tierBarPoints', {
+                        ...(overlaySettings.tierBarPoints ?? { rare: 0, epic: 0, legendary: 0 }),
+                        [selectedTab]: nextVal,
+                      });
+                    }}
+                    className="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-white font-black flex items-center justify-center active:scale-90"
+                    title="Einen Punkt weniger im Liquid-Balken"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={100}
+                    value={
+                      overlaySettings.tierBarPoints?.[selectedTab] &&
+                      overlaySettings.tierBarPoints[selectedTab] > 0
+                        ? overlaySettings.tierBarPoints[selectedTab]
+                        : currentTabItems.length || 1
+                    }
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      if (!Number.isNaN(val) && val > 0) {
+                        updateOverlaySetting('tierBarPoints', {
+                          ...(overlaySettings.tierBarPoints ?? { rare: 0, epic: 0, legendary: 0 }),
+                          [selectedTab]: Math.min(100, Math.max(1, val)),
+                        });
+                      }
+                    }}
+                    className="w-12 h-6 text-center rounded-md bg-transparent text-white font-black text-xs focus:outline-none focus:bg-white/10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      sound.playCounter(true);
+                      const curVal =
+                        overlaySettings.tierBarPoints?.[selectedTab] &&
+                        overlaySettings.tierBarPoints[selectedTab] > 0
+                          ? overlaySettings.tierBarPoints[selectedTab]
+                          : currentTabItems.length || 1;
+                      const nextVal = Math.min(100, curVal + 1);
+                      updateOverlaySetting('tierBarPoints', {
+                        ...(overlaySettings.tierBarPoints ?? { rare: 0, epic: 0, legendary: 0 }),
+                        [selectedTab]: nextVal,
+                      });
+                    }}
+                    className="w-6 h-6 rounded-lg bg-white/10 hover:bg-white/20 text-white font-black flex items-center justify-center active:scale-90"
+                    title="Einen weiteren Punkt im Liquid-Balken"
+                  >
+                    +
+                  </button>
+                  {Boolean(
+                    overlaySettings.tierBarPoints?.[selectedTab] &&
+                      overlaySettings.tierBarPoints[selectedTab] > 0 &&
+                      overlaySettings.tierBarPoints[selectedTab] !== currentTabItems.length
+                  ) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        sound.playClick(500);
+                        updateOverlaySetting('tierBarPoints', {
+                          ...(overlaySettings.tierBarPoints ?? { rare: 0, epic: 0, legendary: 0 }),
+                          [selectedTab]: 0,
+                        });
+                      }}
+                      className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-400/20 text-amber-300 hover:bg-amber-400/30 transition-colors"
+                      title="Auf Giveaway-Anzahl zurücksetzen"
+                    >
+                      Auto
+                    </button>
+                  )}
+                </div>
+
                 <button
                   type="button"
                   onClick={() => tierBulkInputRef.current?.click()}
@@ -1486,9 +1580,18 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
                                 Live
                               </span>
                             ) : item.isCompleted ? (
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 truncate">
-                                Verlost
-                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleItemCompleted(selectedTab, item.id);
+                                }}
+                                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-emerald-500/20 hover:bg-amber-500/20 text-emerald-300 hover:text-amber-200 border border-emerald-400/40 hover:border-amber-400/40 text-[9.5px] font-black uppercase tracking-wider transition-colors"
+                                title="Klicken, um als „Nicht verlost“ zu markieren"
+                              >
+                                <span>Verlost</span>
+                                <RotateCcw className="w-2.5 h-2.5" />
+                              </button>
                             ) : null}
                           </div>
 
@@ -1601,6 +1704,22 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
                           placeholder="Gewinn-Titel (optional)…"
                           className="w-full h-8 px-2.5 rounded-lg bg-black/55 border border-white/10 text-xs font-semibold text-white placeholder:text-slate-500 focus:outline-none focus:border-amber-400/70 transition-colors"
                         />
+
+                        {/* Explicit 1-Click "Nicht verlost" Reset when completed */}
+                        {item.isCompleted && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleToggleItemCompleted(selectedTab, item.id);
+                            }}
+                            className="w-full py-1.5 px-2 rounded-xl text-[11px] font-bold bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/35 text-amber-200 flex items-center justify-center gap-1.5 transition-all active:scale-95 select-none"
+                            title="Dieses Giveaway wieder als nicht verlost markieren (-1 im Liquid-Balken)"
+                          >
+                            <RotateCcw className="w-3 h-3 text-amber-300" />
+                            <span>Als „Nicht verlost“ markieren</span>
+                          </button>
+                        )}
 
                         {/* Explicit 1-Click Activate Button */}
                         <button
@@ -1890,14 +2009,46 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
                   </button>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => handleStepGiveaway(1, true)}
-                  className="w-full py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-black font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15 active:scale-[0.98] transition-all select-none"
-                >
-                  <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
-                  <span>Verlost & Nächstes Giveaway →</span>
-                </button>
+                {activeItem.isCompleted ? (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-emerald-500/15 border border-emerald-400/40 text-emerald-200 text-xs font-bold">
+                      <span className="flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        Status: Dieses Giveaway ist verlost
+                      </span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleToggleItemCompleted(activeTier, activeItem.id)}
+                      className="w-full py-2.5 px-3.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/50 text-amber-200 font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-amber-500/10 active:scale-[0.98] transition-all select-none"
+                      title="Verlost-Status aufheben (-1 im Liquid-Balken)"
+                    >
+                      <RotateCcw className="w-4 h-4 text-amber-300 stroke-[2.5]" />
+                      <span>Als „Nicht verlost“ markieren (-1 im Balken)</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleStepGiveaway(1, true)}
+                      className="w-full py-2.5 px-3.5 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-400 hover:from-emerald-300 hover:to-teal-300 text-black font-black text-xs flex items-center justify-center gap-2 shadow-lg shadow-emerald-500/15 active:scale-[0.98] transition-all select-none"
+                    >
+                      <CheckCircle2 className="w-4 h-4 stroke-[2.5]" />
+                      <span>Verlost & Nächstes Giveaway →</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleItemCompleted(activeTier, activeItem.id)}
+                      className="w-full py-1.5 px-3 rounded-lg bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-400/30 text-emerald-200 font-extrabold text-[11px] flex items-center justify-center gap-1.5 transition-all select-none"
+                      title="Diesen Gewinn als verlost abhaken, ohne zum nächsten zu wechseln"
+                    >
+                      <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                      <span>Als verlost abhaken (+1 im Balken)</span>
+                    </button>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-2 gap-2">
                   <button
@@ -1958,24 +2109,113 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
                   />
                 </label>
 
-                <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] font-extrabold tabular-nums select-none">
-                  <div className="rounded-lg bg-sky-500/15 border border-sky-400/35 px-2 py-1 text-sky-200">
-                    <div className="text-[9px] uppercase text-sky-300/80">Rare</div>
-                    <div>
-                      {tierProgress.rare.completed}/{tierProgress.rare.total}
-                    </div>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="font-bold text-slate-300">Punkte im Liquid-Balken pro Stufe:</span>
+                    <span className="text-[10px] text-slate-400">Verlost / Ziel</span>
                   </div>
-                  <div className="rounded-lg bg-purple-500/15 border border-purple-400/40 px-2 py-1 text-purple-200">
-                    <div className="text-[9px] uppercase text-purple-300/80">Epic</div>
-                    <div>
-                      {tierProgress.epic.completed}/{tierProgress.epic.total}
-                    </div>
-                  </div>
-                  <div className="rounded-lg bg-amber-400/15 border border-amber-300/45 px-2 py-1 text-amber-200">
-                    <div className="text-[9px] uppercase text-amber-300/80">Legendary</div>
-                    <div>
-                      {tierProgress.legendary.completed}/{tierProgress.legendary.total}
-                    </div>
+
+                  <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] font-extrabold tabular-nums select-none">
+                    {ALL_RARITIES.map((tier) => {
+                      const isRare = tier === 'rare';
+                      const isEpic = tier === 'epic';
+                      const bgBorder = isRare
+                        ? 'bg-sky-500/15 border-sky-400/35 text-sky-200'
+                        : isEpic
+                        ? 'bg-purple-500/15 border-purple-400/40 text-purple-200'
+                        : 'bg-amber-400/15 border-amber-300/45 text-amber-200';
+                      const headerColor = isRare
+                        ? 'text-sky-300/90'
+                        : isEpic
+                        ? 'text-purple-300/90'
+                        : 'text-amber-300/90';
+
+                      const curTotal = tierProgress[tier].total;
+                      const curDone = tierProgress[tier].completed;
+                      const customVal = overlaySettings.tierBarPoints?.[tier] || 0;
+                      const isCustom = customVal > 0 && customVal !== pools[tier].length;
+
+                      return (
+                        <div
+                          key={tier}
+                          className={`rounded-xl border ${bgBorder} p-1.5 flex flex-col justify-between gap-1 shadow-sm`}
+                        >
+                          <div className="flex items-center justify-between gap-1">
+                            <span className={`text-[9.5px] uppercase font-black ${headerColor}`}>
+                              {TIER_CONFIG[tier].label}
+                            </span>
+                            {isCustom && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  sound.playClick(500);
+                                  updateOverlaySetting('tierBarPoints', {
+                                    ...(overlaySettings.tierBarPoints ?? {
+                                      rare: 0,
+                                      epic: 0,
+                                      legendary: 0,
+                                    }),
+                                    [tier]: 0,
+                                  });
+                                }}
+                                className="px-1 py-0.5 rounded text-[8px] bg-white/20 hover:bg-white/30 text-white font-bold leading-none"
+                                title="Auf Giveaway-Anzahl zurücksetzen"
+                              >
+                                Auto
+                              </button>
+                            )}
+                          </div>
+
+                          <div className="text-[12px] font-black tracking-tight text-white">
+                            {curDone} / {curTotal}
+                          </div>
+
+                          <div className="flex items-center justify-center gap-1 pt-1 border-t border-white/10">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                sound.playCounter(false);
+                                const nextVal = Math.max(1, curTotal - 1);
+                                updateOverlaySetting('tierBarPoints', {
+                                  ...(overlaySettings.tierBarPoints ?? {
+                                    rare: 0,
+                                    epic: 0,
+                                    legendary: 0,
+                                  }),
+                                  [tier]: nextVal,
+                                });
+                              }}
+                              className="w-5 h-5 rounded-md bg-white/10 hover:bg-white/20 text-white flex items-center justify-center font-black text-xs active:scale-90"
+                              title={`${TIER_CONFIG[tier].label}-Balken um 1 Punkt reduzieren`}
+                            >
+                              -
+                            </button>
+                            <span className="text-[9.5px] text-slate-300 font-extrabold px-0.5 whitespace-nowrap">
+                              {curTotal} Pkt
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                sound.playCounter(true);
+                                const nextVal = Math.min(100, curTotal + 1);
+                                updateOverlaySetting('tierBarPoints', {
+                                  ...(overlaySettings.tierBarPoints ?? {
+                                    rare: 0,
+                                    epic: 0,
+                                    legendary: 0,
+                                  }),
+                                  [tier]: nextVal,
+                                });
+                              }}
+                              className="w-5 h-5 rounded-md bg-white/10 hover:bg-white/20 text-white flex items-center justify-center font-black text-xs active:scale-90"
+                              title={`${TIER_CONFIG[tier].label}-Balken um 1 Punkt erhöhen`}
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
 

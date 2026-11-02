@@ -48,8 +48,10 @@ export interface OverlayDisplaySettings {
   frameStyle: OverlayFrameStyle;
   /** Keep interior behind contained images/boosters 100% transparent (no dark box behind transparent PNGs) */
   transparentCardFill: boolean;
-  /** Show the full-height segmented vertical liquid bar on the left of the giveaway */
+  /** Show the segmented vertical liquid bar on the left of the giveaway */
   showLiquidBar: boolean;
+  /** Custom number of points / segments in the liquid bar per tier (0 = auto / matches giveaway count) */
+  tierBarPoints?: Record<CardRarity, number>;
   /** Booster / card width in px inside the OBS Browser Source */
   cardWidthPx: number;
   /** 'compact' centers cleanly for free OBS positioning; corner anchors place it in a full-canvas OBS source */
@@ -61,6 +63,11 @@ export const DEFAULT_OVERLAY_DISPLAY_SETTINGS: OverlayDisplaySettings = {
   frameStyle: 'glow-ring',
   transparentCardFill: true,
   showLiquidBar: true,
+  tierBarPoints: {
+    rare: 0,
+    epic: 0,
+    legendary: 0,
+  },
   cardWidthPx: 300,
   anchor: 'compact',
 };

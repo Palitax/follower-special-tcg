@@ -228,7 +228,7 @@ function OverlaySurface() {
     const tierList = pools[resolvedRarity] || [];
     resolvedIdx = active ? tierList.findIndex((it) => it.id === active.itemId) : -1;
     resolvedItem = resolvedIdx >= 0 ? tierList[resolvedIdx] : null;
-    resolvedTierProgress = computeTierProgress(pools);
+    resolvedTierProgress = computeTierProgress(pools, settings.tierBarPoints);
   }
 
   const effectiveAnchor: OverlayAnchorPosition =

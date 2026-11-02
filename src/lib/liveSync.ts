@@ -31,19 +31,22 @@ export interface DirectActiveOverlayPayload {
 }
 
 export function computeTierProgress(
-  pools: GiveawayPools | null | undefined
+  pools: GiveawayPools | null | undefined,
+  tierBarPoints?: Partial<Record<CardRarity, number>>
 ): Record<CardRarity, TierProgressStats> {
-  const calc = (list: GiveawayItem[] | undefined): TierProgressStats => {
+  const calc = (list: GiveawayItem[] | undefined, tier: CardRarity): TierProgressStats => {
     const arr = Array.isArray(list) ? list : [];
+    const custom = tierBarPoints?.[tier];
+    const total = custom && custom > 0 ? custom : arr.length;
     return {
       completed: arr.filter((it) => it.isCompleted).length,
-      total: arr.length,
+      total: Math.max(1, total),
     };
   };
   return {
-    rare: calc(pools?.rare),
-    epic: calc(pools?.epic),
-    legendary: calc(pools?.legendary),
+    rare: calc(pools?.rare, 'rare'),
+    epic: calc(pools?.epic, 'epic'),
+    legendary: calc(pools?.legendary, 'legendary'),
   };
 }
 
@@ -588,7 +591,7 @@ export class LiveGiveawaySyncController {
       ? tierList.findIndex((it) => it.id === snap.active!.itemId)
       : -1;
     const rawItem = slotIndex >= 0 ? tierList[slotIndex] : null;
-    const tierProgress = computeTierProgress(snap.pools);
+    const tierProgress = computeTierProgress(snap.pools, snap.overlay?.tierBarPoints);
     const levelUp = snap.levelUp ?? null;
 
     if (!rawItem) {
