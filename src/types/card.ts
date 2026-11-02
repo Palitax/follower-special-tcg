@@ -27,6 +27,20 @@ export interface ActiveGiveawaySelection {
   itemId: string;
 }
 
+export interface TierProgressStats {
+  completed: number;
+  total: number;
+}
+
+export interface LevelUpEvent {
+  /** Monotonic timestamp id so each Level-Up plays once across all connected overlays */
+  id: number;
+  fromRarity: CardRarity;
+  toRarity: CardRarity;
+  /** Total giveaways in the newly unlocked tier (e.g. 15 Epic or 10 Legendary) */
+  newTierTotal: number;
+}
+
 export interface OverlayDisplaySettings {
   /** Whether the giveaway is currently shown in OBS (false = 100% transparent / empty) */
   visible: boolean;
@@ -34,14 +48,8 @@ export interface OverlayDisplaySettings {
   frameStyle: OverlayFrameStyle;
   /** Keep interior behind contained images/boosters 100% transparent (no dark box behind transparent PNGs) */
   transparentCardFill: boolean;
-  /** Show top header pill ('NÄCHSTES GIVEAWAY') above the booster/card */
-  showHeaderBadge: boolean;
-  /** Header badge text above the card, e.g. 'NÄCHSTES GIVEAWAY' or 'AKTUELLES GIVEAWAY' */
-  badgeLabel: string;
-  /** Show rarity tier pill (RARE / EPIC / LEGENDARY) inside the header badge */
-  showTierBadge: boolean;
-  /** Optional: show #1, #2... inside the header badge */
-  showSlotNumber: boolean;
+  /** Show the full-height segmented vertical liquid bar on the left of the giveaway */
+  showLiquidBar: boolean;
   /** Booster / card width in px inside the OBS Browser Source */
   cardWidthPx: number;
   /** 'compact' centers cleanly for free OBS positioning; corner anchors place it in a full-canvas OBS source */
@@ -52,10 +60,7 @@ export const DEFAULT_OVERLAY_DISPLAY_SETTINGS: OverlayDisplaySettings = {
   visible: true,
   frameStyle: 'glow-ring',
   transparentCardFill: true,
-  showHeaderBadge: true,
-  badgeLabel: 'NÄCHSTES GIVEAWAY',
-  showTierBadge: true,
-  showSlotNumber: false,
+  showLiquidBar: true,
   cardWidthPx: 300,
   anchor: 'compact',
 };

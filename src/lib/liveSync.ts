@@ -5,7 +5,9 @@ import {
   CardRarity,
   GiveawayItem,
   GiveawayPools,
+  LevelUpEvent,
   OverlayDisplaySettings,
+  TierProgressStats,
 } from '../types/card';
 
 export interface LiveGiveawaySnapshot {
@@ -14,6 +16,7 @@ export interface LiveGiveawaySnapshot {
   pools: GiveawayPools;
   active: ActiveGiveawaySelection | null;
   overlay: OverlayDisplaySettings;
+  levelUp?: LevelUpEvent | null;
 }
 
 export interface DirectActiveOverlayPayload {
@@ -23,6 +26,25 @@ export interface DirectActiveOverlayPayload {
   slotIndex: number;
   item: GiveawayItem | null;
   overlay: OverlayDisplaySettings;
+  tierProgress: Record<CardRarity, TierProgressStats>;
+  levelUp?: LevelUpEvent | null;
+}
+
+export function computeTierProgress(
+  pools: GiveawayPools | null | undefined
+): Record<CardRarity, TierProgressStats> {
+  const calc = (list: GiveawayItem[] | undefined): TierProgressStats => {
+    const arr = Array.isArray(list) ? list : [];
+    return {
+      completed: arr.filter((it) => it.isCompleted).length,
+      total: arr.length,
+    };
+  };
+  return {
+    rare: calc(pools?.rare),
+    epic: calc(pools?.epic),
+    legendary: calc(pools?.legendary),
+  };
 }
 
 export type SyncStatus = 'connecting' | 'live' | 'local';
@@ -566,6 +588,8 @@ export class LiveGiveawaySyncController {
       ? tierList.findIndex((it) => it.id === snap.active!.itemId)
       : -1;
     const rawItem = slotIndex >= 0 ? tierList[slotIndex] : null;
+    const tierProgress = computeTierProgress(snap.pools);
+    const levelUp = snap.levelUp ?? null;
 
     if (!rawItem) {
       return {
@@ -576,6 +600,8 @@ export class LiveGiveawaySyncController {
           slotIndex: -1,
           item: null,
           overlay: snap.overlay,
+          tierProgress,
+          levelUp,
         },
       };
     }
@@ -596,6 +622,8 @@ export class LiveGiveawaySyncController {
           slotIndex,
           item: { ...rawItem, imageUrl: resolvedUrl },
           overlay: snap.overlay,
+          tierProgress,
+          levelUp,
         },
       };
     }
@@ -611,6 +639,8 @@ export class LiveGiveawaySyncController {
           slotIndex,
           item: { ...rawItem, imageUrl: `${IMAGE_REF_PREFIX}${imgId}` },
           overlay: snap.overlay,
+          tierProgress,
+          levelUp,
         },
         largeImageToStream: { id: imgId, dataUrl: resolvedUrl },
       };
@@ -624,6 +654,8 @@ export class LiveGiveawaySyncController {
         slotIndex,
         item: { ...rawItem, imageUrl: resolvedUrl },
         overlay: snap.overlay,
+        tierProgress,
+        levelUp,
       },
     };
   }

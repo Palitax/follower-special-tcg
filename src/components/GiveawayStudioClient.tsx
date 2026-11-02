@@ -7,6 +7,7 @@ import {
   DEFAULT_OVERLAY_DISPLAY_SETTINGS,
   GiveawayItem,
   GiveawayPools,
+  LevelUpEvent,
   OverlayAnchorPosition,
   OverlayDisplaySettings,
 } from '../types/card';
@@ -18,6 +19,7 @@ import {
   LiveGiveawaySyncController,
   SyncMeta,
   cacheCustomImage,
+  computeTierProgress,
   hashImageDataUrl,
   loadCachedImage,
 } from '../lib/liveSync';
@@ -47,6 +49,7 @@ import {
   Upload,
   Tv,
   Link2,
+  Zap,
 } from 'lucide-react';
 
 const STORAGE_KEY_STATE = 'mc_giveaway_overlay_state_v1';
@@ -82,12 +85,12 @@ const TIER_CONFIG: Record<
   },
   epic: {
     label: 'Epic',
-    subtitle: 'Magenta-Flamme',
+    subtitle: 'Lila Liquid',
     activeTabClass:
-      'bg-gradient-to-r from-fuchsia-600 via-pink-500 to-orange-400 text-white shadow-[0_0_16px_rgba(236,72,153,0.5)]',
-    ringBorderClass: 'border-fuchsia-400/55',
-    badgeClass: 'bg-fuchsia-500/15 text-pink-200 border-fuchsia-400/35',
-    ambientClass: 'bg-fuchsia-600/[0.08]',
+      'bg-gradient-to-r from-purple-600 via-fuchsia-500 to-violet-500 text-white shadow-[0_0_16px_rgba(168,85,247,0.55)]',
+    ringBorderClass: 'border-purple-400/55',
+    badgeClass: 'bg-purple-500/15 text-purple-200 border-purple-400/35',
+    ambientClass: 'bg-purple-600/[0.08]',
   },
   legendary: {
     label: 'Legendary',
@@ -276,6 +279,7 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
   const [overlaySettings, setOverlaySettings] = useState<OverlayDisplaySettings>(
     DEFAULT_OVERLAY_DISPLAY_SETTINGS
   );
+  const [levelUpEvent, setLevelUpEvent] = useState<LevelUpEvent | null>(null);
   const [selectedTab, setSelectedTab] = useState<CardRarity>('rare');
   const [hasInitialized, setHasInitialized] = useState(false);
 
@@ -311,6 +315,7 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
   const poolsRef = useRef<GiveawayPools>(EMPTY_POOLS);
   const activeRef = useRef<ActiveGiveawaySelection | null>(null);
   const overlaySettingsRef = useRef<OverlayDisplaySettings>(DEFAULT_OVERLAY_DISPLAY_SETTINGS);
+  const levelUpRef = useRef<LevelUpEvent | null>(null);
   const updatedAtRef = useRef<number>(0);
   const syncControllerRef = useRef<LiveGiveawaySyncController | null>(null);
 
@@ -389,6 +394,7 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
           pools: poolsRef.current,
           active: activeRef.current,
           overlay: overlaySettingsRef.current,
+          levelUp: levelUpRef.current,
         }),
         onRemoteSnapshot: (snap) => {
           if (cancelled) return;
@@ -400,6 +406,10 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
           poolsRef.current = cleanPools;
           activeRef.current = validActive;
           overlaySettingsRef.current = mergedOverlay;
+          if (snap.levelUp) {
+            levelUpRef.current = snap.levelUp;
+            setLevelUpEvent(snap.levelUp);
+          }
 
           setPools(cleanPools);
           setActive(validActive);
@@ -480,6 +490,7 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
         pools?: GiveawayPools;
         active?: ActiveGiveawaySelection | null;
         overlay?: OverlayDisplaySettings;
+        levelUp?: LevelUpEvent | null;
       }
     ) => {
       const patch = updater({
@@ -492,16 +503,22 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
       const rawNextActive = patch.active !== undefined ? patch.active : activeRef.current;
       const nextActive = resolveValidActive(nextPools, rawNextActive);
       const nextOverlay = patch.overlay ?? overlaySettingsRef.current;
+      const nextLevelUp =
+        patch.levelUp !== undefined ? patch.levelUp : levelUpRef.current;
       const nextUpdatedAt = Math.max(Date.now(), updatedAtRef.current + 1);
 
       poolsRef.current = nextPools;
       activeRef.current = nextActive;
       overlaySettingsRef.current = nextOverlay;
+      levelUpRef.current = nextLevelUp;
       updatedAtRef.current = nextUpdatedAt;
 
       setPools(nextPools);
       setActive(nextActive);
       setOverlaySettings(nextOverlay);
+      if (patch.levelUp !== undefined) {
+        setLevelUpEvent(patch.levelUp);
+      }
 
       const controller = syncControllerRef.current;
       const snapshot: LiveGiveawaySnapshot = {
@@ -510,6 +527,7 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
         pools: nextPools,
         active: nextActive,
         overlay: nextOverlay,
+        levelUp: nextLevelUp,
       };
 
       void persistSnapshotSafely(snapshot);
@@ -594,7 +612,7 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
     [commitStudioUpdate]
   );
 
-  // Step Prev / Next Giveaway (optionally marking the current active giveaway as completed)
+  // Step Prev / Next Giveaway (optionally marking the current active giveaway as completed + auto Level-Up on 100%)
   const handleStepGiveaway = useCallback(
     (direction: 1 | -1, markCurrentCompleted = false) => {
       commitStudioUpdate(({ pools: curPools, active: curActive, overlay }) => {
@@ -606,12 +624,65 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
 
         let updatedPools = curPools;
         if (markCurrentCompleted) {
+          const updatedTierList = curList.map((it, idx) =>
+            idx === curIdx ? { ...it, isCompleted: true } : it
+          );
           updatedPools = {
             ...curPools,
-            [curTier]: curList.map((it, idx) =>
-              idx === curIdx ? { ...it, isCompleted: true } : it
-            ),
+            [curTier]: updatedTierList,
           };
+
+          const allCompletedInTier =
+            updatedTierList.length > 0 && updatedTierList.every((it) => it.isCompleted);
+
+          if (!allCompletedInTier) {
+            // Find next uncompleted giveaway in the same tier (wrapping around if needed)
+            let nextOpenIdx = -1;
+            for (let step = 1; step < updatedTierList.length; step++) {
+              const candIdx = (curIdx + step) % updatedTierList.length;
+              if (!updatedTierList[candIdx].isCompleted) {
+                nextOpenIdx = candIdx;
+                break;
+              }
+            }
+            sound.playCardFlip();
+            return {
+              pools: updatedPools,
+              active:
+                nextOpenIdx >= 0
+                  ? { rarity: curTier, itemId: updatedTierList[nextOpenIdx].id }
+                  : curActive,
+              overlay: { ...overlay, visible: true },
+            };
+          }
+
+          // ALL giveaways in curTier (e.g. 30/30 Rare or 15/15 Epic) are now completed -> LEVEL UP!
+          const tierOrderIdx = ALL_RARITIES.indexOf(curTier);
+          for (let t = tierOrderIdx + 1; t < ALL_RARITIES.length; t++) {
+            const nextTier = ALL_RARITIES[t];
+            const nextTierList = updatedPools[nextTier] || [];
+            if (nextTierList.length > 0) {
+              const firstOpenInNext =
+                nextTierList.find((it) => !it.isCompleted) ?? nextTierList[0];
+              sound.playLevelUp(nextTier);
+              setSelectedTab(nextTier);
+              return {
+                pools: updatedPools,
+                active: { rarity: nextTier, itemId: firstOpenInNext.id },
+                overlay: { ...overlay, visible: true },
+                levelUp: {
+                  id: Date.now(),
+                  fromRarity: curTier,
+                  toRarity: nextTier,
+                  newTierTotal: nextTierList.length,
+                },
+              };
+            }
+          }
+
+          // Final tier (Legendary) 100% completed
+          sound.playShimmer();
+          return { pools: updatedPools };
         }
 
         const nextIdx = curIdx + direction;
@@ -711,6 +782,109 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
     [commitStudioUpdate]
   );
 
+  // Toggle 'verlost' directly on a card tile (+1 Liquid Bar; auto Level-Up when tier hits 100%)
+  const handleToggleItemCompleted = useCallback(
+    (tier: CardRarity, itemId: string) => {
+      commitStudioUpdate(({ pools: curPools, active: curActive, overlay }) => {
+        const curList = curPools[tier] || [];
+        const targetIdx = curList.findIndex((it) => it.id === itemId);
+        if (targetIdx < 0) return {};
+
+        const nextCompletedState = !curList[targetIdx].isCompleted;
+        const updatedTierList = curList.map((it, idx) =>
+          idx === targetIdx ? { ...it, isCompleted: nextCompletedState } : it
+        );
+        const updatedPools: GiveawayPools = {
+          ...curPools,
+          [tier]: updatedTierList,
+        };
+
+        if (!nextCompletedState) {
+          sound.playCounter(false);
+          return { pools: updatedPools };
+        }
+
+        const allCompletedInTier =
+          updatedTierList.length > 0 && updatedTierList.every((it) => it.isCompleted);
+
+        if (allCompletedInTier) {
+          const tierOrderIdx = ALL_RARITIES.indexOf(tier);
+          for (let t = tierOrderIdx + 1; t < ALL_RARITIES.length; t++) {
+            const nextTier = ALL_RARITIES[t];
+            const nextTierList = updatedPools[nextTier] || [];
+            if (nextTierList.length > 0) {
+              const firstOpenInNext =
+                nextTierList.find((it) => !it.isCompleted) ?? nextTierList[0];
+              sound.playLevelUp(nextTier);
+              setSelectedTab(nextTier);
+              return {
+                pools: updatedPools,
+                active: { rarity: nextTier, itemId: firstOpenInNext.id },
+                overlay: { ...overlay, visible: true },
+                levelUp: {
+                  id: Date.now(),
+                  fromRarity: tier,
+                  toRarity: nextTier,
+                  newTierTotal: nextTierList.length,
+                },
+              };
+            }
+          }
+        }
+
+        // If the marked item was the currently displayed giveaway, advance cleanly to the next open one
+        if (curActive?.rarity === tier && curActive?.itemId === itemId) {
+          for (let step = 1; step < updatedTierList.length; step++) {
+            const candIdx = (targetIdx + step) % updatedTierList.length;
+            if (!updatedTierList[candIdx].isCompleted) {
+              sound.playCardFlip();
+              return {
+                pools: updatedPools,
+                active: { rarity: tier, itemId: updatedTierList[candIdx].id },
+                overlay: { ...overlay, visible: true },
+              };
+            }
+          }
+        }
+
+        sound.playCounter(true);
+        return { pools: updatedPools };
+      });
+    },
+    [commitStudioUpdate]
+  );
+
+  const handleTriggerPreviewLevelUp = useCallback(
+    (toRarity: 'epic' | 'legendary') => {
+      const fromRarity: CardRarity = toRarity === 'legendary' ? 'epic' : 'rare';
+      sound.playLevelUp(toRarity);
+      commitStudioUpdate(({ pools: curPools, active: curActive, overlay }) => {
+        const targetList = curPools[toRarity] || [];
+        const nextActive =
+          targetList.length > 0
+            ? {
+                rarity: toRarity,
+                itemId: (targetList.find((it) => !it.isCompleted) ?? targetList[0]).id,
+              }
+            : curActive;
+        if (targetList.length > 0) {
+          setSelectedTab(toRarity);
+        }
+        return {
+          active: nextActive,
+          overlay: { ...overlay, visible: true },
+          levelUp: {
+            id: Date.now(),
+            fromRarity,
+            toRarity,
+            newTierTotal: targetList.length,
+          },
+        };
+      });
+    },
+    [commitStudioUpdate]
+  );
+
   const handleDeleteSlot = useCallback(
     (tier: CardRarity, itemId: string) => {
       sound.playClick(450);
@@ -788,6 +962,8 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
       )
     );
   }, [pools]);
+
+  const tierProgress = useMemo(() => computeTierProgress(pools), [pools]);
 
   const activeTier = active?.rarity ?? 'rare';
   const activeTierItems = pools[activeTier] || [];
@@ -1110,6 +1286,7 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
                 {ALL_RARITIES.map((tier) => {
                   const isTabSelected = selectedTab === tier;
                   const tierCount = pools[tier].length;
+                  const tierDone = tierProgress[tier].completed;
                   const isLiveInThisTier = active?.rarity === tier && activeSlotIdx >= 0;
                   return (
                     <button
@@ -1134,13 +1311,13 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
                       )}
                       <span>{TIER_CONFIG[tier].label}</span>
                       <span
-                        className={`px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none ${
+                        className={`px-1.5 py-0.5 rounded-md text-[10px] font-black leading-none tabular-nums ${
                           isTabSelected
                             ? 'bg-black/25 text-current'
                             : 'bg-white/10 text-slate-300'
                         }`}
                       >
-                        {tierCount}
+                        {tierDone > 0 ? `${tierDone}/${tierCount}` : tierCount}
                       </span>
                       {isLiveInThisTier && (
                         <span
@@ -1355,10 +1532,7 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                sound.playClick(item.isCompleted ? 700 : 500);
-                                handleUpdateItemField(selectedTab, item.id, {
-                                  isCompleted: !item.isCompleted,
-                                });
+                                handleToggleItemCompleted(selectedTab, item.id);
                               }}
                               className={`p-1.5 rounded-lg transition-colors ${
                                 item.isCompleted
@@ -1367,8 +1541,8 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
                               }`}
                               title={
                                 item.isCompleted
-                                  ? 'Verlost-Markierung aufheben'
-                                  : 'Als bereits verlost abhaken'
+                                  ? 'Verlost-Markierung aufheben (-1 im Liquid-Balken)'
+                                  : 'Als verlost markieren (+1 im Liquid-Balken)'
                               }
                             >
                               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -1643,7 +1817,9 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
                     rarity={activeTier}
                     slotIndex={activeSlotIdx}
                     settings={overlaySettings}
-                    widthOverridePx={156}
+                    tierProgress={tierProgress}
+                    levelUpEvent={levelUpEvent}
+                    widthOverridePx={148}
                   />
                 ) : (
                   <div className="text-center px-6 py-8 space-y-2 select-none">
@@ -1750,43 +1926,6 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
                 Darstellung in der Browser-Quelle
               </h3>
 
-              {/* Frame Mode: Animated Rarity Ring vs Pure Cutout Booster */}
-              <div className="space-y-1.5">
-                <span className="block text-[11px] font-bold text-slate-300">
-                  Booster- / Karten-Stil
-                </span>
-                <div className="grid grid-cols-2 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      sound.playClick(640);
-                      updateOverlaySetting('frameStyle', 'glow-ring');
-                    }}
-                    className={`py-2 px-2.5 rounded-xl text-[11px] font-extrabold border transition-all select-none ${
-                      overlaySettings.frameStyle !== 'cutout'
-                        ? 'bg-amber-400 text-black border-amber-300'
-                        : 'bg-black/45 text-slate-300 border-white/10 hover:bg-white/10'
-                    }`}
-                  >
-                    Mit Rarity-Rahmen
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      sound.playClick(640);
-                      updateOverlaySetting('frameStyle', 'cutout');
-                    }}
-                    className={`py-2 px-2.5 rounded-xl text-[11px] font-extrabold border transition-all select-none ${
-                      overlaySettings.frameStyle === 'cutout'
-                        ? 'bg-amber-400 text-black border-amber-300'
-                        : 'bg-black/45 text-slate-300 border-white/10 hover:bg-white/10'
-                    }`}
-                  >
-                    Freigestellt (Nur Booster)
-                  </button>
-                </div>
-              </div>
-
               {overlaySettings.frameStyle !== 'cutout' && (
                 <label className="flex items-center justify-between gap-2 text-xs text-slate-300 cursor-pointer">
                   <span>Innenbereich transparent (für Booster-PNGs)</span>
@@ -1801,74 +1940,68 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
                 </label>
               )}
 
-              {/* Header Badge Toggle + Label */}
-              <div className="space-y-2 pt-1 border-t border-white/10">
+              {/* Liquid Progress Bar & Level-Up Controls */}
+              <div
+                className={`space-y-2.5 ${
+                  overlaySettings.frameStyle !== 'cutout' ? 'pt-2 border-t border-white/10' : ''
+                }`}
+              >
                 <label className="flex items-center justify-between gap-2 text-xs text-slate-300 cursor-pointer">
-                  <span>Oberes Badge über dem Giveaway zeigen</span>
+                  <span>Liquid-Fortschrittsbalken links anzeigen</span>
                   <input
                     type="checkbox"
-                    checked={overlaySettings.showHeaderBadge !== false}
+                    checked={overlaySettings.showLiquidBar !== false}
                     onChange={(e) =>
-                      updateOverlaySetting('showHeaderBadge', e.target.checked)
+                      updateOverlaySetting('showLiquidBar', e.target.checked)
                     }
                     className="w-4 h-4 rounded accent-amber-400 cursor-pointer"
                   />
                 </label>
 
-                {overlaySettings.showHeaderBadge !== false && (
-                  <>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {(['NÄCHSTES GIVEAWAY', 'AKTUELLES GIVEAWAY'] as const).map((preset) => (
-                        <button
-                          key={preset}
-                          type="button"
-                          onClick={() => {
-                            sound.playClick(640);
-                            updateOverlaySetting('badgeLabel', preset);
-                          }}
-                          className={`py-1.5 px-2 rounded-lg text-[10px] font-extrabold border transition-all select-none ${
-                            overlaySettings.badgeLabel === preset
-                              ? 'bg-amber-400 text-black border-amber-300'
-                              : 'bg-black/45 text-slate-300 border-white/10 hover:bg-white/10'
-                          }`}
-                        >
-                          {preset}
-                        </button>
-                      ))}
+                <div className="grid grid-cols-3 gap-1.5 text-center text-[10px] font-extrabold tabular-nums select-none">
+                  <div className="rounded-lg bg-sky-500/15 border border-sky-400/35 px-2 py-1 text-sky-200">
+                    <div className="text-[9px] uppercase text-sky-300/80">Rare</div>
+                    <div>
+                      {tierProgress.rare.completed}/{tierProgress.rare.total}
                     </div>
-                    <input
-                      type="text"
-                      value={overlaySettings.badgeLabel}
-                      onChange={(e) => updateOverlaySetting('badgeLabel', e.target.value)}
-                      placeholder="Eigener Badge-Text…"
-                      className="w-full h-8 px-2.5 rounded-lg bg-black/55 border border-white/15 text-xs font-semibold text-white focus:outline-none focus:border-amber-400"
-                    />
+                  </div>
+                  <div className="rounded-lg bg-purple-500/15 border border-purple-400/40 px-2 py-1 text-purple-200">
+                    <div className="text-[9px] uppercase text-purple-300/80">Epic</div>
+                    <div>
+                      {tierProgress.epic.completed}/{tierProgress.epic.total}
+                    </div>
+                  </div>
+                  <div className="rounded-lg bg-amber-400/15 border border-amber-300/45 px-2 py-1 text-amber-200">
+                    <div className="text-[9px] uppercase text-amber-300/80">Legendary</div>
+                    <div>
+                      {tierProgress.legendary.completed}/{tierProgress.legendary.total}
+                    </div>
+                  </div>
+                </div>
 
-                    <label className="flex items-center justify-between gap-2 text-xs text-slate-300 cursor-pointer">
-                      <span>Stufe einblenden (RARE / EPIC / LEGENDARY)</span>
-                      <input
-                        type="checkbox"
-                        checked={overlaySettings.showTierBadge}
-                        onChange={(e) =>
-                          updateOverlaySetting('showTierBadge', e.target.checked)
-                        }
-                        className="w-4 h-4 rounded accent-amber-400 cursor-pointer"
-                      />
-                    </label>
-
-                    <label className="flex items-center justify-between gap-2 text-xs text-slate-300 cursor-pointer">
-                      <span>Giveaway-Nummer einblenden (#1, #2…)</span>
-                      <input
-                        type="checkbox"
-                        checked={overlaySettings.showSlotNumber}
-                        onChange={(e) =>
-                          updateOverlaySetting('showSlotNumber', e.target.checked)
-                        }
-                        className="w-4 h-4 rounded accent-amber-400 cursor-pointer"
-                      />
-                    </label>
-                  </>
-                )}
+                <div className="space-y-1">
+                  <span className="block text-[10px] font-bold text-slate-400">
+                    Level-Up-Effekt live in Vorschau & OBS testen:
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => handleTriggerPreviewLevelUp('epic')}
+                      className="py-1.5 px-2 rounded-lg text-[10px] font-extrabold bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/45 text-purple-100 flex items-center justify-center gap-1 transition-all active:scale-95 select-none"
+                    >
+                      <Zap className="w-3 h-3 text-purple-300" />
+                      <span>Epic Level-Up</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleTriggerPreviewLevelUp('legendary')}
+                      className="py-1.5 px-2 rounded-lg text-[10px] font-extrabold bg-amber-400/20 hover:bg-amber-400/30 border border-amber-300/50 text-amber-100 flex items-center justify-center gap-1 transition-all active:scale-95 select-none"
+                    >
+                      <Crown className="w-3 h-3 text-amber-300" />
+                      <span>Legendary Level-Up</span>
+                    </button>
+                  </div>
+                </div>
               </div>
 
               {/* Card Width Slider in OBS */}

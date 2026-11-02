@@ -283,44 +283,44 @@ input:not([type="range"]):user-invalid {
   );
 }
 
-/* ---------------- EPIC · MAGENTA FLAME ---------------- */
+/* ---------------- EPIC · ROYAL LILA LIQUID PLASMA ---------------- */
 .rr--epic {
-  --rr-spin: 5s;
-  --rr-shine-spin: 3.4s;
-  --rr-shadow: rgba(236, 72, 153, 0.6);
+  --rr-spin: 5.8s;
+  --rr-shine-spin: 3.8s;
+  --rr-shadow: rgba(168, 85, 247, 0.65);
   --rr-conic: conic-gradient(
     from 0deg,
-    #fde68a 0deg,
-    #fb923c 40deg,
-    #f472b6 85deg,
-    #d946ef 130deg,
-    #86198f 180deg,
-    #d946ef 225deg,
-    #f472b6 270deg,
-    #fb923c 320deg,
-    #fde68a 360deg
+    #f3e8ff 0deg,
+    #c084fc 42deg,
+    #9333ea 90deg,
+    #d946ef 140deg,
+    #4c1d95 185deg,
+    #a855f7 235deg,
+    #e879f9 280deg,
+    #7e22ce 325deg,
+    #f3e8ff 360deg
   );
   --rr-shine: conic-gradient(
     from 0deg,
     transparent 0deg,
-    rgba(254, 243, 199, 0.9) 18deg,
-    transparent 45deg,
-    transparent 120deg,
-    rgba(253, 186, 116, 0.75) 140deg,
-    transparent 165deg,
-    transparent 240deg,
-    rgba(254, 243, 199, 0.8) 262deg,
-    transparent 290deg,
+    rgba(243, 232, 255, 0.92) 20deg,
+    transparent 50deg,
+    transparent 130deg,
+    rgba(216, 180, 254, 0.8) 152deg,
+    transparent 180deg,
+    transparent 250deg,
+    rgba(245, 208, 254, 0.85) 272deg,
+    transparent 300deg,
     transparent 360deg
   );
 }
 .rr--epic .rr-glow {
-  animation: rrFlicker 1.4s ease-in-out infinite alternate;
+  animation: rrFlicker 1.8s ease-in-out infinite alternate;
 }
 @keyframes rrFlicker {
-  0% { opacity: 0.6; }
-  35% { opacity: 0.95; }
-  60% { opacity: 0.75; }
+  0% { opacity: 0.68; }
+  45% { opacity: 0.96; }
+  70% { opacity: 0.8; }
   100% { opacity: 1; }
 }
 
@@ -352,4 +352,146 @@ input:not([type="range"]):user-invalid {
     rgba(255, 255, 255, 0.95) 352deg,
     rgba(255, 251, 235, 0) 360deg
   );
+}
+
+/* ============================================================
+   SEGMENTED VERTICAL LIQUID METER & LEVEL-UP CHOREOGRAPHY
+   ============================================================ */
+@keyframes liquidWaveFront {
+  from {
+    translate: 0 0;
+  }
+  to {
+    translate: -50% 0;
+  }
+}
+
+@keyframes liquidWaveBack {
+  from {
+    translate: -50% 0;
+  }
+  to {
+    translate: 0 0;
+  }
+}
+
+@keyframes liquidWaveFrontLegacy {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes liquidWaveBackLegacy {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes liquidBubbleRise {
+  0% {
+    translate: 0 0;
+    opacity: 0;
+    scale: 0.65;
+  }
+  20% {
+    opacity: 0.85;
+    scale: 1;
+  }
+  80% {
+    opacity: 0.65;
+  }
+  100% {
+    translate: 0 -130px;
+    opacity: 0;
+    scale: 0.8;
+  }
+}
+
+@keyframes liquidCurrentShimmer {
+  0%, 100% {
+    opacity: 0.35;
+    translate: 0 12%;
+  }
+  50% {
+    opacity: 0.72;
+    translate: 0 -12%;
+  }
+}
+
+.liquid-fill-column {
+  /* Fallback for older engines before physics-based linear() spring */
+  transition: height 0.78s cubic-bezier(0.22, 1, 0.36, 1), filter 0.4s ease;
+  transition-timing-function: linear(
+    0,
+    0.014 0.9%,
+    0.056 2%,
+    0.422 9.4%,
+    0.742 15.8%,
+    0.958 22%,
+    1.052 27.2%,
+    1.078 32%,
+    1.064 37.6%,
+    1.016 49%,
+    0.996 60.5%,
+    1.001 77%,
+    1
+  );
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: height 0.3s ease-out;
+  }
+}
+
+.liquid-wave-front {
+  will-change: translate;
+  animation: liquidWaveFront 2.6s linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-duration: 12s;
+  }
+}
+
+.liquid-wave-back {
+  will-change: translate;
+  animation: liquidWaveBack 3.9s linear infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-duration: 16s;
+  }
+}
+
+@supports not (translate: 0px) {
+  .liquid-wave-front {
+    animation: liquidWaveFrontLegacy 2.6s linear infinite;
+  }
+  .liquid-wave-back {
+    animation: liquidWaveBackLegacy 3.9s linear infinite;
+  }
+}
+
+.liquid-bubble {
+  will-change: translate, opacity, scale;
+  animation: liquidBubbleRise var(--bubble-dur, 3.4s) ease-in infinite;
+  animation-delay: var(--bubble-delay, 0s);
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    opacity: 0.35;
+  }
+}
+
+.liquid-current-sheen {
+  will-change: translate, opacity;
+  animation: liquidCurrentShimmer 4.2s ease-in-out infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+    opacity: 0.45;
+  }
 }

@@ -34,10 +34,10 @@ const TIER_ROWS: {
   {
     id: 'epic',
     label: 'Epic',
-    sublabel: 'Stufe 2 · Magenta-Flamme',
-    accentText: 'text-pink-300',
-    accentBorder: 'border-fuchsia-400/40',
-    accentBg: 'bg-fuchsia-500/10',
+    sublabel: 'Stufe 2 · Lila Liquid',
+    accentText: 'text-purple-300',
+    accentBorder: 'border-purple-400/45',
+    accentBg: 'bg-purple-500/10',
     presets: [5, 10, 15, 20, 25, 30],
   },
   {

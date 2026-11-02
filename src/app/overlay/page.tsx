@@ -8,15 +8,18 @@ import {
   DEFAULT_OVERLAY_DISPLAY_SETTINGS,
   GiveawayItem,
   GiveawayPools,
+  LevelUpEvent,
   OverlayAnchorPosition,
   OverlayDisplaySettings,
   OverlayFrameStyle,
+  TierProgressStats,
 } from '../../types/card';
 import { GiveawayOverlayCard } from '../../components/GiveawayOverlayCard';
 import {
   DirectActiveOverlayPayload,
   LiveGiveawaySnapshot,
   LiveGiveawaySyncController,
+  computeTierProgress,
   loadCachedImage,
 } from '../../lib/liveSync';
 
@@ -42,7 +45,7 @@ function OverlaySurface() {
   const posParam = searchParams.get('pos') as OverlayAnchorPosition | null;
   const widthParam = Number(searchParams.get('w') || '0');
   const modeParam = searchParams.get('mode');
-  const badgeParam = searchParams.get('badge');
+  const barParam = searchParams.get('bar');
 
   const [pools, setPools] = useState<GiveawayPools>(EMPTY_POOLS);
   const [active, setActive] = useState<ActiveGiveawaySelection | null>(null);
@@ -51,7 +54,9 @@ function OverlaySurface() {
     rarity: CardRarity;
     slotIndex: number;
     item: GiveawayItem | null;
+    tierProgress: Record<CardRarity, TierProgressStats>;
   } | null>(null);
+  const [levelUpEvent, setLevelUpEvent] = useState<LevelUpEvent | null>(null);
   const [settings, setSettings] = useState<OverlayDisplaySettings>(
     DEFAULT_OVERLAY_DISPLAY_SETTINGS
   );
@@ -60,6 +65,7 @@ function OverlaySurface() {
   const poolsRef = useRef<GiveawayPools>(EMPTY_POOLS);
   const activeRef = useRef<ActiveGiveawaySelection | null>(null);
   const settingsRef = useRef<OverlayDisplaySettings>(DEFAULT_OVERLAY_DISPLAY_SETTINGS);
+  const levelUpRef = useRef<LevelUpEvent | null>(null);
   const updatedAtRef = useRef<number>(0);
 
   useEffect(() => {
@@ -98,9 +104,11 @@ function OverlaySurface() {
               poolsRef.current = hydrated;
               activeRef.current = parsed.active ?? null;
               settingsRef.current = merged;
+              levelUpRef.current = parsed.levelUp ?? null;
               setPools(hydrated);
               setActive(parsed.active ?? null);
               setSettings(merged);
+              if (parsed.levelUp) setLevelUpEvent(parsed.levelUp);
             }
           }
         }
@@ -122,6 +130,7 @@ function OverlaySurface() {
           pools: poolsRef.current,
           active: activeRef.current,
           overlay: settingsRef.current,
+          levelUp: levelUpRef.current,
         }),
         onDirectActiveOverlay: (payload: DirectActiveOverlayPayload) => {
           if (cancelled) return;
@@ -131,12 +140,17 @@ function OverlaySurface() {
           };
           updatedAtRef.current = payload.updatedAt;
           settingsRef.current = mergedSettings;
+          if (payload.levelUp) {
+            levelUpRef.current = payload.levelUp;
+            setLevelUpEvent(payload.levelUp);
+          }
           setSettings(mergedSettings);
           setDirectActive({
             updatedAt: payload.updatedAt,
             rarity: payload.rarity,
             slotIndex: payload.slotIndex,
             item: payload.item,
+            tierProgress: payload.tierProgress ?? computeTierProgress(poolsRef.current),
           });
         },
         onRemoteSnapshot: (snap) => {
@@ -149,6 +163,10 @@ function OverlaySurface() {
           poolsRef.current = snap.pools;
           activeRef.current = snap.active;
           settingsRef.current = mergedSettings;
+          if (snap.levelUp) {
+            levelUpRef.current = snap.levelUp;
+            setLevelUpEvent(snap.levelUp);
+          }
 
           setDirectActive(null);
           setPools(snap.pools);
@@ -198,16 +216,19 @@ function OverlaySurface() {
   let resolvedRarity: CardRarity = 'rare';
   let resolvedIdx = -1;
   let resolvedItem: GiveawayItem | null = null;
+  let resolvedTierProgress: Record<CardRarity, TierProgressStats>;
 
   if (directActive) {
     resolvedRarity = directActive.rarity;
     resolvedIdx = directActive.slotIndex;
     resolvedItem = directActive.item;
+    resolvedTierProgress = directActive.tierProgress;
   } else {
     resolvedRarity = active?.rarity ?? 'rare';
     const tierList = pools[resolvedRarity] || [];
     resolvedIdx = active ? tierList.findIndex((it) => it.id === active.itemId) : -1;
     resolvedItem = resolvedIdx >= 0 ? tierList[resolvedIdx] : null;
+    resolvedTierProgress = computeTierProgress(pools);
   }
 
   const effectiveAnchor: OverlayAnchorPosition =
@@ -220,8 +241,8 @@ function OverlaySurface() {
       : modeParam === 'ring'
       ? 'glow-ring'
       : settings.frameStyle;
-  const effectiveShowHeader =
-    badgeParam === '0' ? false : badgeParam === '1' ? true : settings.showHeaderBadge;
+  const effectiveShowLiquidBar =
+    barParam === '0' ? false : barParam === '1' ? true : settings.showLiquidBar;
 
   return (
     <main
@@ -238,11 +259,13 @@ function OverlaySurface() {
           item={resolvedItem}
           rarity={resolvedRarity}
           slotIndex={resolvedIdx}
+          tierProgress={resolvedTierProgress}
+          levelUpEvent={levelUpEvent}
           settings={{
             ...settings,
             cardWidthPx: effectiveWidth,
             frameStyle: effectiveFrameStyle,
-            showHeaderBadge: effectiveShowHeader,
+            showLiquidBar: effectiveShowLiquidBar,
           }}
         />
       )}
