@@ -180,371 +180,193 @@ input, textarea {
 }
 
 /* ============================================================
-   RARITY FRAMES (RARE · EPIC · LEGENDARY)
-   Outer glow is capped by --rfx-bleed (= reserved padding around each card),
-   so glows never spill onto neighbouring cards – also in 9:16 vertical mode.
+   RARITY OUTLINES (see components/RarityRing.tsx)
+   Animated frame AROUND the card – card art itself stays clean.
    ============================================================ */
 
-@keyframes rareTide {
-  0%, 100% {
-    box-shadow: 0 0 calc(var(--rfx-bleed, 12px) * 0.85) rgba(56, 189, 248, 0.55), 0 0 calc(var(--rfx-bleed, 12px) * 0.35) rgba(165, 180, 252, 0.6);
-    border-color: rgba(186, 230, 253, 0.95);
-  }
-  50% {
-    box-shadow: 0 0 var(--rfx-bleed, 12px) rgba(125, 211, 252, 0.8), 0 0 calc(var(--rfx-bleed, 12px) * 0.45) rgba(196, 181, 253, 0.75);
-    border-color: #f0f9ff;
-  }
-}
-
-@keyframes epicBurn {
-  0%, 100% {
-    box-shadow: 0 0 calc(var(--rfx-bleed, 12px) * 0.85) rgba(217, 70, 239, 0.65), 0 0 calc(var(--rfx-bleed, 12px) * 0.35) rgba(251, 146, 60, 0.55);
-    border-color: #f0abfc;
-  }
-  35% {
-    box-shadow: 0 0 var(--rfx-bleed, 12px) rgba(236, 72, 153, 0.85), 0 0 calc(var(--rfx-bleed, 12px) * 0.45) rgba(253, 186, 116, 0.7);
-    border-color: #fbcfe8;
-  }
-  60% {
-    box-shadow: 0 0 calc(var(--rfx-bleed, 12px) * 0.75) rgba(192, 38, 211, 0.6), 0 0 calc(var(--rfx-bleed, 12px) * 0.3) rgba(251, 146, 60, 0.5);
-    border-color: #e879f9;
-  }
-}
-
-@keyframes legendaryRadiance {
-  0%, 100% {
-    box-shadow: 0 0 calc(var(--rfx-bleed, 12px) * 0.9) rgba(250, 204, 21, 0.75), 0 0 calc(var(--rfx-bleed, 12px) * 0.4) rgba(254, 243, 199, 0.8);
-    border-color: #facc15;
-  }
-  50% {
-    box-shadow: 0 0 var(--rfx-bleed, 12px) rgba(253, 224, 71, 0.95), 0 0 calc(var(--rfx-bleed, 12px) * 0.5) rgba(255, 251, 235, 0.95);
-    border-color: #fef9c3;
-  }
-}
-
-.rarity-frame-rare {
-  border: 3px solid rgba(186, 230, 253, 0.95);
-  animation: rareTide 4.5s infinite ease-in-out;
-}
-.rarity-frame-epic {
-  border: 3px solid #f0abfc;
-  animation: epicBurn 2.4s infinite ease-in-out;
-}
+/* Card faces: no own border anymore, the ring frames them */
+.rarity-frame-rare,
+.rarity-frame-epic,
 .rarity-frame-legendary {
-  border: 3.5px solid #facc15;
-  animation: legendaryRadiance 3s infinite ease-in-out;
+  border: 0;
 }
 
-/* ============================================================
-   RARITY FRAME ART (see components/RarityEffects.tsx)
-   ============================================================ */
-
-.rfx {
+.rr {
   position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: inherit;
+  inset: calc(-1 * (var(--ring-w) + var(--ring-gap)));
+  border-radius: calc(4.5% + var(--ring-w) + var(--ring-gap));
   pointer-events: none;
+  animation: rrEnter 0.9s ease-out both, rrPulse 3.2s ease-in-out 0.9s infinite;
 }
 
-/* Dark tier-tinted frame band – gives the luminous layer something to glow against */
-.rfx-vignette {
+/* Masked ring: only the padding area (= ring thickness) is visible */
+.rr-ring {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-}
-.rfx-vignette {
-  /* deep edge → saturated tier tint → clear (avoids muddy grey transitions on the white art) */
-  background:
-    linear-gradient(to right, var(--vig) 0%, var(--vig-mid) 5.5%, var(--vig-tint) 12.5%, transparent 22%),
-    linear-gradient(to left, var(--vig) 0%, var(--vig-mid) 5.5%, var(--vig-tint) 12.5%, transparent 22%),
-    linear-gradient(to bottom, var(--vig) 0%, var(--vig-mid) 4%, var(--vig-tint) 9%, transparent 16%),
-    linear-gradient(to top, var(--vig) 0%, var(--vig-mid) 4%, var(--vig-tint) 9%, transparent 16%);
-}
-.rfx-vignette--rare { --vig: rgba(5, 22, 54, 0.95); --vig-mid: rgba(12, 50, 124, 0.7); --vig-tint: rgba(56, 140, 248, 0.16); }
-.rfx-vignette--epic { --vig: rgba(30, 2, 42, 0.96); --vig-mid: rgba(80, 10, 104, 0.72); --vig-tint: rgba(217, 70, 239, 0.15); }
-.rfx-vignette--legendary { --vig: rgba(22, 13, 1, 0.96); --vig-mid: rgba(78, 46, 4, 0.72); --vig-tint: rgba(250, 190, 40, 0.17); }
-
-/* Luminous layer – screen blend: glows in the dark band, invisible on the white centre */
-.rfx-light {
-  position: absolute;
-  inset: 0;
-  mix-blend-mode: screen;
-  container-type: size;
+  padding: var(--ring-w);
   overflow: hidden;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
 }
 
-.rfx-svg {
+/* Rotating conic gradient (oversized square so it always covers the tall ring) */
+.rr-ring::before,
+.rr-glow::before {
+  content: '';
   position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
+  left: 50%;
+  top: 50%;
+  width: 230%;
+  aspect-ratio: 1;
+  background: var(--rr-conic);
+  transform: translate(-50%, -50%) rotate(0deg);
+  animation: rrSpin var(--rr-spin) linear infinite;
+  will-change: transform;
 }
 
-/* Tier change flash */
-.rfx-enter {
-  position: absolute;
-  inset: 0;
-  box-shadow: inset 0 0 0 1.5cqw var(--rfx-c), inset 0 0 22cqw 8cqw var(--rfx-c);
-  opacity: 0;
-  animation: rfxEnter 1.1s ease-out forwards;
+.rr-ring--shine {
+  mix-blend-mode: screen;
 }
-.rfx-enter--rare { --rfx-c: rgba(186, 230, 253, 0.95); }
-.rfx-enter--epic { --rfx-c: rgba(244, 114, 182, 0.95); }
-.rfx-enter--legendary { --rfx-c: rgba(253, 224, 71, 1); }
-@keyframes rfxEnter {
-  0% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-@keyframes rfxDashFlow {
-  from { stroke-dashoffset: var(--o, 0); }
-  to { stroke-dashoffset: calc(var(--o, 0) - 100); }
-}
-
-/* ---------------- RARE · FLOATING WATER ---------------- */
-.rfx-water {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  animation: rfxDashFlow linear infinite;
-}
-.rfx-water--a,
-.rfx-water--soft {
-  stroke-dasharray: 30 20;
-  animation-duration: 16s;
-}
-.rfx-water--soft { opacity: 0.3; }
-.rfx-water--a { opacity: 0.6; }
-.rfx-water--a-hl {
-  stroke-dasharray: 13 37;
-  --o: -9;
-  opacity: 1;
-  animation-duration: 16s;
-}
-.rfx-water--b {
-  stroke-dasharray: 18 32;
-  opacity: 0.65;
-  animation-duration: 21s;
-  animation-direction: reverse;
-}
-.rfx-water--b-hl {
-  stroke-dasharray: 7 43;
-  --o: -6;
-  opacity: 0.75;
-  animation-duration: 21s;
+.rr-ring--shine::before {
+  background: var(--rr-shine);
+  animation-duration: var(--rr-shine-spin);
   animation-direction: reverse;
 }
 
-.rfx-swirl {
-  transform-box: view-box;
-  animation: rfxSwirlSway 7s ease-in-out infinite alternate;
-}
-.rfx-swirl--bl { transform-origin: 0px 140px; }
-.rfx-swirl--tr { transform-origin: 100px 0px; animation-delay: -3.5s; }
-@keyframes rfxSwirlSway {
-  from { transform: rotate(-18deg); }
-  to { transform: rotate(18deg); }
-}
-.rfx-swirl-arc {
-  fill: none;
-  stroke-linecap: round;
-  stroke-dasharray: 55 45;
-  animation: rfxDashFlow 6s linear infinite;
-}
-.rfx-swirl-arc--0 { opacity: 0.85; }
-.rfx-swirl-arc--1 { opacity: 0.65; animation-duration: 4.5s; animation-direction: reverse; }
-.rfx-swirl-arc--2 { opacity: 0.5; animation-duration: 8s; }
-
-.rfx-bubble {
+/* Soft moving glow behind the ring (hidden under the card in the centre) */
+.rr-glow {
   position: absolute;
-  width: var(--s);
-  height: var(--s);
-  border-radius: 50%;
-  border: 0.35cqw solid rgba(224, 242, 254, 0.75);
-  background: radial-gradient(circle at 32% 30%, rgba(255, 255, 255, 0.95) 0 14%, rgba(186, 230, 253, 0.28) 32%, rgba(165, 180, 252, 0.12) 62%, transparent 72%);
-  opacity: 0;
-  animation: rfxBubbleRise ease-in-out infinite;
+  inset: calc(-1 * var(--glow-spread, 0px));
+  border-radius: inherit;
+  overflow: hidden;
+  filter: blur(var(--glow-blur));
+  opacity: 0.95;
 }
-@keyframes rfxBubbleRise {
-  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
-  15% { opacity: 1; }
-  50% { transform: translate(calc(-50% + var(--sway)), calc(-50% - 16cqh)) scale(0.9); }
-  85% { opacity: 0.85; }
-  100% { opacity: 0; transform: translate(calc(-50% - var(--sway)), calc(-50% - 34cqh)) scale(1.05); }
+
+/* Legendary: second fine gold line outside the main frame */
+.rr-ring--outer {
+  inset: -4px;
+  padding: 1.5px;
+  border-radius: calc(4.5% + var(--ring-w) + var(--ring-gap) + 4px);
+  opacity: 0.85;
+}
+
+@keyframes rrSpin {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+@keyframes rrEnter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes rrPulse {
+  0%, 100% { box-shadow: 0 0 calc(var(--shadow-blur) * 0.6) var(--rr-shadow); }
+  50% { box-shadow: 0 0 var(--shadow-blur) var(--rr-shadow); }
+}
+
+/* ---------------- RARE · FLOWING WATER ---------------- */
+.rr--rare {
+  --rr-spin: 11s;
+  --rr-shine-spin: 7s;
+  --rr-shadow: rgba(56, 189, 248, 0.55);
+  --rr-conic: conic-gradient(
+    from 0deg,
+    #e0f2fe 0deg,
+    #7dd3fc 35deg,
+    #2563eb 75deg,
+    #a5b4fc 110deg,
+    #f0f9ff 150deg,
+    #38bdf8 190deg,
+    #1d4ed8 230deg,
+    #c4b5fd 270deg,
+    #e0f2fe 310deg,
+    #60a5fa 340deg,
+    #e0f2fe 360deg
+  );
+  --rr-shine: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(255, 255, 255, 0.85) 25deg,
+    transparent 60deg,
+    transparent 170deg,
+    rgba(224, 242, 254, 0.7) 200deg,
+    transparent 235deg,
+    transparent 360deg
+  );
 }
 
 /* ---------------- EPIC · MAGENTA FLAME ---------------- */
-.rfx-flame {
-  position: absolute;
-  width: var(--w);
-  height: calc(var(--w) * 1.9);
-  border-radius: 50% 50% 45% 45% / 70% 70% 30% 30%;
-  background: radial-gradient(ellipse 50% 60% at 50% 72%, #fff7ed 0%, #fde68a 13%, #fb923c 27%, #f472b6 47%, #c026d3 66%, rgba(192, 38, 211, 0) 74%);
-  filter: blur(1.1cqw);
-  transform-origin: 50% 100%;
-  opacity: 0;
-  animation: rfxFlameLick ease-in infinite;
+.rr--epic {
+  --rr-spin: 5s;
+  --rr-shine-spin: 3.4s;
+  --rr-shadow: rgba(236, 72, 153, 0.6);
+  --rr-conic: conic-gradient(
+    from 0deg,
+    #fde68a 0deg,
+    #fb923c 40deg,
+    #f472b6 85deg,
+    #d946ef 130deg,
+    #86198f 180deg,
+    #d946ef 225deg,
+    #f472b6 270deg,
+    #fb923c 320deg,
+    #fde68a 360deg
+  );
+  --rr-shine: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(254, 243, 199, 0.9) 18deg,
+    transparent 45deg,
+    transparent 120deg,
+    rgba(253, 186, 116, 0.75) 140deg,
+    transparent 165deg,
+    transparent 240deg,
+    rgba(254, 243, 199, 0.8) 262deg,
+    transparent 290deg,
+    transparent 360deg
+  );
 }
-@keyframes rfxFlameLick {
-  0% { opacity: 0; transform: translate(-50%, -100%) scale(0.4, 0.6) rotate(0deg); }
-  18% { opacity: 0.95; }
-  55% { opacity: 0.85; transform: translate(-50%, calc(-100% - 7cqh)) scale(1, 1.12) rotate(var(--rot)); }
-  100% { opacity: 0; transform: translate(-50%, calc(-100% - 16cqh)) scale(0.3, 0.7) rotate(calc(var(--rot) * -1)); }
+.rr--epic .rr-glow {
+  animation: rrFlicker 1.4s ease-in-out infinite alternate;
 }
-
-.rfx-tendril-path {
-  fill: none;
-  stroke-linecap: round;
-  stroke-dasharray: 70 30;
-  animation: rfxDashFlow linear infinite;
-  opacity: 0.9;
-}
-.rfx-tendril-path--glow { opacity: 0.35; }
-.rfx-tendril-path--core { opacity: 0.8; stroke-dasharray: 34 66; --o: -10; }
-
-/* Glowing fire bed along the bottom edge and lower sides */
-.rfx-fire-bed {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 26%;
-  background:
-    radial-gradient(ellipse 45% 60% at 12% 100%, rgba(253, 186, 116, 0.85), rgba(236, 72, 153, 0.45) 40%, transparent 72%),
-    radial-gradient(ellipse 45% 60% at 88% 100%, rgba(253, 186, 116, 0.85), rgba(236, 72, 153, 0.45) 40%, transparent 72%),
-    radial-gradient(ellipse 60% 45% at 50% 100%, rgba(251, 146, 60, 0.55), rgba(192, 38, 211, 0.3) 50%, transparent 78%);
-  transform-origin: 50% 100%;
-  animation: rfxFireBed 1.6s ease-in-out infinite alternate;
-}
-.rfx-fire-side {
-  position: absolute;
-  top: 30%;
-  bottom: 0;
-  width: 16%;
-  background: linear-gradient(to top, rgba(251, 146, 60, 0.45), rgba(236, 72, 153, 0.28) 35%, rgba(192, 38, 211, 0.1) 70%, transparent);
-  filter: blur(1.5cqw);
-  animation: rfxFireBed 1.9s ease-in-out infinite alternate;
-  transform-origin: 50% 100%;
-}
-.rfx-fire-side--l { left: -4%; }
-.rfx-fire-side--r { right: -4%; animation-delay: -0.9s; }
-@keyframes rfxFireBed {
-  0% { opacity: 0.75; transform: scaleY(0.92); }
-  50% { opacity: 1; transform: scaleY(1.06); }
-  100% { opacity: 0.85; transform: scaleY(0.97); }
-}
-
-.rfx-mote {
-  position: absolute;
-  width: var(--s);
-  height: var(--s);
-  border-radius: 50%;
-  opacity: 0;
-  animation: rfxMoteRise linear infinite;
-}
-.rfx-mote--pink {
-  background: #fdf2f8;
-  box-shadow: 0 0 0.8cqw #f472b6;
-}
-.rfx-mote--gold {
-  background: #fffbeb;
-  box-shadow: 0 0 1.2cqw #fde047, 0 0 2.4cqw #f59e0b;
-}
-@keyframes rfxMoteRise {
-  0% { opacity: 0; transform: translate(-50%, -50%); }
-  20% { opacity: 1; }
-  60% { opacity: 0.4; }
-  75% { opacity: 1; }
-  100% { opacity: 0; transform: translate(calc(-50% + var(--dx)), calc(-50% - 22cqh)); }
+@keyframes rrFlicker {
+  0% { opacity: 0.6; }
+  35% { opacity: 0.95; }
+  60% { opacity: 0.75; }
+  100% { opacity: 1; }
 }
 
 /* ---------------- LEGENDARY · GOLDEN SILK ---------------- */
-.rfx-silk {
-  fill: none;
-  stroke-linecap: round;
-  stroke-dasharray: 55 45;
-  animation: rfxDashFlow linear infinite;
-}
-.rfx-silk--glow { opacity: 0.1; stroke-dasharray: 55 45; }
-
-.rfx-pillar {
-  position: absolute;
-  top: -5%;
-  bottom: -5%;
-  width: 5cqw;
-  transform: translateX(-50%);
-  background: linear-gradient(to bottom, rgba(253, 224, 71, 0) 0%, rgba(253, 224, 71, 0.55) 35%, rgba(255, 251, 235, 0.7) 50%, rgba(253, 224, 71, 0.55) 65%, rgba(253, 224, 71, 0) 100%);
-  filter: blur(1.5cqw);
-  animation: rfxPillar 5.2s ease-in-out infinite;
-}
-.rfx-pillar--wide { width: 18cqw; }
-@keyframes rfxPillar {
-  0%, 100% { opacity: 0.12; transform: translateX(-50%) scaleX(0.7); }
-  50% { opacity: 0.45; transform: translateX(calc(-50% + 1.5cqw)) scaleX(1.05); }
-}
-
-.rfx-leaf-path {
-  position: absolute;
-  opacity: 0;
-  animation: rfxLeafDrift ease-in-out infinite;
-}
-@keyframes rfxLeafDrift {
-  0% { opacity: 0; transform: translate(0, 0); }
-  15% { opacity: 1; }
-  80% { opacity: 1; }
-  100% { opacity: 0; transform: translate(var(--dx), var(--dy)); }
-}
-.rfx-leaf {
-  display: block;
-  width: var(--w);
-  height: calc(var(--w) * 0.55);
-  margin: calc(var(--w) * -0.275) 0 0 calc(var(--w) * -0.5);
-  border-radius: 0 100% 0 100%;
-  background: linear-gradient(125deg, #fffbeb 0%, #fde68a 35%, #f59e0b 85%);
-  box-shadow: 0 0 1.8cqw rgba(250, 204, 21, 0.95);
-  animation: rfxLeafFlutter linear infinite;
-}
-.rfx-leaf--ember {
-  background: linear-gradient(125deg, #ffedd5 0%, #fdba74 35%, #ea580c 85%);
-  box-shadow: 0 0 1.4cqw rgba(249, 115, 22, 0.85);
-}
-@keyframes rfxLeafFlutter {
-  0% { transform: rotate(0deg) rotateY(0deg); }
-  50% { transform: rotate(calc(var(--spin) * 0.5)) rotateY(65deg); }
-  100% { transform: rotate(var(--spin)) rotateY(0deg); }
-}
-
-/* Gold foil light sweep across the card faces (legendary only) */
-.rfx-gold-sweep {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  border-radius: inherit;
-  pointer-events: none;
-}
-.rfx-gold-sweep::before {
-  content: '';
-  position: absolute;
-  top: -20%;
-  bottom: -20%;
-  left: 0;
-  width: 45%;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 236, 170, 0) 0%,
-    rgba(255, 236, 170, 0.18) 30%,
-    rgba(255, 248, 220, 0.6) 50%,
-    rgba(255, 236, 170, 0.18) 70%,
-    rgba(255, 236, 170, 0) 100%
+.rr--legendary {
+  --rr-spin: 9s;
+  --rr-shine-spin: 3.8s;
+  --rr-shadow: rgba(250, 204, 21, 0.7);
+  --rr-conic: conic-gradient(
+    from 0deg,
+    #92400e 0deg,
+    #f59e0b 40deg,
+    #fde047 80deg,
+    #fffbeb 110deg,
+    #facc15 145deg,
+    #b45309 185deg,
+    #f59e0b 225deg,
+    #fef3c7 260deg,
+    #fbbf24 300deg,
+    #92400e 360deg
   );
-  transform: translateX(-130%) skewX(-18deg);
-  animation: goldSweep 4.6s cubic-bezier(0.45, 0, 0.25, 1) infinite;
-}
-@keyframes goldSweep {
-  0% { transform: translateX(-130%) skewX(-18deg); }
-  42%, 100% { transform: translateX(340%) skewX(-18deg); }
+  /* two bright comets sweeping around the frame */
+  --rr-shine: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    rgba(255, 255, 255, 0) 150deg,
+    rgba(255, 255, 255, 0.95) 172deg,
+    rgba(255, 251, 235, 0) 180deg,
+    transparent 330deg,
+    rgba(255, 255, 255, 0.95) 352deg,
+    rgba(255, 251, 235, 0) 360deg
+  );
 }
 
 /* Custom Scrollbar for Drawer / Modal */

@@ -12,11 +12,8 @@ import {
   ImagePlus,
   Maximize2,
   RotateCw,
-  Droplets,
-  Flame,
-  Crown,
 } from 'lucide-react';
-import { RarityEffects, EffectDensity } from './RarityEffects';
+import { RarityRing } from './RarityRing';
 
 interface TcgCardProps {
   card: TcgCardData;
@@ -124,17 +121,6 @@ export const TcgCard: React.FC<TcgCardProps> = ({
       setIsEditingBackNum(false);
     }
   }, [isFullscreen]);
-
-  // One-shot flash in the new tier colour – only when the rarity actually changes
-  const [showTierFlash, setShowTierFlash] = useState(false);
-  const prevRarityRef = useRef(rarity);
-  useEffect(() => {
-    if (prevRarityRef.current === rarity) return;
-    prevRarityRef.current = rarity;
-    setShowTierFlash(true);
-    const t = setTimeout(() => setShowTierFlash(false), 1200);
-    return () => clearTimeout(t);
-  }, [rarity]);
 
   // Dynamic responsive card sizing
   const isMicro = totalCards > 36;
@@ -301,37 +287,29 @@ export const TcgCard: React.FC<TcgCardProps> = ({
       ? 'rarity-frame-epic'
       : 'rarity-frame-rare';
 
-  // Effect intensity scales down with the number of cards on screen (keeps iPad smooth)
-  const effectDensity: EffectDensity = isMicro
-    ? 'none'
-    : totalCards <= 4
-    ? 'full'
-    : totalCards <= 12
-    ? 'reduced'
-    : 'minimal';
-  const effectSeed = cardIndex + 1;
+  // Moving blurred glow only when there are not too many cards on screen
+  const ringGlow = totalCards <= 12;
 
   // Reserved space around every card. The outer rarity glow is capped to exactly this
   // distance, so glows of neighbouring cards can never overlap (incl. 9:16 vertical mode).
   const effectBleed = isVerticalMode
     ? totalCards <= 2
-      ? 12
+      ? 16
       : totalCards <= 6
-      ? 8
+      ? 12
       : totalCards <= 16
-      ? 6
-      : 4
+      ? 9
+      : 6
     : totalCards <= 2
-    ? 20
+    ? 26
     : totalCards <= 4
-    ? 16
+    ? 22
     : totalCards <= 8
-    ? 12
+    ? 16
     : totalCards <= 16
-    ? 9
-    : 6;
+    ? 12
+    : 8;
 
-  const TierIcon = rarity === 'legendary' ? Crown : rarity === 'epic' ? Flame : Droplets;
 
   return (
     <div
@@ -352,7 +330,8 @@ export const TcgCard: React.FC<TcgCardProps> = ({
       {/* Top Mini Bar (ONLY in Preview Mode !isFullscreen & <= 20 cards) */}
       {!isFullscreen && !isMicro && (
         <div
-          className={`relative z-40 w-full ${getWidthClass()} flex items-center justify-between px-0.5 mb-1 gap-1`}
+          className={`relative z-40 w-full ${getWidthClass()} flex items-center justify-between px-0.5 gap-1`}
+          style={{ marginBottom: Math.round(effectBleed * 0.45) + 3 }}
         >
           <div className="flex items-center gap-1 bg-black/75 backdrop-blur-md px-2 py-0.5 rounded-full border border-cyan-500/30 text-[9px] sm:text-[10px] font-bold text-cyan-200 truncate">
             <span
@@ -433,7 +412,6 @@ export const TcgCard: React.FC<TcgCardProps> = ({
           maxHeight: isFullscreen ? 'calc(94vh - 20px)' : 'calc(100vh - 215px)',
           maxWidth: 'calc(100vw - 24px)',
           perspective: '1200px',
-          ['--rfx-bleed' as string]: `${effectBleed}px`,
         } as React.CSSProperties}
         onPointerMove={handlePointerMove}
         onPointerEnter={() => setIsInteracting(true)}
@@ -450,6 +428,9 @@ export const TcgCard: React.FC<TcgCardProps> = ({
         onDrop={handleDrop}
         onClick={handleCardClick}
       >
+        {/* Animated rarity outline AROUND the card (remounts with a fade on tier change) */}
+        <RarityRing key={rarity} rarity={rarity} bleed={effectBleed} glow={ringGlow} />
+
         <div
           ref={cardRef}
           className="w-full h-full relative"
@@ -481,8 +462,6 @@ export const TcgCard: React.FC<TcgCardProps> = ({
               zIndex: card.isFlipped ? 0 : 2,
             }}
           >
-            {/* Gold Foil Sweep (Legendary) */}
-            {rarity === 'legendary' && <div className="rfx-gold-sweep rounded-[4%] z-[15]" />}
 
             {/* Card Front Image (Custom Uploaded Prize / Slab or Default Energy Card) */}
             <div
@@ -495,10 +474,6 @@ export const TcgCard: React.FC<TcgCardProps> = ({
               }}
             />
 
-            {/* Animated rarity frame art (only on the visible face) */}
-            {!card.isFlipped && (
-              <RarityEffects rarity={rarity} density={effectDensity} seed={effectSeed} flash={showTierFlash} />
-            )}
 
             {/* Subtle Holo Light Glare */}
             <div
@@ -670,8 +645,6 @@ export const TcgCard: React.FC<TcgCardProps> = ({
               zIndex: card.isFlipped ? 2 : 0,
             }}
           >
-            {/* Gold Foil Sweep (Legendary) */}
-            {rarity === 'legendary' && <div className="rfx-gold-sweep rounded-[4%] z-[15]" />}
 
             {/* ManaCards Background Image */}
             <div
@@ -683,10 +656,6 @@ export const TcgCard: React.FC<TcgCardProps> = ({
               }}
             />
 
-            {/* Animated rarity frame art (only on the visible face) */}
-            {card.isFlipped && (
-              <RarityEffects rarity={rarity} density={effectDensity} seed={effectSeed} flash={showTierFlash} />
-            )}
 
             {/* Subtle Holo Light Glare */}
             <div
@@ -698,21 +667,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
               }}
             />
 
-            {/* Top Bar on Flipped Card: Small Card Number Badge */}
-            <div className="relative z-20 flex items-center justify-between px-0.5 pointer-events-none">
-              <span
-                className={`inline-flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[10px] font-black tracking-wider uppercase px-1.5 sm:px-2 py-0.5 rounded-full border backdrop-blur-sm ${
-                  rarity === 'legendary'
-                    ? 'bg-amber-950/85 text-amber-200 border-amber-300/70 shadow-[0_0_10px_rgba(250,204,21,0.45)]'
-                    : rarity === 'epic'
-                    ? 'bg-fuchsia-950/85 text-pink-200 border-fuchsia-400/60'
-                    : 'bg-slate-950/80 text-sky-200 border-sky-300/50'
-                }`}
-              >
-                {!isMicro && <TierIcon className="w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0" strokeWidth={2.5} />}
-                #{cardIndex + 1}
-              </span>
-            </div>
+            <div className="h-2" />
 
             {/* Center Area: Big Dark-Blue Gradient Number */}
             <div className="relative z-20 w-full my-auto px-1 flex flex-col items-center justify-center">
