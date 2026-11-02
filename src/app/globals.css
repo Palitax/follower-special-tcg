@@ -5,6 +5,8 @@
 :root {
   --background: #090a0f;
   --foreground: #ededed;
+  color-scheme: dark;
+  accent-color: #facc15;
 }
 
 * {
@@ -18,173 +20,110 @@ body {
   width: 100%;
   margin: 0;
   padding: 0;
-  overflow: hidden;
   background-color: var(--background);
   color: var(--foreground);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   touch-action: manipulation;
-  -webkit-touch-callout: none;
-  -webkit-user-select: none;
-  user-select: none;
   overscroll-behavior: none;
 }
 
-/* Allow text selection only inside editable inputs / textareas */
-input, textarea {
-  -webkit-user-select: text;
-  user-select: text;
+::selection {
+  background: rgba(250, 204, 21, 0.32);
+  color: #ffffff;
 }
 
-/* 3D Transform & Perspective classes */
-.perspective-container {
-  perspective: 1400px;
+/* True 100% alpha transparency when loaded inside OBS Browser Source (/overlay) */
+html.obs-overlay-root,
+html.obs-overlay-root body {
+  background: transparent !important;
+  background-color: rgba(0, 0, 0, 0) !important;
+  overflow: hidden !important;
 }
 
-.preserve-3d {
-  transform-style: preserve-3d;
+/* Checkerboard preview backdrop inside Studio OBS Monitor (never rendered on /overlay itself) */
+.obs-checkerboard {
+  background-color: #11131a;
+  background-image:
+    linear-gradient(45deg, #191c26 25%, transparent 25%),
+    linear-gradient(-45deg, #191c26 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #191c26 75%),
+    linear-gradient(-45deg, transparent 75%, #191c26 75%);
+  background-size: 20px 20px;
+  background-position: 0 0, 0 10px, 10px -10px, -10px 0;
 }
 
-.backface-hidden {
-  backface-visibility: hidden;
-  -webkit-backface-visibility: hidden;
+/* Native themed scrollbars with >= 3:1 thumb-to-track contrast */
+.studio-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.32) rgba(255, 255, 255, 0.05);
 }
 
-.rotate-y-180 {
-  transform: rotateY(180deg);
+input:not([type="range"]):user-invalid {
+  border-color: rgba(244, 63, 94, 0.75);
 }
 
-/* Holographic / Foil Sheen Overlays */
-.holo-rainbow {
-  background: linear-gradient(
-    115deg,
-    transparent 0%,
-    rgba(255, 0, 128, 0.15) 20%,
-    rgba(255, 230, 0, 0.25) 40%,
-    rgba(0, 255, 180, 0.25) 60%,
-    rgba(0, 160, 255, 0.25) 80%,
-    transparent 100%
-  );
-  background-size: 200% 200%;
-  mix-blend-mode: color-dodge;
-  pointer-events: none;
+/* ============================================================
+   INDIVIDUAL TRANSFORM PROPERTIES (Overlay Float & Studio Cards)
+   Identity transforms prevent stacking-context / z-index jumps.
+   ============================================================ */
+@keyframes overlayFloat {
+  0%, 100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 0 -5px;
+  }
 }
 
-.holo-cosmo {
-  background: radial-gradient(
-      circle at 30% 30%,
-      rgba(255, 255, 255, 0.4) 0%,
-      transparent 15%
-    ),
-    radial-gradient(
-      circle at 70% 60%,
-      rgba(255, 180, 255, 0.35) 0%,
-      transparent 20%
-    ),
-    linear-gradient(
-      135deg,
-      rgba(138, 43, 226, 0.2) 0%,
-      rgba(0, 220, 255, 0.25) 50%,
-      rgba(255, 215, 0, 0.2) 100%
-    );
-  mix-blend-mode: screen;
-  pointer-events: none;
+@keyframes overlaySheen {
+  0%, 72%, 100% {
+    transform: translateX(-140%) skewX(-18deg);
+    opacity: 0;
+  }
+  78% {
+    opacity: 0.22;
+  }
+  92% {
+    transform: translateX(180%) skewX(-18deg);
+    opacity: 0;
+  }
 }
 
-.holo-gold {
-  background: linear-gradient(
-    120deg,
-    rgba(255, 215, 0, 0.05) 0%,
-    rgba(255, 240, 150, 0.4) 30%,
-    rgba(218, 165, 32, 0.15) 50%,
-    rgba(255, 255, 220, 0.45) 70%,
-    rgba(255, 215, 0, 0.05) 100%
-  );
-  background-size: 250% 250%;
-  mix-blend-mode: overlay;
-  pointer-events: none;
+.giveaway-float-card {
+  translate: 0px;
+  rotate: 0deg;
+  scale: 1;
+  animation: overlayFloat 4.8s ease-in-out infinite;
 }
 
-.holo-silver {
-  background: linear-gradient(
-    135deg,
-    rgba(255, 255, 255, 0.05) 0%,
-    rgba(220, 230, 250, 0.4) 35%,
-    rgba(180, 200, 220, 0.15) 50%,
-    rgba(255, 255, 255, 0.5) 70%,
-    rgba(200, 220, 240, 0.05) 100%
-  );
-  mix-blend-mode: overlay;
-  pointer-events: none;
+.studio-card-tile {
+  translate: 0px;
+  rotate: 0deg;
+  scale: 1;
+  transition: scale 0.2s cubic-bezier(0.22, 1, 0.36, 1), translate 0.2s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.holo-galaxy {
-  background: radial-gradient(
-      ellipse at top left,
-      rgba(236, 72, 153, 0.3) 0%,
-      transparent 40%
-    ),
-    radial-gradient(
-      ellipse at bottom right,
-      rgba(59, 130, 246, 0.3) 0%,
-      transparent 40%
-    ),
-    radial-gradient(
-      circle at center,
-      rgba(168, 85, 247, 0.2) 0%,
-      transparent 60%
-    );
-  mix-blend-mode: color-dodge;
-  pointer-events: none;
+@supports (translate: 0px) {
+  .studio-card-tile:hover {
+    translate: 0 -2px;
+    scale: 1.012;
+  }
 }
 
-.holo-neon {
-  background: linear-gradient(
-    90deg,
-    rgba(6, 182, 212, 0.2) 0%,
-    rgba(236, 72, 153, 0.3) 50%,
-    rgba(168, 85, 247, 0.2) 100%
-  );
-  mix-blend-mode: color-dodge;
-  pointer-events: none;
+@supports not (translate: 0px) {
+  .studio-card-tile:hover {
+    transform: translate(0, -2px) scale(1.012);
+  }
 }
 
-/* Card Borders */
-.border-gold {
-  border: 4px solid #d4af37;
-  box-shadow: 0 0 15px rgba(212, 175, 55, 0.4), inset 0 0 10px rgba(255, 223, 0, 0.3);
-}
-
-.border-silver {
-  border: 4px solid #cbd5e1;
-  box-shadow: 0 0 15px rgba(203, 213, 225, 0.4), inset 0 0 10px rgba(255, 255, 255, 0.3);
-}
-
-.border-neon-cyan {
-  border: 3px solid #06b6d4;
-  box-shadow: 0 0 20px rgba(6, 182, 212, 0.5), inset 0 0 8px rgba(6, 182, 212, 0.3);
-}
-
-.border-neon-magenta {
-  border: 3px solid #ec4899;
-  box-shadow: 0 0 20px rgba(236, 72, 153, 0.5), inset 0 0 8px rgba(236, 72, 153, 0.3);
-}
-
-.border-classic-black {
-  border: 5px solid #1c1917;
-  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.1);
-}
-
-.border-minimal {
-  border: 2px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+.overlay-glass-sheen {
+  animation: overlaySheen 7.5s ease-in-out infinite;
 }
 
 /* ============================================================
    RARITY OUTLINES (see components/RarityRing.tsx)
    Animated frame AROUND the card – card art itself stays clean.
    ============================================================ */
-
-/* Card faces: no own border anymore, the ring frames them */
 .rarity-frame-rare,
 .rarity-frame-epic,
 .rarity-frame-legendary {
@@ -199,7 +138,6 @@ input, textarea {
   animation: rrEnter 0.9s ease-out both, rrPulse 3.2s ease-in-out 0.9s infinite;
 }
 
-/* Masked ring: only the padding area (= ring thickness) is visible */
 .rr-ring {
   position: absolute;
   inset: 0;
@@ -212,7 +150,6 @@ input, textarea {
   mask-composite: exclude;
 }
 
-/* Rotating conic gradient (oversized square so it always covers the tall ring) */
 .rr-ring::before,
 .rr-glow::before {
   content: '';
@@ -236,7 +173,6 @@ input, textarea {
   animation-direction: reverse;
 }
 
-/* Soft moving glow behind the ring (hidden under the card in the centre) */
 .rr-glow {
   position: absolute;
   inset: calc(-1 * var(--glow-spread, 0px));
@@ -246,7 +182,6 @@ input, textarea {
   opacity: 0.95;
 }
 
-/* Legendary: second fine gold line outside the main frame */
 .rr-ring--outer {
   inset: -4px;
   padding: 1.5px;
@@ -356,7 +291,6 @@ input, textarea {
     #fbbf24 300deg,
     #92400e 360deg
   );
-  /* two bright comets sweeping around the frame */
   --rr-shine: conic-gradient(
     from 0deg,
     transparent 0deg,
@@ -367,20 +301,4 @@ input, textarea {
     rgba(255, 255, 255, 0.95) 352deg,
     rgba(255, 251, 235, 0) 360deg
   );
-}
-
-/* Custom Scrollbar for Drawer / Modal */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.2);
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.4);
 }

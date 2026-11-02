@@ -62,7 +62,7 @@ export default function LoginPage() {
       {/* Soft tri-colour ambience hinting at the three rarity tiers */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-[18%] left-[22%] w-[380px] h-[380px] rounded-full bg-cyan-500/10 blur-[120px]" />
-        <div className="absolute top-[22%] right-[20%] w-[380px] h-[380px] rounded-full bg-purple-600/12 blur-[120px]" />
+        <div className="absolute top-[22%] right-[20%] w-[380px] h-[380px] rounded-full bg-purple-600/15 blur-[120px]" />
         <div className="absolute bottom-[12%] left-1/2 -translate-x-1/2 w-[460px] h-[320px] rounded-full bg-amber-400/10 blur-[130px]" />
       </div>
 
@@ -105,7 +105,7 @@ export default function LoginPage() {
 
           <div className="text-center mb-6 space-y-1">
             <h1 className="text-2xl font-black tracking-tight text-white">ManaCards</h1>
-            <p className="text-xs font-semibold text-slate-400">Follower Special · Giveaway Arena</p>
+            <p className="text-xs font-semibold text-slate-400">Follower Special · Giveaway Overlay Regie</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-3.5" noValidate>

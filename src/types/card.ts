@@ -1,43 +1,41 @@
-export type HoloEffectType = 'none' | 'rainbow' | 'cosmo' | 'gold' | 'silver' | 'galaxy' | 'neon';
-
 export type CardRarity = 'rare' | 'epic' | 'legendary';
 
-export interface CardCounter {
-  id: string;
-  label: string;
-  value: number;
-  color?: string; // tailwind color or hex
-  min?: number;
-  max?: number;
-  step?: number;
-}
+export type PlaymatTheme = 'dark-carbon';
 
-export interface CardSideData {
+export type OverlayAnchorPosition =
+  | 'compact'
+  | 'top-right'
+  | 'top-left'
+  | 'bottom-right'
+  | 'bottom-left';
+
+export interface GiveawayItem {
+  id: string;
   title: string;
-  subtitle: string;
-  notes: string;
   imageUrl: string;
-  imageFit?: 'cover' | 'contain';
-  holoEffect: HoloEffectType;
-  bgColor?: string;
-  textColor?: string;
-  counters: CardCounter[];
-  badge?: {
-    text: string;
-    color: string;
-  };
+  imageFit: 'contain' | 'cover';
+  /** Streamer-only status marker in the Control Studio (never hides transparency on stream) */
+  isCompleted: boolean;
 }
 
-export interface TcgCardData {
-  id: string;
-  name: string;
-  isFlipped: boolean;
-  /** Marked as out of the active giveaway pool (grayed out with an X overlay) */
-  isEliminated?: boolean;
-  rotation: number; // 0, 90, 180, 270 degrees
-  borderStyle: 'classic-black' | 'gold-border' | 'silver-border' | 'neon-cyan' | 'neon-magenta' | 'minimal';
-  front: CardSideData;
-  back: CardSideData;
+export type GiveawayPools = Record<CardRarity, GiveawayItem[]>;
+
+export interface ActiveGiveawaySelection {
+  rarity: CardRarity;
+  itemId: string;
 }
 
-export type PlaymatTheme = 'dark-carbon' | 'felt-green' | 'cyber-neon' | 'mystic-violet' | 'wood-mahogany';
+export interface OverlayDisplaySettings {
+  /** Whether the giveaway card is currently shown in OBS (false = transparent / hidden) */
+  visible: boolean;
+  /** Header badge text above the card, e.g. 'NÄCHSTES GIVEAWAY' or 'AKTUELLES GIVEAWAY' */
+  badgeLabel: string;
+  /** Show rarity tier pill (RARE / EPIC / LEGENDARY) inside the header badge */
+  showTierBadge: boolean;
+  /** Optional: show #1, #2... inside the header badge */
+  showSlotNumber: boolean;
+  /** Card width in px inside the OBS Browser Source */
+  cardWidthPx: number;
+  /** 'compact' centers cleanly for free OBS positioning; corner anchors place it in a full-canvas OBS source */
+  anchor: OverlayAnchorPosition;
+}

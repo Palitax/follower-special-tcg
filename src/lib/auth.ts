@@ -22,20 +22,6 @@ export function checkCredentials(username: string, password: string): boolean {
   return userOk && passOk;
 }
 
-/** Deterministic session token – changes automatically when credentials or secret change. */
-export async function createSessionToken(): Promise<string> {
-  const data = new TextEncoder().encode(`${USERNAME}:${PASSWORD}:${SECRET}`);
-  const digest = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(digest))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-export async function isValidSession(token: string | undefined): Promise<boolean> {
-  if (!token) return false;
-  return timingSafeEqual(token, await createSessionToken());
-}
-
 async function sha256Hex(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);
   const digest = await crypto.subtle.digest('SHA-256', data);
@@ -44,19 +30,42 @@ async function sha256Hex(input: string): Promise<string> {
     .join('');
 }
 
+/** Deterministic session token – changes automatically when credentials or secret change. */
+export async function createSessionToken(): Promise<string> {
+  return sha256Hex(`${USERNAME}:${PASSWORD}:${SECRET}`);
+}
+
+export async function isValidSession(token: string | undefined): Promise<boolean> {
+  if (!token) return false;
+  return timingSafeEqual(token, await createSessionToken());
+}
+
 /**
- * Deterministic encrypted channel credentials for authenticated sessions.
- * Allows multiple windows / PCs logged into the same account to discover each other
- * and end-to-end encrypt all real-time sync traffic with AES-256-GCM.
+ * Deterministic read-only OBS Browser Source key so OBS can load `/overlay?key=...`
+ * directly without showing a login form inside the transparent stream overlay.
+ */
+export async function createOverlayToken(): Promise<string> {
+  const full = await sha256Hex(`mc-obs-overlay-key-v1:${USERNAME}:${PASSWORD}:${SECRET}`);
+  return full.slice(0, 32);
+}
+
+export async function isValidOverlayKey(key: string | null | undefined): Promise<boolean> {
+  if (!key) return false;
+  return timingSafeEqual(key.trim(), await createOverlayToken());
+}
+
+/**
+ * Deterministic encrypted channel credentials for authenticated sessions & OBS overlays.
+ * End-to-end encrypts all real-time sync traffic with AES-256-GCM.
  */
 export async function deriveSyncCredentials(): Promise<{
   roomTopic: string;
   aesKeyHex: string;
 }> {
-  const topicHash = await sha256Hex(`mc-live-topic-v3:${USERNAME}:${PASSWORD}:${SECRET}`);
-  const aesKeyHex = await sha256Hex(`mc-live-aes256-v3:${USERNAME}:${PASSWORD}:${SECRET}`);
+  const topicHash = await sha256Hex(`mc-live-topic-v4:${USERNAME}:${PASSWORD}:${SECRET}`);
+  const aesKeyHex = await sha256Hex(`mc-live-aes256-v4:${USERNAME}:${PASSWORD}:${SECRET}`);
   return {
-    roomTopic: `mc/arena/v3/${topicHash.slice(0, 32)}`,
+    roomTopic: `mc/arena/v4/${topicHash.slice(0, 32)}`,
     aesKeyHex,
   };
 }

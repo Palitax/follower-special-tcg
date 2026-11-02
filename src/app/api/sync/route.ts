@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AUTH_COOKIE, deriveSyncCredentials, isValidSession } from '../../../lib/auth';
+import {
+  AUTH_COOKIE,
+  createOverlayToken,
+  deriveSyncCredentials,
+  isValidOverlayKey,
+  isValidSession,
+} from '../../../lib/auth';
 import { promises as fs } from 'fs';
 import path from 'path';
 import os from 'os';
@@ -9,11 +15,9 @@ export const dynamic = 'force-dynamic';
 export interface WireBoardState {
   updatedAt: number;
   senderId: string;
-  eventType?: 'flip' | 'eliminate' | 'level-up' | 'setup' | 'update' | 'reset';
-  rarity: 'rare' | 'epic' | 'legendary';
-  theme: string;
-  decks: Record<'rare' | 'epic' | 'legendary', unknown[]>;
-  cards?: unknown[];
+  pools: Record<'rare' | 'epic' | 'legendary', unknown[]>;
+  active: { rarity: 'rare' | 'epic' | 'legendary'; itemId: string } | null;
+  overlay: Record<string, unknown>;
 }
 
 interface ServerSyncStore {
@@ -21,29 +25,29 @@ interface ServerSyncStore {
   images: Record<string, string>;
 }
 
-const TMP_STATE_FILE = path.join(os.tmpdir(), 'manacards-follower-special-sync-v2.json');
-const MAX_CACHED_IMAGES = 60;
+const TMP_STATE_FILE = path.join(os.tmpdir(), 'manacards-follower-special-overlay-v1.json');
+const MAX_CACHED_IMAGES = 150;
 
 declare global {
   // eslint-disable-next-line no-var
-  var __mcSyncStore: ServerSyncStore | undefined;
+  var __mcOverlaySyncStore: ServerSyncStore | undefined;
 }
 
 async function getStore(): Promise<ServerSyncStore> {
-  if (globalThis.__mcSyncStore) {
-    return globalThis.__mcSyncStore;
+  if (globalThis.__mcOverlaySyncStore) {
+    return globalThis.__mcOverlaySyncStore;
   }
   try {
     const raw = await fs.readFile(TMP_STATE_FILE, 'utf8');
     const parsed = JSON.parse(raw) as ServerSyncStore;
-    globalThis.__mcSyncStore = {
+    globalThis.__mcOverlaySyncStore = {
       state: parsed?.state ?? null,
       images: parsed?.images ?? {},
     };
-    return globalThis.__mcSyncStore;
+    return globalThis.__mcOverlaySyncStore;
   } catch {
-    globalThis.__mcSyncStore = { state: null, images: {} };
-    return globalThis.__mcSyncStore;
+    globalThis.__mcOverlaySyncStore = { state: null, images: {} };
+    return globalThis.__mcOverlaySyncStore;
   }
 }
 
@@ -64,8 +68,12 @@ function isNewer(incoming: WireBoardState, current: WireBoardState | null): bool
 }
 
 export async function GET(request: NextRequest) {
-  const authed = await isValidSession(request.cookies.get(AUTH_COOKIE)?.value);
-  if (!authed) {
+  const sessionOk = await isValidSession(request.cookies.get(AUTH_COOKIE)?.value);
+  const suppliedOverlayKey =
+    request.nextUrl.searchParams.get('key') ?? request.headers.get('x-overlay-key');
+  const overlayOk = !sessionOk && (await isValidOverlayKey(suppliedOverlayKey));
+
+  if (!sessionOk && !overlayOk) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -92,9 +100,12 @@ export async function GET(request: NextRequest) {
   }
 
   const credentials = await deriveSyncCredentials();
+  const overlayKey = sessionOk ? await createOverlayToken() : undefined;
+
   return NextResponse.json(
     {
       credentials,
+      overlayKey,
       snapshot: store.state,
       availableImages: Object.keys(store.images),
     },
