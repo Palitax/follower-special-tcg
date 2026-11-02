@@ -31,6 +31,7 @@ interface TcgCardProps {
   onDelete?: (id: string) => void;
   onUpdateFrontText: (id: string, text: string) => void;
   onUpdateFrontImage: (id: string, imageUrl: string, imageFit?: 'cover' | 'contain') => void;
+  onBatchUpdateFrontImages?: (startIndex: number, imageUrls: string[]) => void;
 }
 
 const DEFAULT_FRONT_IMAGE = '/images/pokemon-energy-front.png';
@@ -87,6 +88,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
   onDelete,
   onUpdateFrontText,
   onUpdateFrontImage,
+  onBatchUpdateFrontImages,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -200,11 +202,16 @@ export const TcgCard: React.FC<TcgCardProps> = ({
   };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files ?? []).filter((f) => f.type.startsWith('image/'));
+    if (files.length === 0) return;
     try {
-      const compressed = await compressImageFile(file);
-      onUpdateFrontImage(card.id, compressed, card.front.imageFit || 'contain');
+      if (files.length > 1 && onBatchUpdateFrontImages) {
+        const compressedList = await Promise.all(files.map((f) => compressImageFile(f)));
+        onBatchUpdateFrontImages(cardIndex, compressedList);
+      } else {
+        const compressed = await compressImageFile(files[0]);
+        onUpdateFrontImage(card.id, compressed, card.front.imageFit || 'contain');
+      }
       sound.playShimmer();
     } catch (err) {
       console.warn('Image upload failed', err);
@@ -219,11 +226,18 @@ export const TcgCard: React.FC<TcgCardProps> = ({
     setIsDragOver(false);
     if (isFullscreen) return;
 
-    const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith('image/')) {
+    const files = Array.from(e.dataTransfer.files ?? []).filter((f) =>
+      f.type.startsWith('image/')
+    );
+    if (files.length > 0) {
       try {
-        const compressed = await compressImageFile(file);
-        onUpdateFrontImage(card.id, compressed, card.front.imageFit || 'contain');
+        if (files.length > 1 && onBatchUpdateFrontImages) {
+          const compressedList = await Promise.all(files.map((f) => compressImageFile(f)));
+          onBatchUpdateFrontImages(cardIndex, compressedList);
+        } else {
+          const compressed = await compressImageFile(files[0]);
+          onUpdateFrontImage(card.id, compressed, card.front.imageFit || 'contain');
+        }
         sound.playShimmer();
       } catch (err) {
         console.warn('Drop image upload failed', err);
@@ -261,6 +275,7 @@ export const TcgCard: React.FC<TcgCardProps> = ({
           ref={fileInputRef}
           type="file"
           accept="image/*"
+          multiple
           onChange={handleFileChange}
           className="hidden"
         />

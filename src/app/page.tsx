@@ -12,6 +12,7 @@ import { sound } from '../utils/sound';
 import {
   LiveArenaSnapshot,
   LiveArenaSyncController,
+  RarityDecks,
   SyncEventType,
   SyncStatus,
   cacheCustomImage,
@@ -40,51 +41,208 @@ import {
   Radio,
 } from 'lucide-react';
 
-const STORAGE_KEY_CARDS = 'tcg_cards_pokemon_front_v8';
-const STORAGE_KEY_CARDS_LEGACY = 'tcg_cards_pokemon_front_v7';
+const STORAGE_KEY_DECKS = 'tcg_decks_by_rarity_v9';
+const STORAGE_KEY_CARDS_LEGACY_V8 = 'tcg_cards_pokemon_front_v8';
+const STORAGE_KEY_CARDS_LEGACY_V7 = 'tcg_cards_pokemon_front_v7';
 const STORAGE_KEY_THEME = 'tcg_theme_pokemon_front_v8';
 const STORAGE_KEY_RARITY = 'tcg_rarity_v8';
 const STORAGE_KEY_VERTICAL = 'tcg_vertical_mode_v8';
-const STORAGE_KEY_UPDATED_AT = 'tcg_updated_at_v8';
+const STORAGE_KEY_UPDATED_AT = 'tcg_updated_at_v9';
+
+const DEFAULT_FRONT_IMAGE = '/images/pokemon-energy-front.png';
+const DEFAULT_BACK_IMAGE = '/images/card-back-water.jpg';
+const ALL_RARITIES: CardRarity[] = ['rare', 'epic', 'legendary'];
+
+const EMPTY_DECKS: RarityDecks = {
+  rare: [],
+  epic: [],
+  legendary: [],
+};
 
 const RARITY_CONFIG: Record<
   CardRarity,
   {
+    shortLabel: string;
     label: string;
     phaseLabel: string;
-    badgeClass: string;
-    buttonClass: string;
+    activeTabClass: string;
     confettiColors: string[];
   }
 > = {
   rare: {
+    shortLabel: 'Rare',
     label: 'Rare (Blau Wasser)',
     phaseLabel: 'Phase 1 · Rare',
-    badgeClass:
-      'bg-cyan-500/20 text-cyan-300 border-cyan-400/50 shadow-[0_0_12px_rgba(56,189,248,0.35)]',
-    buttonClass:
-      'from-cyan-500 via-sky-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 shadow-cyan-500/30',
+    activeTabClass:
+      'bg-gradient-to-r from-cyan-400 to-blue-500 text-black shadow-[0_0_12px_rgba(56,189,248,0.65)]',
     confettiColors: ['#bae6fd', '#7dd3fc', '#a5b4fc', '#e0f2fe'],
   },
   epic: {
+    shortLabel: 'Epic',
     label: 'Epic (Magenta Flamme)',
     phaseLabel: 'Phase 2 · Epic',
-    badgeClass:
-      'bg-fuchsia-500/20 text-fuchsia-200 border-fuchsia-400/60 shadow-[0_0_15px_rgba(232,121,249,0.5)]',
-    buttonClass:
-      'from-fuchsia-600 via-pink-500 to-orange-400 hover:from-fuchsia-500 hover:to-orange-300 shadow-fuchsia-500/40',
+    activeTabClass:
+      'bg-gradient-to-r from-fuchsia-600 via-pink-500 to-orange-400 text-white shadow-[0_0_12px_rgba(236,72,153,0.7)]',
     confettiColors: ['#e879f9', '#f472b6', '#fb923c', '#c026d3'],
   },
   legendary: {
+    shortLabel: 'Legendary',
     label: 'Legendary (Gold)',
     phaseLabel: 'Phase 3 · Legendary',
-    badgeClass:
-      'bg-amber-400/20 text-amber-200 border-amber-300/70 shadow-[0_0_18px_rgba(250,204,21,0.55)]',
-    buttonClass:
-      'from-yellow-300 via-amber-400 to-amber-600 hover:from-yellow-200 hover:to-amber-500 shadow-amber-400/50',
+    activeTabClass:
+      'bg-gradient-to-r from-yellow-300 via-amber-400 to-amber-600 text-black shadow-[0_0_14px_rgba(250,204,21,0.75)]',
     confettiColors: ['#facc15', '#fde047', '#fef3c7', '#f59e0b'],
   },
 };
+
+function createBlankCard(tier: CardRarity, index: number, seed: number): TcgCardData {
+  return {
+    id: `card_${tier}_${index + 1}_${seed}`,
+    name: `${tier.toUpperCase()} #${index + 1}`,
+    isFlipped: true, // Start showing numbers 1..N on the back
+    isEliminated: false,
+    rotation: 0,
+    borderStyle: 'neon-cyan',
+    front: {
+      title: `Karte #${index + 1}`,
+      subtitle: '',
+      notes: '',
+      imageUrl: DEFAULT_FRONT_IMAGE,
+      imageFit: 'contain',
+      holoEffect: 'none',
+      counters: [],
+    },
+    back: {
+      title: '',
+      subtitle: '',
+      notes: '',
+      imageUrl: DEFAULT_BACK_IMAGE,
+      holoEffect: 'none',
+      counters: [
+        {
+          id: 'cnt_1',
+          label: '',
+          value: index + 1,
+          step: 1,
+        },
+      ],
+    },
+  };
+}
+
+function normalizeTierCards(rawCards: any[], tier: CardRarity): TcgCardData[] {
+  if (!Array.isArray(rawCards)) return [];
+  return rawCards.map((c, idx) => {
+    const rawId = typeof c?.id === 'string' ? c.id : '';
+    const ensuredId = rawId.startsWith(`card_${tier}_`)
+      ? rawId
+      : `card_${tier}_${idx + 1}_${rawId || Date.now()}`;
+    return {
+      ...c,
+      id: ensuredId,
+      isEliminated: Boolean(c?.isEliminated),
+      front: {
+        ...c?.front,
+        title: c?.front?.title || `Karte #${idx + 1}`,
+        subtitle: c?.front?.subtitle || '',
+        notes: c?.front?.notes || '',
+        imageUrl: c?.front?.imageUrl || DEFAULT_FRONT_IMAGE,
+        imageFit: c?.front?.imageFit || 'contain',
+        holoEffect: c?.front?.holoEffect || 'none',
+        counters: c?.front?.counters || [],
+      },
+      back: {
+        ...c?.back,
+        title: '',
+        subtitle: '',
+        notes: '',
+        imageUrl: DEFAULT_BACK_IMAGE,
+        holoEffect: 'none',
+        counters: [
+          {
+            id: 'cnt_1',
+            label: '',
+            value: idx + 1,
+            step: 1,
+          },
+        ],
+      },
+    };
+  });
+}
+
+function normalizeDecks(raw: Partial<Record<CardRarity, any[]>> | null | undefined): RarityDecks {
+  const rare = normalizeTierCards(raw?.rare ?? [], 'rare');
+  const epic = normalizeTierCards(raw?.epic ?? [], 'epic');
+  const legendary = normalizeTierCards(raw?.legendary ?? [], 'legendary');
+
+  // Ensure if one tier has cards and another was empty (e.g. legacy migration), counts stay aligned
+  const targetLen = Math.max(rare.length, epic.length, legendary.length);
+  if (targetLen === 0) return { rare: [], epic: [], legendary: [] };
+
+  const seed = Date.now();
+  const padTier = (arr: TcgCardData[], tier: CardRarity) => {
+    if (arr.length === targetLen) return arr;
+    const next = [...arr];
+    for (let i = arr.length; i < targetLen; i++) {
+      next.push(createBlankCard(tier, i, seed));
+    }
+    return next;
+  };
+
+  return {
+    rare: padTier(rare, 'rare'),
+    epic: padTier(epic, 'epic'),
+    legendary: padTier(legendary, 'legendary'),
+  };
+}
+
+async function hydrateDeckImagesFromIdb(decks: RarityDecks): Promise<RarityDecks> {
+  const out: RarityDecks = { rare: [], epic: [], legendary: [] };
+  for (const tier of ALL_RARITIES) {
+    out[tier] = await Promise.all(
+      decks[tier].map(async (c) => {
+        const url = c.front.imageUrl;
+        if (url.startsWith('idb:')) {
+          const cached = await loadCachedImage(url.slice(4));
+          if (cached) {
+            return { ...c, front: { ...c.front, imageUrl: cached } };
+          }
+        }
+        return c;
+      })
+    );
+  }
+  return out;
+}
+
+async function persistDecksSafely(decks: RarityDecks, updatedAt: number) {
+  try {
+    localStorage.setItem(STORAGE_KEY_UPDATED_AT, String(updatedAt));
+    localStorage.setItem(STORAGE_KEY_DECKS, JSON.stringify(decks));
+  } catch {
+    // QuotaExceededError fallback: store custom base64 images in IndexedDB and compact refs in localStorage
+    try {
+      const compact: RarityDecks = { rare: [], epic: [], legendary: [] };
+      for (const tier of ALL_RARITIES) {
+        compact[tier] = await Promise.all(
+          decks[tier].map(async (c) => {
+            const url = c.front?.imageUrl || '';
+            if (url.startsWith('data:image/')) {
+              const imgId = await hashImageDataUrl(url);
+              await cacheCustomImage(imgId, url);
+              return { ...c, front: { ...c.front, imageUrl: `idb:${imgId}` } };
+            }
+            return c;
+          })
+        );
+      }
+      localStorage.setItem(STORAGE_KEY_DECKS, JSON.stringify(compact));
+    } catch (err) {
+      console.warn('LocalStorage fallback save error', err);
+    }
+  }
+}
 
 // ============================================================================
 // Optimal Grid & Card Sizing Solver (maximizes card size in 9:16 & 16:9)
@@ -151,7 +309,6 @@ function computeOptimalCardLayout(
     const cardW = solveMaxCardWidth(slotW, slotH, isVerticalMode, maxCap);
     const lastRowItems = totalCards - (rows - 1) * cols;
     const fillRatio = lastRowItems / cols;
-    // Maximize card size with a subtle tie-breaker for balanced rows
     const score = cardW * (0.975 + 0.025 * fillRatio);
     if (score > bestScore) {
       bestScore = score;
@@ -165,10 +322,7 @@ function computeOptimalCardLayout(
   if (bestCardW < minFloorW) {
     const fallbackBleed = calcBleedPx(minFloorW, isVerticalMode);
     const fitCols = Math.max(1, Math.floor(availW / (minFloorW + 2 * fallbackBleed)));
-    const fitCardW = Math.max(
-      minFloorW,
-      Math.floor(availW / fitCols - 2 * fallbackBleed)
-    );
+    const fitCardW = Math.max(minFloorW, Math.floor(availW / fitCols - 2 * fallbackBleed));
     return {
       cols: fitCols,
       rows: Math.ceil(totalCards / fitCols),
@@ -188,57 +342,8 @@ function computeOptimalCardLayout(
   };
 }
 
-function normalizeLoadedCards(rawCards: any[]): TcgCardData[] {
-  return rawCards.map((c, idx) => ({
-    ...c,
-    isEliminated: Boolean(c?.isEliminated),
-    front: {
-      ...c.front,
-      imageUrl: c.front?.imageUrl || '/images/pokemon-energy-front.png',
-      imageFit: c.front?.imageFit || 'contain',
-    },
-    back: {
-      ...c.back,
-      imageUrl: '/images/card-back-water.jpg',
-      counters: [
-        {
-          id: 'cnt_1',
-          label: '',
-          value: idx + 1,
-          step: 1,
-        },
-      ],
-    },
-  }));
-}
-
-async function persistCardsSafely(cards: TcgCardData[], updatedAt: number) {
-  try {
-    localStorage.setItem(STORAGE_KEY_UPDATED_AT, String(updatedAt));
-    localStorage.setItem(STORAGE_KEY_CARDS, JSON.stringify(cards));
-  } catch {
-    // QuotaExceededError fallback: store custom base64 images in IndexedDB and refs in localStorage
-    try {
-      const compact = await Promise.all(
-        cards.map(async (c) => {
-          const url = c.front?.imageUrl || '';
-          if (url.startsWith('data:image/')) {
-            const imgId = await hashImageDataUrl(url);
-            await cacheCustomImage(imgId, url);
-            return { ...c, front: { ...c.front, imageUrl: `idb:${imgId}` } };
-          }
-          return c;
-        })
-      );
-      localStorage.setItem(STORAGE_KEY_CARDS, JSON.stringify(compact));
-    } catch (err) {
-      console.warn('LocalStorage fallback save error', err);
-    }
-  }
-}
-
 export default function HomeView() {
-  const [cards, setCards] = useState<TcgCardData[]>([]);
+  const [decks, setDecks] = useState<RarityDecks>(EMPTY_DECKS);
   const [hasInitialized, setHasInitialized] = useState(false);
   const [theme, setTheme] = useState<PlaymatTheme>('dark-carbon');
   const [rarity, setRarity] = useState<CardRarity>('rare');
@@ -248,11 +353,13 @@ export default function HomeView() {
   const [isMuted, setIsMuted] = useState(sound.getMuted());
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showThemeMenu, setShowThemeMenu] = useState(false);
-  const [showRarityMenu, setShowRarityMenu] = useState(false);
 
   // Live Sync status
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('connecting');
   const [connectedDevices, setConnectedDevices] = useState<number>(1);
+
+  // Active cards belong strictly to the current phase (Rare, Epic, or Legendary)
+  const cards = decks[rarity];
 
   // Live Arena container dimensions for exact responsive card sizing
   const arenaRef = useRef<HTMLDivElement>(null);
@@ -262,16 +369,15 @@ export default function HomeView() {
   });
 
   // Atomic state refs for conflict-free Live Sync
-  const cardsRef = useRef<TcgCardData[]>([]);
+  const decksRef = useRef<RarityDecks>(EMPTY_DECKS);
   const rarityRef = useRef<CardRarity>('rare');
   const themeRef = useRef<PlaymatTheme>('dark-carbon');
   const updatedAtRef = useRef<number>(0);
   const syncControllerRef = useRef<LiveArenaSyncController | null>(null);
 
-  // Keep refs mirrored
   useEffect(() => {
-    cardsRef.current = cards;
-  }, [cards]);
+    decksRef.current = decks;
+  }, [decks]);
   useEffect(() => {
     rarityRef.current = rarity;
   }, [rarity]);
@@ -303,7 +409,7 @@ export default function HomeView() {
     };
   }, [cards.length, isVerticalMode, isFullscreen, hasInitialized]);
 
-  // Load initial state from LocalStorage (+ IndexedDB custom images) AND start Live Sync
+  // Load initial per-phase decks from LocalStorage (+ IndexedDB custom images) AND start Live Sync
   useEffect(() => {
     let cancelled = false;
 
@@ -314,28 +420,43 @@ export default function HomeView() {
           updatedAtRef.current = savedTs;
         }
 
-        const savedCards =
-          localStorage.getItem(STORAGE_KEY_CARDS) ||
-          localStorage.getItem(STORAGE_KEY_CARDS_LEGACY);
-        if (savedCards) {
-          const parsed = JSON.parse(savedCards);
-          if (Array.isArray(parsed)) {
-            const normalized = normalizeLoadedCards(parsed);
-            const hydrated = await Promise.all(
-              normalized.map(async (c) => {
-                const url = c.front.imageUrl;
-                if (url.startsWith('idb:')) {
-                  const cached = await loadCachedImage(url.slice(4));
-                  if (cached) {
-                    return { ...c, front: { ...c.front, imageUrl: cached } };
-                  }
-                }
-                return c;
-              })
-            );
-            if (!cancelled) {
-              cardsRef.current = hydrated;
-              setCards(hydrated);
+        const savedRarityRaw = localStorage.getItem(STORAGE_KEY_RARITY) as CardRarity | null;
+        const initialRarity: CardRarity =
+          savedRarityRaw === 'rare' ||
+          savedRarityRaw === 'epic' ||
+          savedRarityRaw === 'legendary'
+            ? savedRarityRaw
+            : 'rare';
+
+        if (!cancelled) {
+          rarityRef.current = initialRarity;
+          setRarity(initialRarity);
+        }
+
+        const savedDecksJson = localStorage.getItem(STORAGE_KEY_DECKS);
+        if (savedDecksJson) {
+          const parsed = JSON.parse(savedDecksJson);
+          const normalized = normalizeDecks(parsed);
+          const hydrated = await hydrateDeckImagesFromIdb(normalized);
+          if (!cancelled) {
+            decksRef.current = hydrated;
+            setDecks(hydrated);
+          }
+        } else {
+          // One-time migration from legacy single-deck v8/v7 into the active phase ONLY,
+          // creating fresh independent cards for the other two phases!
+          const legacyJson =
+            localStorage.getItem(STORAGE_KEY_CARDS_LEGACY_V8) ||
+            localStorage.getItem(STORAGE_KEY_CARDS_LEGACY_V7);
+          if (legacyJson) {
+            const parsedLegacy = JSON.parse(legacyJson);
+            if (Array.isArray(parsedLegacy) && parsedLegacy.length > 0) {
+              const migrated = normalizeDecks({ [initialRarity]: parsedLegacy });
+              const hydrated = await hydrateDeckImagesFromIdb(migrated);
+              if (!cancelled) {
+                decksRef.current = hydrated;
+                setDecks(hydrated);
+              }
             }
           }
         }
@@ -344,15 +465,6 @@ export default function HomeView() {
         if (savedTheme && !cancelled) {
           themeRef.current = savedTheme;
           setTheme(savedTheme);
-        }
-
-        const savedRarity = localStorage.getItem(STORAGE_KEY_RARITY) as CardRarity | null;
-        if (
-          (savedRarity === 'rare' || savedRarity === 'epic' || savedRarity === 'legendary') &&
-          !cancelled
-        ) {
-          rarityRef.current = savedRarity;
-          setRarity(savedRarity);
         }
 
         const savedVertical = localStorage.getItem(STORAGE_KEY_VERTICAL);
@@ -374,21 +486,21 @@ export default function HomeView() {
           senderId: clientId,
           rarity: rarityRef.current,
           theme: themeRef.current,
-          cards: cardsRef.current,
+          decks: decksRef.current,
         }),
         onRemoteSnapshot: (snap: LiveArenaSnapshot) => {
           if (cancelled) return;
-          const cleanCards = normalizeLoadedCards(snap.cards);
+          const cleanDecks = normalizeDecks(snap.decks);
           updatedAtRef.current = snap.updatedAt;
-          cardsRef.current = cleanCards;
+          decksRef.current = cleanDecks;
           rarityRef.current = snap.rarity;
           themeRef.current = snap.theme;
 
-          setCards(cleanCards);
+          setDecks(cleanDecks);
           setRarity(snap.rarity);
           setTheme(snap.theme);
 
-          void persistCardsSafely(cleanCards, snap.updatedAt);
+          void persistDecksSafely(cleanDecks, snap.updatedAt);
           try {
             localStorage.setItem(STORAGE_KEY_RARITY, snap.rarity);
             localStorage.setItem(STORAGE_KEY_THEME, snap.theme);
@@ -396,7 +508,6 @@ export default function HomeView() {
             // ignore
           }
 
-          // Play live feedback on stream / second screen!
           if (snap.eventType === 'level-up') {
             sound.playLevelUp(snap.rarity);
             const colors = RARITY_CONFIG[snap.rarity].confettiColors;
@@ -415,14 +526,26 @@ export default function HomeView() {
         },
         onImageHydrated: (imageId: string, dataUrl: string) => {
           if (cancelled) return;
-          setCards((prev) => {
-            const next = prev.map((c) =>
-              c.front.imageUrl === `idb:${imageId}`
-                ? { ...c, front: { ...c.front, imageUrl: dataUrl } }
-                : c
-            );
-            cardsRef.current = next;
-            void persistCardsSafely(next, updatedAtRef.current);
+          setDecks((prev) => {
+            const next: RarityDecks = {
+              rare: prev.rare.map((c) =>
+                c.front.imageUrl === `idb:${imageId}`
+                  ? { ...c, front: { ...c.front, imageUrl: dataUrl } }
+                  : c
+              ),
+              epic: prev.epic.map((c) =>
+                c.front.imageUrl === `idb:${imageId}`
+                  ? { ...c, front: { ...c.front, imageUrl: dataUrl } }
+                  : c
+              ),
+              legendary: prev.legendary.map((c) =>
+                c.front.imageUrl === `idb:${imageId}`
+                  ? { ...c, front: { ...c.front, imageUrl: dataUrl } }
+                  : c
+              ),
+            };
+            decksRef.current = next;
+            void persistDecksSafely(next, updatedAtRef.current);
             return next;
           });
         },
@@ -461,37 +584,37 @@ export default function HomeView() {
   const commitArenaUpdate = useCallback(
     (
       updater: (current: {
-        cards: TcgCardData[];
+        decks: RarityDecks;
         rarity: CardRarity;
         theme: PlaymatTheme;
       }) => {
-        cards?: TcgCardData[];
+        decks?: RarityDecks;
         rarity?: CardRarity;
         theme?: PlaymatTheme;
       },
       eventType: SyncEventType = 'update'
     ) => {
       const patch = updater({
-        cards: cardsRef.current,
+        decks: decksRef.current,
         rarity: rarityRef.current,
         theme: themeRef.current,
       });
 
-      const nextCards = patch.cards ?? cardsRef.current;
+      const nextDecks = patch.decks ?? decksRef.current;
       const nextRarity = patch.rarity ?? rarityRef.current;
       const nextTheme = patch.theme ?? themeRef.current;
       const nextUpdatedAt = Math.max(Date.now(), updatedAtRef.current + 1);
 
-      cardsRef.current = nextCards;
+      decksRef.current = nextDecks;
       rarityRef.current = nextRarity;
       themeRef.current = nextTheme;
       updatedAtRef.current = nextUpdatedAt;
 
-      setCards(nextCards);
+      setDecks(nextDecks);
       setRarity(nextRarity);
       setTheme(nextTheme);
 
-      void persistCardsSafely(nextCards, nextUpdatedAt);
+      void persistDecksSafely(nextDecks, nextUpdatedAt);
       try {
         localStorage.setItem(STORAGE_KEY_RARITY, nextRarity);
         localStorage.setItem(STORAGE_KEY_THEME, nextTheme);
@@ -507,11 +630,30 @@ export default function HomeView() {
           eventType,
           rarity: nextRarity,
           theme: nextTheme,
-          cards: nextCards,
+          decks: nextDecks,
         });
       }
     },
     []
+  );
+
+  // Helper to update ONLY the currently active phase's deck (100% phase isolation)
+  const commitCurrentPhaseCards = useCallback(
+    (
+      mapCards: (phaseCards: TcgCardData[], activeRarity: CardRarity) => TcgCardData[],
+      eventType: SyncEventType = 'update'
+    ) => {
+      commitArenaUpdate(({ decks: curDecks, rarity: curRarity }) => {
+        const updatedPhaseCards = mapCards(curDecks[curRarity], curRarity);
+        return {
+          decks: {
+            ...curDecks,
+            [curRarity]: updatedPhaseCards,
+          },
+        };
+      }, eventType);
+    },
+    [commitArenaUpdate]
   );
 
   const handleForceSyncPush = useCallback(() => {
@@ -543,39 +685,60 @@ export default function HomeView() {
     setIsFullscreen(false);
   }, []);
 
-  // Flip All Active (non-eliminated) Cards
+  // Flip All Active (non-eliminated) Cards in the current phase
   const handleFlipAll = useCallback(() => {
-    commitArenaUpdate(
-      ({ cards: prev }) => ({
-        cards: prev.map((c) => (c.isEliminated ? c : { ...c, isFlipped: !c.isFlipped })),
-      }),
+    commitCurrentPhaseCards(
+      (prev) => prev.map((c) => (c.isEliminated ? c : { ...c, isFlipped: !c.isFlipped })),
       'flip'
     );
-  }, [commitArenaUpdate]);
+  }, [commitCurrentPhaseCards]);
 
-  // Set All Cards to Back (Number side 1..N) or Front (Prize side)
+  // Uncover current phase to edit prizes (`showNumbersSide = false`) OR cover ALL phases back to 1..N (`showNumbersSide = true`)
   const handleSetAllFlipped = useCallback(
     (showNumbersSide: boolean) => {
       sound.playCardFlip();
-      commitArenaUpdate(
-        ({ cards: prev }) => ({
-          cards: prev.map((c, idx) => ({
-            ...c,
-            isFlipped: showNumbersSide,
-            back: {
-              ...c.back,
-              counters: [{ id: 'cnt_1', label: '', value: idx + 1, step: 1 }],
-            },
-          })),
-        }),
-        'flip'
-      );
+      if (showNumbersSide) {
+        // Cover all 3 phases onto 1..N so no phase is accidentally left face-up before going live
+        commitArenaUpdate(
+          ({ decks: curDecks }) => {
+            const nextDecks: RarityDecks = { rare: [], epic: [], legendary: [] };
+            for (const tier of ALL_RARITIES) {
+              nextDecks[tier] = curDecks[tier].map((c, idx) => ({
+                ...c,
+                isFlipped: true,
+                back: {
+                  ...c.back,
+                  counters: [{ id: 'cnt_1', label: '', value: idx + 1, step: 1 }],
+                },
+              }));
+            }
+            return { decks: nextDecks };
+          },
+          'flip'
+        );
+      } else {
+        // Flip only the current phase to its prize side so the user can inspect/upload its unique cards
+        commitCurrentPhaseCards(
+          (prev) => prev.map((c) => ({ ...c, isFlipped: false })),
+          'flip'
+        );
+      }
+    },
+    [commitArenaUpdate, commitCurrentPhaseCards]
+  );
+
+  // Switch phase directly in Preview Mode (for editing/viewing each phase's unique cards)
+  const handleSelectPhaseDirect = useCallback(
+    (targetRarity: CardRarity) => {
+      if (targetRarity === rarityRef.current) return;
+      sound.playClick(640);
+      commitArenaUpdate(() => ({ rarity: targetRarity }), 'update');
     },
     [commitArenaUpdate]
   );
 
   // GIVEAWAY LEVEL UP:
-  // Advances Rarity (Rare -> Epic -> Legendary -> Rare), resets pool & flips all cards back to 1..N
+  // Advances Rarity (Rare -> Epic -> Legendary -> Rare) and starts that phase's OWN unique deck on 1..N!
   const handleGiveawayLevelUp = useCallback(
     (targetRarity?: CardRarity) => {
       const currentRarity = rarityRef.current;
@@ -590,17 +753,20 @@ export default function HomeView() {
       sound.playLevelUp(nextRarity);
 
       commitArenaUpdate(
-        ({ cards: prev }) => ({
+        ({ decks: curDecks }) => ({
           rarity: nextRarity,
-          cards: prev.map((c, idx) => ({
-            ...c,
-            isFlipped: true,
-            isEliminated: false,
-            back: {
-              ...c.back,
-              counters: [{ id: 'cnt_1', label: '', value: idx + 1, step: 1 }],
-            },
-          })),
+          decks: {
+            ...curDecks,
+            [nextRarity]: curDecks[nextRarity].map((c, idx) => ({
+              ...c,
+              isFlipped: true,
+              isEliminated: false,
+              back: {
+                ...c.back,
+                counters: [{ id: 'cnt_1', label: '', value: idx + 1, step: 1 }],
+              },
+            })),
+          },
         }),
         'level-up'
       );
@@ -653,134 +819,137 @@ export default function HomeView() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen, exitFullscreen, handleFlipAll, handleGiveawayLevelUp]);
 
-  // Create N cards numbered 1..N (starting on Rare)
+  // Create N independent cards for EACH phase (Rare, Epic, Legendary) numbered 1..N
   const handleGenerateCards = useCallback(
-    (count: number) => {
+    (count: number, keepExistingPrizes = false) => {
       const safeCount = Math.max(1, Math.min(100, count));
-      const newCards: TcgCardData[] = [];
       const now = Date.now();
-      for (let i = 0; i < safeCount; i++) {
-        newCards.push({
-          id: `card_${i + 1}_${now}`,
-          name: `Karte #${i + 1}`,
-          isFlipped: true, // Show sequential numbers 1..N on the back
-          isEliminated: false,
-          rotation: 0,
-          borderStyle: 'neon-cyan',
-          front: {
-            title: `Karte #${i + 1}`,
-            subtitle: '',
-            notes: '',
-            imageUrl: '/images/pokemon-energy-front.png',
-            imageFit: 'contain',
-            holoEffect: 'none',
-            counters: [],
-          },
-          back: {
-            title: '',
-            subtitle: '',
-            notes: '',
-            imageUrl: '/images/card-back-water.jpg',
-            holoEffect: 'none',
-            counters: [
-              {
-                id: 'cnt_1',
-                label: '',
-                value: i + 1,
-                step: 1,
-              },
-            ],
-          },
-        });
-      }
-      commitArenaUpdate(() => ({ cards: newCards, rarity: 'rare' }), 'setup');
+
+      commitArenaUpdate(
+        ({ decks: curDecks }) => {
+          const nextDecks: RarityDecks = { rare: [], epic: [], legendary: [] };
+          for (const tier of ALL_RARITIES) {
+            const existingTier = curDecks[tier] || [];
+            const tierList: TcgCardData[] = [];
+            for (let i = 0; i < safeCount; i++) {
+              const blank = createBlankCard(tier, i, now);
+              const prevCard = keepExistingPrizes ? existingTier[i] : undefined;
+              if (prevCard) {
+                tierList.push({
+                  ...blank,
+                  front: { ...prevCard.front },
+                });
+              } else {
+                tierList.push(blank);
+              }
+            }
+            nextDecks[tier] = tierList;
+          }
+          return {
+            decks: nextDecks,
+            rarity: keepExistingPrizes ? rarityRef.current : 'rare',
+          };
+        },
+        'setup'
+      );
     },
     [commitArenaUpdate]
   );
 
-  // Flip Single Card
+  // Flip Single Card (strictly in current phase)
   const handleFlipCard = useCallback(
     (cardId: string) => {
-      commitArenaUpdate(
-        ({ cards: prev }) => ({
-          cards: prev.map((c) => (c.id === cardId ? { ...c, isFlipped: !c.isFlipped } : c)),
-        }),
+      commitCurrentPhaseCards(
+        (prev) => prev.map((c) => (c.id === cardId ? { ...c, isFlipped: !c.isFlipped } : c)),
         'flip'
       );
     },
-    [commitArenaUpdate]
+    [commitCurrentPhaseCards]
   );
 
-  // Toggle Card Out-of-Pool ("als weg markieren" / X)
+  // Toggle Card Out-of-Pool ("als weg markieren" / X) strictly in current phase
   const handleToggleEliminated = useCallback(
     (cardId: string) => {
-      commitArenaUpdate(
-        ({ cards: prev }) => ({
-          cards: prev.map((c) =>
-            c.id === cardId ? { ...c, isEliminated: !c.isEliminated } : c
-          ),
-        }),
+      commitCurrentPhaseCards(
+        (prev) =>
+          prev.map((c) => (c.id === cardId ? { ...c, isEliminated: !c.isEliminated } : c)),
         'eliminate'
       );
     },
-    [commitArenaUpdate]
+    [commitCurrentPhaseCards]
   );
 
-  // Clear all X marks (return all cards to active pool)
+  // Clear all X marks in current phase
   const handleClearAllEliminated = useCallback(() => {
     sound.playClick(720);
-    commitArenaUpdate(
-      ({ cards: prev }) => ({
-        cards: prev.map((c) => ({ ...c, isEliminated: false })),
-      }),
+    commitCurrentPhaseCards(
+      (prev) => prev.map((c) => ({ ...c, isEliminated: false })),
       'eliminate'
     );
-  }, [commitArenaUpdate]);
+  }, [commitCurrentPhaseCards]);
 
-  // Update Front Text
+  // Update Front Text strictly in current phase
   const handleUpdateFrontText = useCallback(
     (cardId: string, text: string) => {
-      commitArenaUpdate(
-        ({ cards: prev }) => ({
-          cards: prev.map((c) =>
-            c.id === cardId ? { ...c, front: { ...c.front, notes: text } } : c
-          ),
-        }),
+      commitCurrentPhaseCards(
+        (prev) =>
+          prev.map((c) => (c.id === cardId ? { ...c, front: { ...c.front, notes: text } } : c)),
         'update'
       );
     },
-    [commitArenaUpdate]
+    [commitCurrentPhaseCards]
   );
 
-  // Update Front Individual Prize Image
+  // Update Single Card Front Prize Image strictly in current phase
   const handleUpdateFrontImage = useCallback(
     (cardId: string, imageUrl: string, imageFit: 'cover' | 'contain' = 'contain') => {
-      commitArenaUpdate(
-        ({ cards: prev }) => ({
-          cards: prev.map((c) =>
-            c.id === cardId
-              ? { ...c, front: { ...c.front, imageUrl, imageFit } }
-              : c
+      commitCurrentPhaseCards(
+        (prev) =>
+          prev.map((c) =>
+            c.id === cardId ? { ...c, front: { ...c.front, imageUrl, imageFit } } : c
           ),
-        }),
         'update'
       );
     },
-    [commitArenaUpdate]
+    [commitCurrentPhaseCards]
   );
 
-  // Swap / Reverse Order (re-numbering 1..N or preserving card slots)
+  // Batch-upload multiple dropped/selected prize images sequentially strictly in current phase
+  const handleBatchUpdateFrontImages = useCallback(
+    (startIndex: number, imageUrls: string[]) => {
+      commitCurrentPhaseCards((prev) => {
+        const next = [...prev];
+        for (let offset = 0; offset < imageUrls.length; offset++) {
+          const targetIdx = startIndex + offset;
+          if (targetIdx >= next.length) break;
+          next[targetIdx] = {
+            ...next[targetIdx],
+            front: {
+              ...next[targetIdx].front,
+              imageUrl: imageUrls[offset],
+              imageFit: next[targetIdx].front.imageFit || 'contain',
+            },
+          };
+        }
+        return next;
+      }, 'update');
+    },
+    [commitCurrentPhaseCards]
+  );
+
+  // Reverse prize order strictly in current phase while keeping slot numbers 1..N sequential
   const handleSwapCards = useCallback(() => {
-    commitArenaUpdate(
-      ({ cards: prev }) => ({
-        cards: [...prev].reverse(),
-      }),
-      'update'
-    );
-  }, [commitArenaUpdate]);
+    commitCurrentPhaseCards((prev) => {
+      const reversedFronts = [...prev].reverse().map((c) => c.front);
+      return prev.map((c, idx) => ({
+        ...c,
+        front: reversedFronts[idx],
+      }));
+    }, 'update');
+  }, [commitCurrentPhaseCards]);
 
   const handleResetCards = useCallback(() => {
-    commitArenaUpdate(() => ({ cards: [] }), 'reset');
+    commitArenaUpdate(() => ({ decks: EMPTY_DECKS, rarity: 'rare' }), 'reset');
   }, [commitArenaUpdate]);
 
   const toggleMute = () => {
@@ -821,6 +990,26 @@ export default function HomeView() {
     () => cards.filter((c) => c.isEliminated).length,
     [cards]
   );
+
+  // Count how many unique custom prize images/texts are configured per phase
+  const uploadedCountsByTier = useMemo(() => {
+    const countCustom = (list: TcgCardData[]) =>
+      list.filter(
+        (c) =>
+          (c.front.imageUrl && c.front.imageUrl !== DEFAULT_FRONT_IMAGE) ||
+          Boolean(c.front.notes?.trim())
+      ).length;
+    return {
+      rare: countCustom(decks.rare),
+      epic: countCustom(decks.epic),
+      legendary: countCustom(decks.legendary),
+    };
+  }, [decks]);
+
+  const hasAnyCustomUploads =
+    uploadedCountsByTier.rare > 0 ||
+    uploadedCountsByTier.epic > 0 ||
+    uploadedCountsByTier.legendary > 0;
 
   const layout = useMemo(
     () =>
@@ -872,23 +1061,19 @@ export default function HomeView() {
             {/* Left: Current Rarity Switcher + Live Sync indicator */}
             <div className="flex items-center gap-1.5">
               <div className="flex items-center gap-1 bg-black/85 backdrop-blur-md p-1 rounded-full border border-white/15 shadow-xl">
-                {(['rare', 'epic', 'legendary'] as CardRarity[]).map((r) => (
+                {ALL_RARITIES.map((r) => (
                   <button
                     key={r}
                     type="button"
                     onClick={() => handleGiveawayLevelUp(r)}
                     className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider transition-all active:scale-95 ${
                       rarity === r
-                        ? r === 'legendary'
-                          ? 'bg-gradient-to-r from-yellow-300 via-amber-400 to-amber-600 text-black shadow-[0_0_12px_rgba(250,204,21,0.8)]'
-                          : r === 'epic'
-                          ? 'bg-gradient-to-r from-fuchsia-600 via-pink-500 to-orange-400 text-white shadow-[0_0_12px_rgba(236,72,153,0.8)]'
-                          : 'bg-gradient-to-r from-cyan-400 to-blue-500 text-black shadow-[0_0_10px_rgba(56,189,248,0.8)]'
+                        ? RARITY_CONFIG[r].activeTabClass
                         : 'text-slate-400 hover:text-white'
                     }`}
-                    title={`Zu ${RARITY_CONFIG[r].label} wechseln & Karten auf 1–${cards.length} drehen`}
+                    title={`Zu ${RARITY_CONFIG[r].label} wechseln (eigenes Karten-Set 1–${cards.length})`}
                   >
-                    {r === 'rare' ? 'Rare' : r === 'epic' ? 'Epic' : 'Legendary'}
+                    {RARITY_CONFIG[r].shortLabel}
                   </button>
                 ))}
               </div>
@@ -908,7 +1093,7 @@ export default function HomeView() {
                   type="button"
                   onClick={handleClearAllEliminated}
                   className="flex items-center gap-1 px-2.5 py-1.5 rounded-full bg-rose-600/90 hover:bg-rose-500 text-white border border-rose-300/50 text-[11px] font-bold shadow-xl active:scale-95 transition-all"
-                  title="Alle X-Markierungen aufheben (alle Karten wieder im Pool)"
+                  title="Alle X-Markierungen dieser Phase aufheben"
                 >
                   <Undo2 className="w-3.5 h-3.5" />
                   <span>X aufheben ({eliminatedCount})</span>
@@ -926,7 +1111,7 @@ export default function HomeView() {
                       ? 'from-yellow-300 via-amber-400 to-amber-600 text-black shadow-[0_0_24px_rgba(250,204,21,0.85)]'
                       : 'from-cyan-400 via-sky-500 to-blue-600 text-black shadow-[0_0_18px_rgba(56,189,248,0.7)]'
                   } font-black text-xs active:scale-95 transition-all border border-white/30`}
-                  title={`Giveaway Level Up (${nextRarityLabel}) – dreht alle Karten auf 1 bis ${cards.length}`}
+                  title={`Giveaway Level Up (${nextRarityLabel}) – lädt das eigene ${nextRarityLabel}-Kartenset auf 1 bis ${cards.length}`}
                 >
                   <Flame className="w-3.5 h-3.5" />
                   <span>Level Up ({nextRarityLabel})</span>
@@ -999,13 +1184,14 @@ export default function HomeView() {
                   onToggleEliminated={handleToggleEliminated}
                   onUpdateFrontText={handleUpdateFrontText}
                   onUpdateFrontImage={handleUpdateFrontImage}
+                  onBatchUpdateFrontImages={handleBatchUpdateFrontImages}
                 />
               ))}
             </div>
           )}
         </div>
 
-        {/* Bottom Control Dock (in normal flow so it never overlaps cards & gives exact height to Arena) */}
+        {/* Bottom Control Dock */}
         {!isFullscreen && cards.length > 0 && (
           <div
             className={`relative z-40 shrink-0 w-full flex items-center justify-center ${
@@ -1017,14 +1203,66 @@ export default function HomeView() {
                 isVerticalMode ? 'gap-1 px-2 py-1.5 text-[11px]' : 'gap-1.5 sm:gap-2 p-2'
               }`}
             >
-              {/* Show Prize Side vs Show Numbers Side (1..N) */}
+              {/* Direct 3-Phase Deck Switcher (each phase holds its OWN unique cards!) */}
+              <div
+                className="flex items-center gap-0.5 p-0.5 rounded-xl bg-white/5 border border-white/15"
+                title="Jede Phase (Rare, Epic, Legendary) besitzt eigene, unabhängige Gewinn-Karten"
+              >
+                {ALL_RARITIES.map((r) => {
+                  const isActive = rarity === r;
+                  const uploaded = uploadedCountsByTier[r];
+                  return (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => handleSelectPhaseDirect(r)}
+                      className={`flex items-center gap-1 rounded-lg font-extrabold transition-all active:scale-95 ${
+                        isVerticalMode ? 'px-1.5 py-1 text-[10px]' : 'px-2.5 py-1.5 text-xs'
+                      } ${
+                        isActive
+                          ? RARITY_CONFIG[r].activeTabClass
+                          : 'text-slate-300 hover:text-white hover:bg-white/10'
+                      }`}
+                      title={`${RARITY_CONFIG[r].phaseLabel} bearbeiten (${uploaded}/${decks[r].length} eigene Gewinne geladen)`}
+                    >
+                      {r === 'legendary' ? (
+                        <Crown className="w-3 h-3 shrink-0" />
+                      ) : r === 'epic' ? (
+                        <Flame className="w-3 h-3 shrink-0" />
+                      ) : (
+                        <Droplets className="w-3 h-3 shrink-0" />
+                      )}
+                      <span>
+                        {isVerticalMode
+                          ? r === 'legendary'
+                            ? 'Leg.'
+                            : RARITY_CONFIG[r].shortLabel
+                          : RARITY_CONFIG[r].shortLabel}
+                      </span>
+                      {uploaded > 0 && (
+                        <span
+                          className={`px-1 rounded text-[9px] font-black leading-tight ${
+                            isActive
+                              ? 'bg-black/25 text-current'
+                              : 'bg-white/15 text-emerald-300'
+                          }`}
+                        >
+                          {uploaded}/{decks[r].length}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Uncover current phase prizes vs Cover all phases to 1..N */}
               <button
                 type="button"
                 onClick={() => handleSetAllFlipped(false)}
                 className={`flex items-center gap-1 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-400/40 text-amber-200 font-bold active:scale-95 transition-all ${
                   isVerticalMode ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-2 text-xs'
                 }`}
-                title="Alle Karten auf die Gewinn-Seite (Vorderseite) drehen, um Bilder hochzuladen"
+                title={`Karten von ${RARITY_CONFIG[rarity].shortLabel} aufdecken, um eigene Gewinn-Bilder hochzuladen`}
               >
                 <Eye className="w-3.5 h-3.5 text-amber-400 shrink-0" />
                 <span>{isVerticalMode ? 'Gewinne' : 'Gewinne bearbeiten'}</span>
@@ -1036,13 +1274,13 @@ export default function HomeView() {
                 className={`flex items-center gap-1 rounded-xl bg-cyan-500/20 hover:bg-cyan-500/30 border border-cyan-400/40 text-cyan-200 font-bold active:scale-95 transition-all ${
                   isVerticalMode ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-2 text-xs'
                 }`}
-                title="Alle Karten auf die Rückseite mit den Zahlen (1 bis N) drehen"
+                title="Alle Phasen verdecken (auf die Zahlen 1 bis N drehen)"
               >
                 <RotateCcw className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
                 <span>{isVerticalMode ? `1–${cards.length}` : `Alle auf 1–${cards.length}`}</span>
               </button>
 
-              {/* Reset Eliminated X Marks (shown whenever >=1 card is marked out) */}
+              {/* Reset Eliminated X Marks in current phase */}
               {eliminatedCount > 0 && (
                 <button
                   type="button"
@@ -1050,10 +1288,12 @@ export default function HomeView() {
                   className={`flex items-center gap-1 rounded-xl bg-rose-500/20 hover:bg-rose-500/35 border border-rose-400/50 text-rose-200 font-bold active:scale-95 transition-all ${
                     isVerticalMode ? 'px-2 py-1 text-[11px]' : 'px-2.5 py-2 text-xs'
                   }`}
-                  title="Alle X-Markierungen aufheben (alle Karten wieder in den Pool nehmen)"
+                  title="Alle X-Markierungen dieser Phase aufheben"
                 >
                   <Undo2 className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-                  <span>{isVerticalMode ? `X frei (${eliminatedCount})` : `X aufheben (${eliminatedCount})`}</span>
+                  <span>
+                    {isVerticalMode ? `X frei (${eliminatedCount})` : `X aufheben (${eliminatedCount})`}
+                  </span>
                 </button>
               )}
 
@@ -1070,79 +1310,13 @@ export default function HomeView() {
                 } font-black shadow-lg active:scale-95 transition-all ${
                   isVerticalMode ? 'px-2 py-1 text-[11px]' : 'px-3 py-2 text-xs'
                 }`}
-                title={`Giveaway Level Up: Wechselt zu ${nextRarityLabel}, gibt alle Karten frei und dreht auf 1–${cards.length}`}
+                title={`Giveaway Level Up: Startet ${nextRarityLabel} mit dem eigenen ${nextRarityLabel}-Kartenset (verdeckt auf 1–${cards.length})`}
               >
                 <Flame className="w-3.5 h-3.5 shrink-0" />
                 <span>
-                  {isVerticalMode
-                    ? `Level Up`
-                    : `Giveaway Level Up (${nextRarityLabel})`}
+                  {isVerticalMode ? 'Level Up' : `Level Up (${nextRarityLabel})`}
                 </span>
               </button>
-
-              {/* Rarity Direct Settings Dropdown */}
-              <div className="relative">
-                <button
-                  type="button"
-                  onClick={() => {
-                    sound.playClick(550);
-                    setShowRarityMenu((prev) => !prev);
-                    setShowThemeMenu(false);
-                  }}
-                  className={`flex items-center gap-1.5 rounded-xl border text-xs font-extrabold active:scale-95 transition-all ${
-                    RARITY_CONFIG[rarity].badgeClass
-                  } ${isVerticalMode ? 'px-2 py-1.5' : 'px-2.5 py-2'}`}
-                  title="Rarität direkt auswählen (ohne Karten zurückzusetzen)"
-                >
-                  {rarity === 'legendary' ? (
-                    <Crown className="w-3.5 h-3.5" />
-                  ) : rarity === 'epic' ? (
-                    <Flame className="w-3.5 h-3.5" />
-                  ) : (
-                    <Droplets className="w-3.5 h-3.5" />
-                  )}
-                  {!isVerticalMode && (
-                    <span className="hidden md:inline">{RARITY_CONFIG[rarity].phaseLabel}</span>
-                  )}
-                </button>
-
-                {showRarityMenu && (
-                  <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-56 bg-stone-900 border border-white/20 rounded-xl p-2 shadow-2xl space-y-1 z-50">
-                    <span className="block text-[10px] font-extrabold uppercase text-slate-400 px-2 py-1">
-                      Karten-Rarität wählen
-                    </span>
-                    {(['rare', 'epic', 'legendary'] as CardRarity[]).map((r) => (
-                      <button
-                        key={r}
-                        type="button"
-                        onClick={() => {
-                          commitArenaUpdate(() => ({ rarity: r }), 'update');
-                          setShowRarityMenu(false);
-                          sound.playLevelUp(r);
-                        }}
-                        className={`w-full flex items-center justify-between px-2.5 py-2 rounded-lg text-xs font-bold transition-colors ${
-                          rarity === r
-                            ? 'bg-white/15 text-white ring-1 ring-white/30'
-                            : 'text-slate-300 hover:bg-white/10'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <span
-                            className={`w-3 h-3 rounded-full ${
-                              r === 'legendary'
-                                ? 'bg-gradient-to-tr from-amber-500 via-yellow-400 to-yellow-100 shadow-[0_0_8px_#facc15]'
-                                : r === 'epic'
-                                ? 'bg-gradient-to-tr from-fuchsia-600 via-pink-500 to-orange-300 shadow-[0_0_8px_#f472b6]'
-                                : 'bg-gradient-to-tr from-blue-500 to-cyan-300 shadow-[0_0_8px_#38bdf8]'
-                            }`}
-                          />
-                          <span>{RARITY_CONFIG[r].label}</span>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
 
               {/* Vertical 9:16 Stream Mode Toggle */}
               <button
@@ -1153,22 +1327,20 @@ export default function HomeView() {
                 }}
                 className={`flex items-center gap-1 rounded-xl text-xs font-bold active:scale-95 transition-all border ${
                   isVerticalMode
-                    ? 'bg-emerald-500/25 border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)] px-2 py-1.5'
+                    ? 'bg-emerald-500/25 border-emerald-400 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)] px-2 py-1'
                     : 'bg-white/10 border-transparent hover:bg-white/20 text-slate-200 px-2.5 py-2'
                 }`}
                 title="Vertikaler 9:16 Modus für Whatnot & Instagram (Rechts & Links komplett frei)"
               >
                 {isVerticalMode ? (
-                  <Smartphone className="w-4 h-4 text-emerald-400" />
+                  <Smartphone className="w-3.5 h-3.5 text-emerald-400" />
                 ) : (
                   <Monitor className="w-4 h-4 text-cyan-400" />
                 )}
-                <span className="hidden sm:inline">
-                  {isVerticalMode ? '9:16 AN' : '9:16 Vertikal'}
-                </span>
+                <span className="hidden sm:inline">{isVerticalMode ? '9:16 AN' : '9:16'}</span>
               </button>
 
-              {/* Swap Order */}
+              {/* Swap Prize Order in current phase */}
               {cards.length > 1 && !isVerticalMode && (
                 <button
                   type="button"
@@ -1177,7 +1349,7 @@ export default function HomeView() {
                     handleSwapCards();
                   }}
                   className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white active:scale-95 transition-all"
-                  title="Kartenreihenfolge umkehren"
+                  title="Gewinn-Reihenfolge in dieser Phase umkehren"
                 >
                   <ArrowLeftRight className="w-4 h-4 text-cyan-400" />
                 </button>
@@ -1191,11 +1363,11 @@ export default function HomeView() {
                   setIsSetupModalOpen(true);
                 }}
                 className={`flex items-center gap-1 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-semibold active:scale-95 transition-all ${
-                  isVerticalMode ? 'px-2 py-1.5' : 'px-2.5 py-2'
+                  isVerticalMode ? 'px-2 py-1' : 'px-2.5 py-2'
                 }`}
                 title="Kartenanzahl ändern"
               >
-                <Layers className="w-4 h-4 text-cyan-400" />
+                <Layers className="w-3.5 h-3.5 text-cyan-400" />
                 <span className="hidden sm:inline">
                   {isVerticalMode ? `${cards.length}` : `Anzahl (${cards.length})`}
                 </span>
@@ -1223,7 +1395,6 @@ export default function HomeView() {
                   onClick={() => {
                     sound.playClick(500);
                     setShowThemeMenu(!showThemeMenu);
-                    setShowRarityMenu(false);
                   }}
                   className={`${
                     isVerticalMode ? 'p-1.5' : 'p-2'
@@ -1281,7 +1452,7 @@ export default function HomeView() {
                 <button
                   type="button"
                   onClick={() => {
-                    if (confirm('Zurück zum Home-Screen?')) {
+                    if (confirm('Zurück zum Home-Screen (alle Phasen leeren)?')) {
                       sound.playClick(400);
                       handleResetCards();
                     }
@@ -1298,11 +1469,11 @@ export default function HomeView() {
                 type="button"
                 onClick={toggleFullscreen}
                 className={`flex items-center gap-1 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-black font-black text-xs active:scale-95 transition-all shadow-md shadow-emerald-500/20 ${
-                  isVerticalMode ? 'px-2.5 py-1.5' : 'px-3 py-2'
+                  isVerticalMode ? 'px-2.5 py-1' : 'px-3 py-2'
                 }`}
                 title="Präsentationsmodus / Vollbild starten"
               >
-                <Maximize className="w-4 h-4" />
+                <Maximize className="w-3.5 h-3.5" />
                 {!isVerticalMode && <span className="hidden sm:inline">Präsentation</span>}
               </button>
             </div>
@@ -1316,6 +1487,7 @@ export default function HomeView() {
         onClose={() => setIsSetupModalOpen(false)}
         onConfirm={handleGenerateCards}
         initialCount={cards.length > 0 ? cards.length : 10}
+        hasExistingUploads={hasAnyCustomUploads}
       />
 
       {/* Dice & Coin Tool Modal */}

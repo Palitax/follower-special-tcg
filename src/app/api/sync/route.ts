@@ -12,7 +12,8 @@ export interface WireBoardState {
   eventType?: 'flip' | 'eliminate' | 'level-up' | 'setup' | 'update' | 'reset';
   rarity: 'rare' | 'epic' | 'legendary';
   theme: string;
-  cards: unknown[];
+  decks: Record<'rare' | 'epic' | 'legendary', unknown[]>;
+  cards?: unknown[];
 }
 
 interface ServerSyncStore {
@@ -20,7 +21,7 @@ interface ServerSyncStore {
   images: Record<string, string>;
 }
 
-const TMP_STATE_FILE = path.join(os.tmpdir(), 'manacards-follower-special-sync-v1.json');
+const TMP_STATE_FILE = path.join(os.tmpdir(), 'manacards-follower-special-sync-v2.json');
 const MAX_CACHED_IMAGES = 60;
 
 declare global {
@@ -76,6 +77,18 @@ export async function GET(request: NextRequest) {
       { imageId, dataUrl },
       { headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
+  }
+
+  const sinceParam = request.nextUrl.searchParams.get('since');
+  if (sinceParam !== null) {
+    const since = Number(sinceParam);
+    const curTs = store.state?.updatedAt ?? 0;
+    if (!Number.isNaN(since) && curTs <= since) {
+      return NextResponse.json(
+        { unchanged: true, updatedAt: curTs },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      );
+    }
   }
 
   const credentials = await deriveSyncCredentials();

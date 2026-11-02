@@ -4,13 +4,15 @@ import { CardRarity, PlaymatTheme, TcgCardData } from '../types/card';
 
 export type SyncEventType = 'flip' | 'eliminate' | 'level-up' | 'setup' | 'update' | 'reset';
 
+export type RarityDecks = Record<CardRarity, TcgCardData[]>;
+
 export interface LiveArenaSnapshot {
   updatedAt: number;
   senderId: string;
   eventType?: SyncEventType;
   rarity: CardRarity;
   theme: PlaymatTheme;
-  cards: TcgCardData[];
+  decks: RarityDecks;
 }
 
 export type SyncStatus = 'connecting' | 'live' | 'local';
@@ -20,14 +22,16 @@ const BROKERS = [
   'wss://broker.emqx.io:8084/mqtt',
 ];
 
-const BROADCAST_CHANNEL_NAME = 'manacards_live_sync_v1';
+const BROADCAST_CHANNEL_NAME = 'manacards_live_sync_v2';
 const IDB_NAME = 'manacards_live_assets_v1';
 const IDB_STORE = 'images';
 const IMAGE_REF_PREFIX = 'idb:';
-const CHUNK_CHARS = 22_000;
+const CHUNK_CHARS = 12_000;
 
 const memoryImageCache = new Map<string, string>();
+const dataUrlToIdCache = new Map<string, string>();
 const uploadedToServer = new Set<string>();
+const streamedImagesOverWs = new Set<string>();
 
 // ============================================================================
 // IndexedDB Custom Image Cache (avoids 5MB localStorage ceiling & tiny wire packets)
@@ -89,67 +93,97 @@ export async function loadCachedImage(imageId: string): Promise<string | null> {
 }
 
 export async function hashImageDataUrl(dataUrl: string): Promise<string> {
+  const existing = dataUrlToIdCache.get(dataUrl);
+  if (existing) return existing;
   const bytes = new TextEncoder().encode(dataUrl);
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   const hex = Array.from(new Uint8Array(digest))
     .slice(0, 10)
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
-  return `img_${hex}`;
+  const id = `img_${hex}`;
+  dataUrlToIdCache.set(dataUrl, id);
+  return id;
 }
 
-async function dehydrateCardsForWire(cards: TcgCardData[]): Promise<{
-  wireCards: TcgCardData[];
+const ALL_RARITIES: CardRarity[] = ['rare', 'epic', 'legendary'];
+
+async function dehydrateDecksForWire(decks: RarityDecks): Promise<{
+  wireDecks: RarityDecks;
   newImages: Record<string, string>;
 }> {
   const newImages: Record<string, string> = {};
-  const wireCards = await Promise.all(
-    cards.map(async (card) => {
-      const url = card.front?.imageUrl || '';
-      if (url.startsWith('data:image/')) {
-        const imgId = await hashImageDataUrl(url);
-        await cacheCustomImage(imgId, url);
-        newImages[imgId] = url;
-        return {
-          ...card,
-          front: {
-            ...card.front,
-            imageUrl: `${IMAGE_REF_PREFIX}${imgId}`,
-          },
-        };
-      }
-      return card;
-    })
-  );
-  return { wireCards, newImages };
-}
+  const wireDecks: RarityDecks = { rare: [], epic: [], legendary: [] };
 
-async function hydrateCardsFromWire(cards: TcgCardData[]): Promise<{
-  hydratedCards: TcgCardData[];
-  missingImageIds: string[];
-}> {
-  const missing = new Set<string>();
-  const hydratedCards = await Promise.all(
-    cards.map(async (card) => {
-      const url = card.front?.imageUrl || '';
-      if (url.startsWith(IMAGE_REF_PREFIX)) {
-        const imgId = url.slice(IMAGE_REF_PREFIX.length);
-        const cached = await loadCachedImage(imgId);
-        if (cached) {
+  for (const tier of ALL_RARITIES) {
+    const tierCards = decks[tier] || [];
+    wireDecks[tier] = await Promise.all(
+      tierCards.map(async (card) => {
+        const url = card.front?.imageUrl || '';
+        if (url.startsWith('data:image/')) {
+          const alreadyKnown = dataUrlToIdCache.get(url);
+          const imgId = alreadyKnown ?? (await hashImageDataUrl(url));
+          if (!memoryImageCache.has(imgId)) {
+            await cacheCustomImage(imgId, url);
+          }
+          newImages[imgId] = url;
           return {
             ...card,
             front: {
               ...card.front,
-              imageUrl: cached,
+              imageUrl: `${IMAGE_REF_PREFIX}${imgId}`,
             },
           };
         }
-        missing.add(imgId);
-      }
-      return card;
-    })
+        return card;
+      })
+    );
+  }
+
+  return { wireDecks, newImages };
+}
+
+async function hydrateDecksFromWire(decks: RarityDecks): Promise<{
+  hydratedDecks: RarityDecks;
+  missingImageIds: string[];
+}> {
+  const missing = new Set<string>();
+  const hydratedDecks: RarityDecks = { rare: [], epic: [], legendary: [] };
+
+  for (const tier of ALL_RARITIES) {
+    const tierCards = decks?.[tier] || [];
+    hydratedDecks[tier] = await Promise.all(
+      tierCards.map(async (card) => {
+        const url = card.front?.imageUrl || '';
+        if (url.startsWith(IMAGE_REF_PREFIX)) {
+          const imgId = url.slice(IMAGE_REF_PREFIX.length);
+          const cached = await loadCachedImage(imgId);
+          if (cached) {
+            return {
+              ...card,
+              front: {
+                ...card.front,
+                imageUrl: cached,
+              },
+            };
+          }
+          missing.add(imgId);
+        }
+        return card;
+      })
+    );
+  }
+
+  return { hydratedDecks, missingImageIds: Array.from(missing) };
+}
+
+function hasAnyDeckCards(decks: RarityDecks | undefined): boolean {
+  if (!decks) return false;
+  return (
+    (decks.rare?.length ?? 0) > 0 ||
+    (decks.epic?.length ?? 0) > 0 ||
+    (decks.legendary?.length ?? 0) > 0
   );
-  return { hydratedCards, missingImageIds: Array.from(missing) };
 }
 
 // ============================================================================
@@ -225,21 +259,21 @@ class MiniMqttWsClient {
   private rxBuf: Uint8Array = new Uint8Array(0);
   private pingTimer: ReturnType<typeof setInterval> | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private brokerIdx = 0;
   private disposed = false;
   private connected = false;
   private packetId = 1;
 
   constructor(
+    private readonly brokerUrl: string,
     private readonly clientId: string,
     private readonly topics: string[],
-    private readonly onMessage: (topic: string, payload: Uint8Array) => void,
-    private readonly onStatusChange: (connected: boolean) => void
+    private readonly onMessage: (topic: string, payload: Uint8Array, isRetained: boolean) => void,
+    private readonly onStatusChange: (connected: boolean, client: MiniMqttWsClient) => void
   ) {}
 
   start() {
     this.disposed = false;
-    this.connectNext();
+    this.connect();
   }
 
   stop() {
@@ -274,7 +308,7 @@ class MiniMqttWsClient {
     }
     if (this.connected) {
       this.connected = false;
-      this.onStatusChange(false);
+      this.onStatusChange(false, this);
     }
     if (this.ws) {
       try {
@@ -293,23 +327,22 @@ class MiniMqttWsClient {
     this.rxBuf = new Uint8Array(0);
   }
 
-  private scheduleReconnect(delayMs = 1500) {
+  private scheduleReconnect(delayMs = 1600) {
     if (this.disposed || this.reconnectTimer) return;
-    this.brokerIdx = (this.brokerIdx + 1) % BROKERS.length;
+    const jitter = Math.floor(Math.random() * 400);
     this.reconnectTimer = setTimeout(() => {
       this.reconnectTimer = null;
-      this.connectNext();
-    }, delayMs);
+      this.connect();
+    }, delayMs + jitter);
   }
 
-  private connectNext() {
+  private connect() {
     if (this.disposed) return;
     this.cleanupSocket();
 
-    const url = BROKERS[this.brokerIdx % BROKERS.length];
     let ws: WebSocket;
     try {
-      ws = new WebSocket(url, 'mqtt');
+      ws = new WebSocket(this.brokerUrl, 'mqtt');
     } catch {
       this.scheduleReconnect(2000);
       return;
@@ -321,9 +354,9 @@ class MiniMqttWsClient {
     const handshakeTimeout = setTimeout(() => {
       if (!this.connected && this.ws === ws) {
         this.cleanupSocket();
-        this.scheduleReconnect(800);
+        this.scheduleReconnect(1200);
       }
-    }, 4500);
+    }, 5000);
 
     ws.onopen = () => {
       if (this.disposed || this.ws !== ws) return;
@@ -351,7 +384,7 @@ class MiniMqttWsClient {
       clearTimeout(handshakeTimeout);
       if (this.ws === ws) {
         this.cleanupSocket();
-        this.scheduleReconnect(1400);
+        this.scheduleReconnect(1600);
       }
     };
   }
@@ -373,7 +406,7 @@ class MiniMqttWsClient {
         multiplier *= 128;
         if (multiplier > 128 * 128 * 128) {
           this.cleanupSocket();
-          this.scheduleReconnect(1500);
+          this.scheduleReconnect(1800);
           return;
         }
       }
@@ -392,8 +425,8 @@ class MiniMqttWsClient {
         const returnCode = packet[offset + 1];
         if (returnCode === 0) {
           this.connected = true;
-          this.onStatusChange(true);
           this.subscribeAll(ws);
+          this.onStatusChange(true, this);
           this.pingTimer = setInterval(() => {
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(new Uint8Array([0xc0, 0x00]));
@@ -401,11 +434,12 @@ class MiniMqttWsClient {
           }, 22_000);
         } else {
           this.cleanupSocket();
-          this.scheduleReconnect(1500);
+          this.scheduleReconnect(2000);
           return;
         }
       } else if (type === 3) {
         // PUBLISH
+        const isRetained = (packet[0] & 0x01) === 1;
         const qos = (packet[0] >> 1) & 0x03;
         const topicLen = (packet[offset] << 8) | packet[offset + 1];
         const topicStart = offset + 2;
@@ -415,7 +449,7 @@ class MiniMqttWsClient {
           const payloadStart = qos > 0 ? topicEnd + 2 : topicEnd;
           if (payloadStart <= packet.length) {
             const payload = packet.slice(payloadStart);
-            this.onMessage(topic, payload);
+            this.onMessage(topic, payload, isRetained);
           }
         }
       }
@@ -456,14 +490,18 @@ interface LiveSyncCallbacks {
 export class LiveArenaSyncController {
   public readonly clientId: string;
   private bc: BroadcastChannel | null = null;
-  private mqtt: MiniMqttWsClient | null = null;
+  private mqttClients: MiniMqttWsClient[] = [];
   private aesKey: CryptoKey | null = null;
   private roomTopic: string | null = null;
   private peers = new Map<string, number>();
   private incomingChunks = new Map<string, { parts: string[]; received: number; total: number }>();
-  private requestedImages = new Set<string>();
+  private inFlightImages = new Set<string>();
+  private recentImageStreams = new Map<string, number>();
+  private lastAppliedKey = '';
+  private highestClaimedUpdatedAt = 0;
+  private highestClaimedSenderId = '';
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-  private fallbackPollTimer: ReturnType<typeof setInterval> | null = null;
+  private safetyPollTimer: ReturnType<typeof setInterval> | null = null;
   private wsConnected = false;
   private disposed = false;
 
@@ -479,8 +517,40 @@ export class LiveArenaSyncController {
     return this.cb.getLocalSnapshot(this.clientId);
   }
 
+  private publishAllMqtt(topic: string, payload: Uint8Array, retain = false) {
+    for (const client of this.mqttClients) {
+      if (client.isConnected()) {
+        client.publish(topic, payload, retain);
+      }
+    }
+  }
+
+  private tryClaimSnapshot(snap: LiveArenaSnapshot | null | undefined): boolean {
+    if (!snap || !snap.decks || snap.senderId === this.clientId) return false;
+    if (!this.isNewerThanLocal(snap)) return false;
+
+    const key = `${snap.updatedAt}:${snap.senderId}`;
+    if (key === this.lastAppliedKey) return false;
+
+    if (
+      snap.updatedAt < this.highestClaimedUpdatedAt ||
+      (snap.updatedAt === this.highestClaimedUpdatedAt &&
+        snap.senderId <= this.highestClaimedSenderId)
+    ) {
+      return false;
+    }
+
+    this.lastAppliedKey = key;
+    this.highestClaimedUpdatedAt = snap.updatedAt;
+    this.highestClaimedSenderId = snap.senderId;
+    return true;
+  }
+
   async start() {
     this.disposed = false;
+    const initialLocal = this.getLocal();
+    this.highestClaimedUpdatedAt = initialLocal.updatedAt;
+    this.highestClaimedSenderId = initialLocal.senderId;
     this.emitMeta();
 
     // 1. Local Dual-Window Sync via BroadcastChannel (0ms same-PC latency)
@@ -493,19 +563,19 @@ export class LiveArenaSyncController {
         this.bc.postMessage({
           type: 'sync_req',
           senderId: this.clientId,
-          currentUpdatedAt: this.getLocal().updatedAt,
+          currentUpdatedAt: initialLocal.updatedAt,
         });
         this.bc.postMessage({
           type: 'presence',
           senderId: this.clientId,
-          updatedAt: this.getLocal().updatedAt,
+          updatedAt: initialLocal.updatedAt,
         });
       } catch {
         // Ignore if disabled in restricted webview
       }
     }
 
-    // 2. Fetch Encrypted Channel Credentials & Server Snapshot
+    // 2. Fetch Encrypted Channel Credentials & Server Snapshot + Connect Dual MQTT Brokers
     await this.initNetworkSync();
 
     // 3. Periodic Presence Heartbeat & Stale Peer Cleanup
@@ -514,12 +584,12 @@ export class LiveArenaSyncController {
       this.sendPresence();
     }, 7_000);
 
-    // 4. Fallback HTTP Poll ONLY when WebSocket is not connected
-    this.fallbackPollTimer = setInterval(() => {
-      if (!this.wsConnected && !this.disposed) {
+    // 4. Lightweight HTTP Safety Poll (?since= returns 35B when unchanged; guarantees sub-second delivery even behind strict firewalls)
+    this.safetyPollTimer = setInterval(() => {
+      if (!this.disposed) {
         void this.pollServerSnapshot();
       }
-    }, 2_200);
+    }, 1_000);
 
     if (typeof window !== 'undefined') {
       window.addEventListener('beforeunload', this.handleBeforeUnload);
@@ -533,79 +603,90 @@ export class LiveArenaSyncController {
       window.removeEventListener('beforeunload', this.handleBeforeUnload);
     }
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
-    if (this.fallbackPollTimer) clearInterval(this.fallbackPollTimer);
+    if (this.safetyPollTimer) clearInterval(this.safetyPollTimer);
     if (this.bc) {
       this.bc.close();
       this.bc = null;
     }
-    if (this.mqtt) {
-      this.mqtt.stop();
-      this.mqtt = null;
+    for (const client of this.mqttClients) {
+      client.stop();
     }
+    this.mqttClients = [];
   }
 
-  /** Broadcasts a user-initiated state update across tabs, WebSockets, and Server */
+  /** Broadcasts a user-initiated state update across tabs, dual WebSocket brokers, and Server */
   async publishSnapshot(snapshot: LiveArenaSnapshot): Promise<void> {
     if (this.disposed) return;
+
+    if (snapshot.updatedAt >= this.highestClaimedUpdatedAt) {
+      this.highestClaimedUpdatedAt = snapshot.updatedAt;
+      this.highestClaimedSenderId = snapshot.senderId;
+    }
 
     // 1. Instant local BroadcastChannel (sends full cards incl. dataUrls directly)
     if (this.bc) {
       try {
-        this.bc.postMessage({ type: 'state', snapshot });
+        this.bc.postMessage({ type: 'state', senderId: this.clientId, snapshot });
       } catch {
         // ignore
       }
     }
 
-    // 2. Dehydrate custom data:image URLs into compact idb:img_<hash> refs (<2KB wire packet!)
-    const { wireCards, newImages } = await dehydrateCardsForWire(snapshot.cards);
+    // 2. Dehydrate custom data:image URLs into compact idb:img_<hash> refs across all 3 phases
+    const { wireDecks, newImages } = await dehydrateDecksForWire(snapshot.decks);
     const wireState: LiveArenaSnapshot = {
       ...snapshot,
-      cards: wireCards,
+      decks: wireDecks,
     };
 
-    // 3. Encrypted Real-Time WSS Publish (with retain=true so late joiners get state immediately)
-    if (this.mqtt && this.aesKey && this.roomTopic && this.wsConnected) {
-      const encrypted = await encryptJson(this.aesKey, wireState);
-      this.mqtt.publish(`${this.roomTopic}/state`, encrypted, true);
-
-      // Stream any brand-new custom images to connected peers right away
-      for (const [imgId, dataUrl] of Object.entries(newImages)) {
-        if (!uploadedToServer.has(`ws_${imgId}`)) {
-          uploadedToServer.add(`ws_${imgId}`);
-          void this.streamImageOverWs(imgId, dataUrl);
-        }
-      }
-    }
-
-    // 4. Server Backup POST (/api/sync)
+    // Prepare server backup payload
     const imagesToUpload: Record<string, string> = {};
     for (const [imgId, dataUrl] of Object.entries(newImages)) {
-      if (!uploadedToServer.has(`srv_${imgId}`)) {
-        uploadedToServer.add(`srv_${imgId}`);
+      if (!uploadedToServer.has(imgId)) {
+        uploadedToServer.add(imgId);
         imagesToUpload[imgId] = dataUrl;
       }
     }
-    try {
-      await fetch('/api/sync', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          state: wireState,
-          images: Object.keys(imagesToUpload).length > 0 ? imagesToUpload : undefined,
-        }),
-      });
-    } catch {
-      // Offline or transient network error
+
+    const serverPostPromise = fetch('/api/sync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        state: wireState,
+        images: Object.keys(imagesToUpload).length > 0 ? imagesToUpload : undefined,
+      }),
+    }).catch(() => {
+      // Allow re-uploading image if server POST failed transiently
+      for (const imgId of Object.keys(imagesToUpload)) {
+        uploadedToServer.delete(imgId);
+      }
+    });
+
+    // 3. Encrypted Real-Time WSS Publish across ALL connected brokers (prevents broker split-brain)
+    if (this.aesKey && this.roomTopic && this.wsConnected) {
+      // Stream any brand-new custom images FIRST so peers already have them cached when /state arrives
+      for (const [imgId, dataUrl] of Object.entries(newImages)) {
+        if (!streamedImagesOverWs.has(imgId)) {
+          streamedImagesOverWs.add(imgId);
+          await this.streamImageOverWs(imgId, dataUrl);
+        }
+      }
+
+      const encrypted = await encryptJson(this.aesKey, wireState);
+      // Use retain=false (0x30) so public MQTT brokers never throttle or drop retained payloads;
+      // late joiners receive state immediately via /api/sync + sync_req RPC.
+      this.publishAllMqtt(`${this.roomTopic}/state`, encrypted, false);
     }
+
+    await serverPostPromise;
   }
 
   private handleBeforeUnload = () => {
     try {
       this.bc?.postMessage({ type: 'bye', senderId: this.clientId });
-      if (this.mqtt && this.aesKey && this.roomTopic && this.wsConnected) {
+      if (this.aesKey && this.roomTopic && this.wsConnected) {
         void encryptJson(this.aesKey, { kind: 'bye', senderId: this.clientId } satisfies RpcPacket).then(
-          (pkt) => this.mqtt?.publish(`${this.roomTopic}/rpc`, pkt, false)
+          (pkt) => this.publishAllMqtt(`${this.roomTopic}/rpc`, pkt, false)
         );
       }
     } catch {
@@ -659,13 +740,13 @@ export class LiveArenaSyncController {
     } catch {
       // ignore
     }
-    if (this.mqtt && this.aesKey && this.roomTopic && this.wsConnected) {
+    if (this.aesKey && this.roomTopic && this.wsConnected) {
       void encryptJson(this.aesKey, {
         kind: 'presence',
         senderId: this.clientId,
         updatedAt,
       } satisfies RpcPacket).then((pkt) => {
-        this.mqtt?.publish(`${this.roomTopic}/rpc`, pkt, false);
+        this.publishAllMqtt(`${this.roomTopic}/rpc`, pkt, false);
       });
     }
   }
@@ -683,7 +764,7 @@ export class LiveArenaSyncController {
     if (msg.type === 'presence' || msg.type === 'sync_req') {
       const local = this.getLocal();
       const peerUpdated = typeof msg.updatedAt === 'number' ? msg.updatedAt : msg.currentUpdatedAt ?? 0;
-      if (local.updatedAt > peerUpdated && local.cards.length > 0) {
+      if (local.updatedAt > peerUpdated && hasAnyDeckCards(local.decks)) {
         this.bc?.postMessage({ type: 'state', senderId: this.clientId, snapshot: local });
       }
       return;
@@ -691,9 +772,9 @@ export class LiveArenaSyncController {
 
     if (msg.type === 'state' && msg.snapshot) {
       const snap = msg.snapshot as LiveArenaSnapshot;
-      if (snap.senderId === this.clientId) return;
+      if (!snap.decks || snap.senderId === this.clientId) return;
       this.markPeerSeen(snap.senderId);
-      if (this.isNewerThanLocal(snap)) {
+      if (this.tryClaimSnapshot(snap)) {
         await this.applyIncomingWireSnapshot(snap);
       }
     }
@@ -707,80 +788,110 @@ export class LiveArenaSyncController {
       if (this.disposed) return;
 
       // Apply server snapshot if newer than local storage
-      if (data?.snapshot && typeof data.snapshot.updatedAt === 'number') {
+      if (data?.snapshot?.decks && typeof data.snapshot.updatedAt === 'number') {
         const snap = data.snapshot as LiveArenaSnapshot;
-        if (snap.senderId !== this.clientId && this.isNewerThanLocal(snap)) {
+        if (this.tryClaimSnapshot(snap)) {
           await this.applyIncomingWireSnapshot(snap);
         }
       }
 
-      if (data?.credentials?.roomTopic && data?.credentials?.aesKeyHex) {
+      if (
+        this.mqttClients.length === 0 &&
+        data?.credentials?.roomTopic &&
+        data?.credentials?.aesKeyHex
+      ) {
         this.roomTopic = data.credentials.roomTopic;
         this.aesKey = await importAesKey(data.credentials.aesKeyHex);
 
         const stateTopic = `${this.roomTopic}/state`;
         const rpcTopic = `${this.roomTopic}/rpc`;
 
-        this.mqtt = new MiniMqttWsClient(
-          this.clientId,
-          [stateTopic, rpcTopic],
-          (topic, payload) => {
-            void this.handleWsMessage(topic, payload);
-          },
-          (connected) => {
-            this.wsConnected = connected;
-            this.emitMeta();
-            if (connected && this.aesKey && this.roomTopic) {
-              this.sendPresence();
-              void encryptJson(this.aesKey, {
-                kind: 'sync_req',
-                senderId: this.clientId,
-                currentUpdatedAt: this.getLocal().updatedAt,
-              } satisfies RpcPacket).then((pkt) => {
-                this.mqtt?.publish(`${this.roomTopic}/rpc`, pkt, false);
-              });
+        // Connect to ALL configured brokers in parallel so two PCs never land on isolated brokers
+        this.mqttClients = BROKERS.map((brokerUrl, idx) => {
+          const client = new MiniMqttWsClient(
+            brokerUrl,
+            `${this.clientId}_b${idx}`,
+            [stateTopic, rpcTopic],
+            (topic, payload, isRetained) => {
+              void this.handleWsMessage(topic, payload, isRetained);
+            },
+            (connected, sock) => {
+              this.wsConnected = this.mqttClients.some((c) => c.isConnected());
+              this.emitMeta();
+              if (connected && this.aesKey && this.roomTopic) {
+                const updatedAt = this.getLocal().updatedAt;
+                void encryptJson(this.aesKey, {
+                  kind: 'presence',
+                  senderId: this.clientId,
+                  updatedAt,
+                } satisfies RpcPacket).then((pkt) => {
+                  sock.publish(`${this.roomTopic}/rpc`, pkt, false);
+                });
+                void encryptJson(this.aesKey, {
+                  kind: 'sync_req',
+                  senderId: this.clientId,
+                  currentUpdatedAt: updatedAt,
+                } satisfies RpcPacket).then((pkt) => {
+                  sock.publish(`${this.roomTopic}/rpc`, pkt, false);
+                });
+              }
             }
-          }
-        );
-        this.mqtt.start();
+          );
+          client.start();
+          return client;
+        });
       }
     } catch {
-      // Will retry via fallback poll
+      // Will retry via safety poll
     }
   }
 
   private async pollServerSnapshot() {
     try {
-      const res = await fetch('/api/sync', { cache: 'no-store' });
+      if (this.mqttClients.length === 0) {
+        await this.initNetworkSync();
+        return;
+      }
+
+      const since = Math.max(this.getLocal().updatedAt, this.highestClaimedUpdatedAt);
+      const res = await fetch(`/api/sync?since=${since}`, { cache: 'no-store' });
       if (!res.ok) return;
       const data = await res.json();
-      if (data?.snapshot && typeof data.snapshot.updatedAt === 'number') {
+      if (data?.unchanged) return;
+
+      if (data?.snapshot?.decks && typeof data.snapshot.updatedAt === 'number') {
         const snap = data.snapshot as LiveArenaSnapshot;
-        if (snap.senderId !== this.clientId && this.isNewerThanLocal(snap)) {
+        if (this.tryClaimSnapshot(snap)) {
           await this.applyIncomingWireSnapshot(snap);
         }
-      }
-      if (!this.mqtt && data?.credentials?.roomTopic && data?.credentials?.aesKeyHex) {
-        void this.initNetworkSync();
       }
     } catch {
       // ignore offline
     }
   }
 
-  private async handleWsMessage(topic: string, payload: Uint8Array) {
+  private async handleWsMessage(topic: string, payload: Uint8Array, isRetained: boolean) {
     if (!this.aesKey || !this.roomTopic || this.disposed) return;
 
     if (topic === `${this.roomTopic}/state`) {
       const snap = await decryptJson<LiveArenaSnapshot>(this.aesKey, payload);
       if (!snap || snap.senderId === this.clientId) return;
-      this.markPeerSeen(snap.senderId);
-      if (this.isNewerThanLocal(snap)) {
+
+      // Only count live (non-retained) state broadcasts toward active connected devices
+      if (!isRetained) {
+        this.markPeerSeen(snap.senderId);
+      }
+
+      if (this.tryClaimSnapshot(snap)) {
         await this.applyIncomingWireSnapshot(snap);
       } else {
-        // Our state is newer than the retained broker state -> update the retained state!
+        // If our local deck is newer than the retained broker state, refresh the broker's retained snapshot
         const local = this.getLocal();
-        if (local.updatedAt > snap.updatedAt && local.cards.length > 0) {
+        if (
+          isRetained &&
+          (!snap.decks || local.updatedAt > snap.updatedAt) &&
+          hasAnyDeckCards(local.decks)
+        ) {
           void this.publishSnapshot(local);
         }
       }
@@ -801,15 +912,19 @@ export class LiveArenaSyncController {
       if (rpc.kind === 'presence' || rpc.kind === 'sync_req') {
         const peerTs = rpc.kind === 'presence' ? rpc.updatedAt : rpc.currentUpdatedAt;
         const local = this.getLocal();
-        if (local.updatedAt > peerTs && local.cards.length > 0) {
-          const { wireCards } = await dehydrateCardsForWire(local.cards);
-          const pkt = await encryptJson(this.aesKey, { ...local, cards: wireCards });
-          this.mqtt?.publish(`${this.roomTopic}/state`, pkt, true);
+        if (local.updatedAt > peerTs && hasAnyDeckCards(local.decks)) {
+          const { wireDecks } = await dehydrateDecksForWire(local.decks);
+          const pkt = await encryptJson(this.aesKey, { ...local, decks: wireDecks });
+          this.publishAllMqtt(`${this.roomTopic}/state`, pkt, false);
         }
       } else if (rpc.kind === 'image_req') {
+        const now = Date.now();
         for (const imgId of rpc.imageIds) {
+          const lastSent = this.recentImageStreams.get(imgId) ?? 0;
+          if (now - lastSent < 800) continue;
           const cached = await loadCachedImage(imgId);
           if (cached) {
+            this.recentImageStreams.set(imgId, Date.now());
             await this.streamImageOverWs(imgId, cached);
           }
         }
@@ -820,54 +935,83 @@ export class LiveArenaSyncController {
   }
 
   private async applyIncomingWireSnapshot(wireSnap: LiveArenaSnapshot) {
-    const { hydratedCards, missingImageIds } = await hydrateCardsFromWire(wireSnap.cards);
+    const { hydratedDecks, missingImageIds } = await hydrateDecksFromWire(wireSnap.decks);
     this.cb.onRemoteSnapshot({
       ...wireSnap,
-      cards: hydratedCards,
+      decks: hydratedDecks,
     });
 
     if (missingImageIds.length > 0) {
-      await this.fetchMissingImages(missingImageIds);
+      void this.fetchMissingImages(missingImageIds);
     }
+  }
+
+  private async tryFetchImageFromServer(imgId: string): Promise<boolean> {
+    try {
+      const res = await fetch(`/api/sync?image=${encodeURIComponent(imgId)}`, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (typeof data?.dataUrl === 'string' && data.dataUrl.startsWith('data:image/')) {
+          await cacheCustomImage(imgId, data.dataUrl);
+          this.cb.onImageHydrated(imgId, data.dataUrl);
+          return true;
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return false;
   }
 
   private async fetchMissingImages(imageIds: string[]) {
     const needWs: string[] = [];
-    for (const imgId of imageIds) {
-      if (this.requestedImages.has(imgId)) continue;
-      this.requestedImages.add(imgId);
 
-      // 1. Try fast HTTP fetch from /api/sync?image=...
-      try {
-        const res = await fetch(`/api/sync?image=${encodeURIComponent(imgId)}`, { cache: 'no-store' });
-        if (res.ok) {
-          const data = await res.json();
-          if (typeof data?.dataUrl === 'string' && data.dataUrl.startsWith('data:image/')) {
-            await cacheCustomImage(imgId, data.dataUrl);
-            this.requestedImages.delete(imgId);
-            this.cb.onImageHydrated(imgId, data.dataUrl);
-            continue;
-          }
-        }
-      } catch {
-        // Fallback to WS chunk request
+    for (const imgId of imageIds) {
+      if (this.inFlightImages.has(imgId)) continue;
+      const alreadyCached = await loadCachedImage(imgId);
+      if (alreadyCached) {
+        this.cb.onImageHydrated(imgId, alreadyCached);
+        continue;
       }
-      needWs.push(imgId);
+
+      this.inFlightImages.add(imgId);
+      try {
+        const ok = await this.tryFetchImageFromServer(imgId);
+        if (!ok) {
+          needWs.push(imgId);
+        }
+      } finally {
+        this.inFlightImages.delete(imgId);
+      }
     }
 
-    // 2. Also ask live connected peers over encrypted WSS
-    if (needWs.length > 0 && this.mqtt && this.aesKey && this.roomTopic && this.wsConnected) {
+    // Ask live connected peers over encrypted WSS if server didn't have it yet
+    if (needWs.length > 0 && this.aesKey && this.roomTopic && this.wsConnected) {
       const pkt = await encryptJson(this.aesKey, {
         kind: 'image_req',
         senderId: this.clientId,
         imageIds: needWs,
       } satisfies RpcPacket);
-      this.mqtt.publish(`${this.roomTopic}/rpc`, pkt, false);
+      this.publishAllMqtt(`${this.roomTopic}/rpc`, pkt, false);
+    }
+
+    // Schedule one retry against /api/sync in case sender's POST finished right after WSS packet
+    if (needWs.length > 0) {
+      setTimeout(() => {
+        if (this.disposed) return;
+        for (const imgId of needWs) {
+          void loadCachedImage(imgId).then((cached) => {
+            if (!cached) {
+              void this.tryFetchImageFromServer(imgId);
+            }
+          });
+        }
+      }, 650);
     }
   }
 
   private async streamImageOverWs(imageId: string, dataUrl: string) {
-    if (!this.mqtt || !this.aesKey || !this.roomTopic || !this.wsConnected) return;
+    if (!this.aesKey || !this.roomTopic || !this.wsConnected) return;
     const total = Math.max(1, Math.ceil(dataUrl.length / CHUNK_CHARS));
     for (let i = 0; i < total; i++) {
       const chunk = dataUrl.slice(i * CHUNK_CHARS, (i + 1) * CHUNK_CHARS);
@@ -879,7 +1023,10 @@ export class LiveArenaSyncController {
         total,
         chunk,
       } satisfies RpcPacket);
-      this.mqtt.publish(`${this.roomTopic}/rpc`, pkt, false);
+      this.publishAllMqtt(`${this.roomTopic}/rpc`, pkt, false);
+      if (i > 0 && i % 4 === 0) {
+        await new Promise((r) => setTimeout(r, 4));
+      }
     }
   }
 
@@ -887,7 +1034,7 @@ export class LiveArenaSyncController {
     msg: Extract<RpcPacket, { kind: 'image_chunk' }>
   ) {
     const { imageId, index, total, chunk } = msg;
-    if (total <= 0 || total > 80 || index < 0 || index >= total) return;
+    if (total <= 0 || total > 120 || index < 0 || index >= total) return;
 
     let entry = this.incomingChunks.get(imageId);
     if (!entry || entry.total !== total) {
@@ -901,7 +1048,6 @@ export class LiveArenaSyncController {
 
     if (entry.received === entry.total) {
       this.incomingChunks.delete(imageId);
-      this.requestedImages.delete(imageId);
       const fullDataUrl = entry.parts.join('');
       if (fullDataUrl.startsWith('data:image/')) {
         await cacheCustomImage(imageId, fullDataUrl);

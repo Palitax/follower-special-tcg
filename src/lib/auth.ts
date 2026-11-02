@@ -53,10 +53,10 @@ export async function deriveSyncCredentials(): Promise<{
   roomTopic: string;
   aesKeyHex: string;
 }> {
-  const topicHash = await sha256Hex(`mc-live-topic-v1:${USERNAME}:${PASSWORD}:${SECRET}`);
-  const aesKeyHex = await sha256Hex(`mc-live-aes256-v1:${USERNAME}:${PASSWORD}:${SECRET}`);
+  const topicHash = await sha256Hex(`mc-live-topic-v3:${USERNAME}:${PASSWORD}:${SECRET}`);
+  const aesKeyHex = await sha256Hex(`mc-live-aes256-v3:${USERNAME}:${PASSWORD}:${SECRET}`);
   return {
-    roomTopic: `mc/arena/v1/${topicHash.slice(0, 32)}`,
+    roomTopic: `mc/arena/v3/${topicHash.slice(0, 32)}`,
     aesKeyHex,
   };
 }

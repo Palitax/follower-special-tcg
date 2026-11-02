@@ -7,8 +7,9 @@ import { Layers, Check, X } from 'lucide-react';
 interface CardSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onConfirm: (count: number) => void;
+  onConfirm: (count: number, keepExistingPrizes: boolean) => void;
   initialCount?: number;
+  hasExistingUploads?: boolean;
 }
 
 export const CardSetupModal: React.FC<CardSetupModalProps> = ({
@@ -16,14 +17,17 @@ export const CardSetupModal: React.FC<CardSetupModalProps> = ({
   onClose,
   onConfirm,
   initialCount = 10,
+  hasExistingUploads = false,
 }) => {
   const [count, setCount] = useState<number>(initialCount);
   const [inputValue, setInputValue] = useState<string>(initialCount.toString());
+  const [keepPrizes, setKeepPrizes] = useState<boolean>(true);
 
   useEffect(() => {
     if (isOpen) {
       setCount(initialCount);
       setInputValue(initialCount.toString());
+      setKeepPrizes(true);
     }
   }, [isOpen, initialCount]);
 
@@ -47,7 +51,7 @@ export const CardSetupModal: React.FC<CardSetupModalProps> = ({
   const handleConfirm = () => {
     sound.playShimmer();
     const finalCount = Math.max(1, Math.min(100, count));
-    onConfirm(finalCount);
+    onConfirm(finalCount, hasExistingUploads ? keepPrizes : false);
     onClose();
   };
 
@@ -55,8 +59,9 @@ export const CardSetupModal: React.FC<CardSetupModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-      <div className="relative w-full max-w-md bg-stone-900 border border-white/20 rounded-3xl shadow-2xl p-6 space-y-6 text-center">
+      <div className="relative w-full max-w-md bg-stone-900 border border-white/20 rounded-3xl shadow-2xl p-6 space-y-5 text-center">
         <button
+          type="button"
           onClick={onClose}
           className="absolute top-4 right-4 p-1.5 rounded-lg text-slate-400 hover:text-white"
         >
@@ -70,7 +75,10 @@ export const CardSetupModal: React.FC<CardSetupModalProps> = ({
         <div className="space-y-1">
           <h3 className="text-xl font-black text-white">Kartenanzahl wählen</h3>
           <p className="text-xs text-slate-400">
-            Die Karten werden automatisch von 1 bis {count} durchnummeriert
+            Jede Phase (<strong className="text-cyan-300">Rare</strong>,{' '}
+            <strong className="text-fuchsia-300">Epic</strong>,{' '}
+            <strong className="text-amber-300">Legendary</strong>) erhält eigene, unabhängige
+            Karten von 1 bis {count}
           </p>
         </div>
 
@@ -78,6 +86,7 @@ export const CardSetupModal: React.FC<CardSetupModalProps> = ({
         <div className="flex flex-col items-center justify-center gap-2">
           <div className="flex items-center justify-center gap-3">
             <button
+              type="button"
               onClick={() => {
                 sound.playCounter(false);
                 const next = Math.max(1, count - 1);
@@ -105,11 +114,12 @@ export const CardSetupModal: React.FC<CardSetupModalProps> = ({
                 className="w-28 h-14 text-center bg-black/80 border-2 border-yellow-400 rounded-2xl text-3xl font-black text-yellow-300 focus:outline-none focus:ring-4 focus:ring-yellow-400/30"
               />
               <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mt-1">
-                Karten (1 - 100)
+                Karten pro Phase (1 - 100)
               </span>
             </div>
 
             <button
+              type="button"
               onClick={() => {
                 sound.playCounter(true);
                 const next = Math.min(100, count + 1);
@@ -169,13 +179,30 @@ export const CardSetupModal: React.FC<CardSetupModalProps> = ({
           </div>
         </div>
 
+        {hasExistingUploads && (
+          <label className="flex items-center justify-center gap-2.5 px-3 py-2.5 rounded-xl bg-white/5 border border-white/10 cursor-pointer text-xs text-slate-200 hover:bg-white/10 transition-colors">
+            <input
+              type="checkbox"
+              checked={keepPrizes}
+              onChange={(e) => setKeepPrizes(e.target.checked)}
+              className="w-4 h-4 rounded accent-yellow-400 cursor-pointer"
+            />
+            <span className="font-semibold">
+              Bisherige Gewinn-Bilder in den Phasen behalten
+            </span>
+          </label>
+        )}
+
         {/* Action Button */}
         <button
+          type="button"
           onClick={handleConfirm}
           className="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-black font-black text-sm flex items-center justify-center gap-2 shadow-xl shadow-amber-500/25 active:scale-95 transition-all"
         >
           <Check className="w-5 h-5" />
-          <span>{count} {count === 1 ? 'Karte' : 'Karten'} jetzt erstellen</span>
+          <span>
+            {count} {count === 1 ? 'Karte' : 'Karten'} pro Phase erstellen
+          </span>
         </button>
       </div>
     </div>
