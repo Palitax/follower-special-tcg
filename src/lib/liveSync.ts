@@ -16,6 +16,15 @@ export interface LiveGiveawaySnapshot {
   overlay: OverlayDisplaySettings;
 }
 
+export interface DirectActiveOverlayPayload {
+  updatedAt: number;
+  senderId: string;
+  rarity: CardRarity;
+  slotIndex: number;
+  item: GiveawayItem | null;
+  overlay: OverlayDisplaySettings;
+}
+
 export type SyncStatus = 'connecting' | 'live' | 'local';
 export type ClientRole = 'studio' | 'overlay';
 
@@ -426,9 +435,11 @@ class MiniMqttWsClient {
         clearTimeout(handshakeTimeout);
         const returnCode = packet[offset + 1];
         if (returnCode === 0) {
-          this.connected = true;
           this.subscribeAll(ws);
-          this.onStatusChange(true, this);
+          if (this.topics.length === 0) {
+            this.connected = true;
+            this.onStatusChange(true, this);
+          }
           this.pingTimer = setInterval(() => {
             if (ws.readyState === WebSocket.OPEN) {
               ws.send(new Uint8Array([0xc0, 0x00]));
@@ -438,6 +449,12 @@ class MiniMqttWsClient {
           this.cleanupSocket();
           this.scheduleReconnect(2000);
           return;
+        }
+      } else if (type === 9) {
+        // SUBACK: broker confirmed topic subscriptions -> safe to publish sync_req!
+        if (!this.connected) {
+          this.connected = true;
+          this.onStatusChange(true, this);
         }
       } else if (type === 3) {
         const isRetained = (packet[0] & 0x01) === 1;
@@ -486,9 +503,11 @@ interface LiveSyncCallbacks {
   overlayKey?: string | null;
   getLocalSnapshot: (clientId: string) => LiveGiveawaySnapshot;
   onRemoteSnapshot: (snapshot: LiveGiveawaySnapshot) => void;
+  onDirectActiveOverlay?: (payload: DirectActiveOverlayPayload) => void;
   onImageHydrated: (imageId: string, dataUrl: string) => void;
   onMetaChange?: (meta: SyncMeta) => void;
   onOverlayKeyReceived?: (key: string) => void;
+  onUnauthorized?: () => void;
 }
 
 export class LiveGiveawaySyncController {
@@ -536,6 +555,77 @@ export class LiveGiveawaySyncController {
 
   private getLocal(): LiveGiveawaySnapshot {
     return this.cb.getLocalSnapshot(this.clientId);
+  }
+
+  private async buildDirectActivePayload(
+    snap: LiveGiveawaySnapshot
+  ): Promise<{ payload: DirectActiveOverlayPayload; largeImageToStream?: { id: string; dataUrl: string } }> {
+    const rarity: CardRarity = snap.active?.rarity ?? 'rare';
+    const tierList = snap.pools?.[rarity] || [];
+    const slotIndex = snap.active
+      ? tierList.findIndex((it) => it.id === snap.active!.itemId)
+      : -1;
+    const rawItem = slotIndex >= 0 ? tierList[slotIndex] : null;
+
+    if (!rawItem) {
+      return {
+        payload: {
+          updatedAt: snap.updatedAt,
+          senderId: snap.senderId,
+          rarity,
+          slotIndex: -1,
+          item: null,
+          overlay: snap.overlay,
+        },
+      };
+    }
+
+    let resolvedUrl = rawItem.imageUrl || '';
+    if (resolvedUrl.startsWith(IMAGE_REF_PREFIX)) {
+      const cached = await loadCachedImage(resolvedUrl.slice(IMAGE_REF_PREFIX.length));
+      if (cached) resolvedUrl = cached;
+    }
+
+    // Inline compressed WebP dataUrl directly when <= 44 KB for 1-packet zero-latency OBS delivery!
+    if (resolvedUrl.startsWith('data:image/') && resolvedUrl.length <= 44_000) {
+      return {
+        payload: {
+          updatedAt: snap.updatedAt,
+          senderId: snap.senderId,
+          rarity,
+          slotIndex,
+          item: { ...rawItem, imageUrl: resolvedUrl },
+          overlay: snap.overlay,
+        },
+      };
+    }
+
+    if (resolvedUrl.startsWith('data:image/')) {
+      const imgId = dataUrlToIdCache.get(resolvedUrl) ?? (await hashImageDataUrl(resolvedUrl));
+      await cacheCustomImage(imgId, resolvedUrl);
+      return {
+        payload: {
+          updatedAt: snap.updatedAt,
+          senderId: snap.senderId,
+          rarity,
+          slotIndex,
+          item: { ...rawItem, imageUrl: `${IMAGE_REF_PREFIX}${imgId}` },
+          overlay: snap.overlay,
+        },
+        largeImageToStream: { id: imgId, dataUrl: resolvedUrl },
+      };
+    }
+
+    return {
+      payload: {
+        updatedAt: snap.updatedAt,
+        senderId: snap.senderId,
+        rarity,
+        slotIndex,
+        item: { ...rawItem, imageUrl: resolvedUrl },
+        overlay: snap.overlay,
+      },
+    };
   }
 
   private publishAllMqtt(topic: string, payload: Uint8Array, retain = false) {
@@ -690,21 +780,15 @@ export class LiveGiveawaySyncController {
 
     // 3. Encrypted Real-Time WSS Publish across ALL connected brokers
     if (this.aesKey && this.roomTopic && this.wsConnected) {
-      // Stream any brand-new custom images FIRST (at least active giveaway's image!) so OBS renders with 0 flicker
-      const activeTier = snapshot.active?.rarity;
-      const activeId = snapshot.active?.itemId;
-      const activeItem = activeTier
-        ? snapshot.pools[activeTier]?.find((it) => it.id === activeId)
-        : undefined;
-      const activeDataUrl = activeItem?.imageUrl?.startsWith('data:image/')
-        ? activeItem.imageUrl
-        : null;
-      const activeImgId = activeDataUrl ? dataUrlToIdCache.get(activeDataUrl) : null;
-
-      if (activeImgId && activeDataUrl && !streamedImagesOverWs.has(activeImgId)) {
-        streamedImagesOverWs.add(activeImgId);
-        await this.streamImageOverWs(activeImgId, activeDataUrl);
+      // Fast-path single-packet delivery to OBS Browser Source (/overlay)
+      const { payload: activePayload, largeImageToStream } =
+        await this.buildDirectActivePayload(snapshot);
+      if (largeImageToStream && !streamedImagesOverWs.has(largeImageToStream.id)) {
+        streamedImagesOverWs.add(largeImageToStream.id);
+        await this.streamImageOverWs(largeImageToStream.id, largeImageToStream.dataUrl);
       }
+      const encryptedActive = await encryptJson(this.aesKey, activePayload);
+      this.publishAllMqtt(`${this.roomTopic}/active`, encryptedActive, false);
 
       const encrypted = await encryptJson(this.aesKey, wireState);
       this.publishAllMqtt(`${this.roomTopic}/state`, encrypted, false);
@@ -847,6 +931,10 @@ export class LiveGiveawaySyncController {
         cache: 'no-store',
         headers: this.authHeaders,
       });
+      if (res.status === 401) {
+        this.cb.onUnauthorized?.();
+        return;
+      }
       if (!res.ok) return;
       const data = await res.json();
       if (this.disposed) return;
@@ -870,6 +958,7 @@ export class LiveGiveawaySyncController {
         this.roomTopic = data.credentials.roomTopic;
         this.aesKey = await importAesKey(data.credentials.aesKeyHex);
 
+        const activeTopic = `${this.roomTopic}/active`;
         const stateTopic = `${this.roomTopic}/state`;
         const rpcTopic = `${this.roomTopic}/rpc`;
 
@@ -877,7 +966,7 @@ export class LiveGiveawaySyncController {
           const client = new MiniMqttWsClient(
             brokerUrl,
             `${this.clientId}_b${idx}`,
-            [stateTopic, rpcTopic],
+            [activeTopic, stateTopic, rpcTopic],
             (topic, payload, isRetained) => {
               void this.handleWsMessage(topic, payload, isRetained);
             },
@@ -922,6 +1011,19 @@ export class LiveGiveawaySyncController {
       }
 
       const since = Math.max(this.getLocal().updatedAt, this.highestClaimedUpdatedAt);
+
+      // If OBS overlay is still waiting for its initial snapshot (e.g. cold Vercel Lambda), also re-ping Studio over WSS
+      if (this.isReadOnly && since === 0 && this.aesKey && this.roomTopic && this.wsConnected) {
+        void encryptJson(this.aesKey, {
+          kind: 'sync_req',
+          senderId: this.clientId,
+          role: this.cb.role,
+          currentUpdatedAt: 0,
+        } satisfies RpcPacket).then((pkt) => {
+          if (this.roomTopic) this.publishAllMqtt(`${this.roomTopic}/rpc`, pkt, false);
+        });
+      }
+
       const res = await fetch(this.buildSyncUrl({ since: String(since) }), {
         cache: 'no-store',
         headers: this.authHeaders,
@@ -947,6 +1049,40 @@ export class LiveGiveawaySyncController {
 
   private async handleWsMessage(topic: string, payload: Uint8Array, isRetained: boolean) {
     if (!this.aesKey || !this.roomTopic || this.disposed) return;
+
+    if (topic === `${this.roomTopic}/active`) {
+      if (!this.cb.onDirectActiveOverlay) return;
+      const activeSnap = await decryptJson<DirectActiveOverlayPayload>(this.aesKey, payload);
+      if (!activeSnap || activeSnap.senderId === this.clientId) return;
+      if (!isRetained) {
+        this.markPeerSeen(activeSnap.senderId, 'studio');
+      }
+      if (
+        activeSnap.updatedAt > this.highestClaimedUpdatedAt ||
+        (activeSnap.updatedAt === this.highestClaimedUpdatedAt &&
+          activeSnap.senderId > this.highestClaimedSenderId)
+      ) {
+        this.highestClaimedUpdatedAt = activeSnap.updatedAt;
+        this.highestClaimedSenderId = activeSnap.senderId;
+        this.lastAppliedKey = `${activeSnap.updatedAt}:${activeSnap.senderId}`;
+        if (activeSnap.item?.imageUrl?.startsWith(IMAGE_REF_PREFIX)) {
+          const imgId = activeSnap.item.imageUrl.slice(IMAGE_REF_PREFIX.length);
+          const cached = await loadCachedImage(imgId);
+          if (cached) {
+            this.cb.onDirectActiveOverlay({
+              ...activeSnap,
+              item: { ...activeSnap.item, imageUrl: cached },
+            });
+          } else {
+            this.cb.onDirectActiveOverlay(activeSnap);
+            void this.fetchMissingImages([imgId]);
+          }
+        } else {
+          this.cb.onDirectActiveOverlay(activeSnap);
+        }
+      }
+      return;
+    }
 
     if (topic === `${this.roomTopic}/state`) {
       const snap = await decryptJson<LiveGiveawaySnapshot>(this.aesKey, payload);
@@ -985,9 +1121,19 @@ export class LiveGiveawaySyncController {
         const peerTs = rpc.kind === 'presence' ? rpc.updatedAt : rpc.currentUpdatedAt;
         const local = this.getLocal();
         if (local.updatedAt > peerTs && (hasAnyPoolItems(local.pools) || local.updatedAt > 0)) {
-          const { wirePools } = await dehydratePoolsForWire(local.pools);
-          const pkt = await encryptJson(this.aesKey, { ...local, pools: wirePools });
-          this.publishAllMqtt(`${this.roomTopic}/state`, pkt, false);
+          const { payload: activePayload, largeImageToStream } =
+            await this.buildDirectActivePayload(local);
+          if (largeImageToStream) {
+            await this.streamImageOverWs(largeImageToStream.id, largeImageToStream.dataUrl);
+          }
+          const activePkt = await encryptJson(this.aesKey, activePayload);
+          this.publishAllMqtt(`${this.roomTopic}/active`, activePkt, false);
+
+          if (peerRole === 'studio') {
+            const { wirePools } = await dehydratePoolsForWire(local.pools);
+            const pkt = await encryptJson(this.aesKey, { ...local, pools: wirePools });
+            this.publishAllMqtt(`${this.roomTopic}/state`, pkt, false);
+          }
         }
       } else if (rpc.kind === 'image_req') {
         if (this.isReadOnly) return;

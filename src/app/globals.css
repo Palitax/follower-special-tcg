@@ -3,10 +3,15 @@
 @tailwind utilities;
 
 :root {
-  --background: #090a0f;
-  --foreground: #ededed;
-  color-scheme: dark;
-  accent-color: #facc15;
+  /* Keep root color-scheme normal so Chromium / OBS Browser Source CEF
+     NEVER paints an opaque #121212 dark viewport canvas behind /overlay! */
+  color-scheme: normal;
+  --studio-bg: #090a0f;
+  --studio-fg: #ededed;
+  --accent-color: #facc15;
+  --scrollbar-thumb: rgba(255, 255, 255, 0.32);
+  --scrollbar-track: rgba(255, 255, 255, 0.05);
+  accent-color: var(--accent-color);
 }
 
 * {
@@ -20,11 +25,20 @@ body {
   width: 100%;
   margin: 0;
   padding: 0;
-  background-color: var(--background);
-  color: var(--foreground);
+  background: transparent !important;
+  background-color: rgba(0, 0, 0, 0) !important;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   touch-action: manipulation;
   overscroll-behavior: none;
+}
+
+/* Dark theme scoped strictly to Studio (/) & Login (/login) subtrees — never /overlay */
+.studio-shell {
+  color-scheme: dark;
+  /* Re-declare inherited color properties on subtree with custom color-scheme */
+  accent-color: var(--accent-color);
+  background-color: var(--studio-bg);
+  color: var(--studio-fg);
 }
 
 ::selection {
@@ -32,9 +46,10 @@ body {
   color: #ffffff;
 }
 
-/* True 100% alpha transparency when loaded inside OBS Browser Source (/overlay) */
+/* Extra specificity for OBS Browser Source (/overlay) */
 html.obs-overlay-root,
 html.obs-overlay-root body {
+  color-scheme: normal !important;
   background: transparent !important;
   background-color: rgba(0, 0, 0, 0) !important;
   overflow: hidden !important;
@@ -44,18 +59,32 @@ html.obs-overlay-root body {
 .obs-checkerboard {
   background-color: #11131a;
   background-image:
-    linear-gradient(45deg, #191c26 25%, transparent 25%),
-    linear-gradient(-45deg, #191c26 25%, transparent 25%),
-    linear-gradient(45deg, transparent 75%, #191c26 75%),
-    linear-gradient(-45deg, transparent 75%, #191c26 75%);
+    linear-gradient(45deg, #1a1d28 25%, transparent 25%),
+    linear-gradient(-45deg, #1a1d28 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #1a1d28 75%),
+    linear-gradient(-45deg, transparent 75%, #1a1d28 75%);
   background-size: 20px 20px;
   background-position: 0 0, 0 10px, 10px -10px, -10px 0;
 }
 
-/* Native themed scrollbars with >= 3:1 thumb-to-track contrast */
+/* Native themed scrollbars with >= 3:1 thumb-to-track contrast + legacy WebKit fallback */
 .studio-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.32) rgba(255, 255, 255, 0.05);
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+@supports not (scrollbar-color: auto) {
+  .studio-scroll::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  .studio-scroll::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 9999px;
+  }
+  .studio-scroll::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
 }
 
 input:not([type="range"]):user-invalid {
@@ -63,7 +92,7 @@ input:not([type="range"]):user-invalid {
 }
 
 /* ============================================================
-   INDIVIDUAL TRANSFORM PROPERTIES (Overlay Float & Studio Cards)
+   INDIVIDUAL TRANSFORM PROPERTIES (Overlay Wipp-Animation & Studio Cards)
    Identity transforms prevent stacking-context / z-index jumps.
    ============================================================ */
 @keyframes overlayFloat {
@@ -71,7 +100,16 @@ input:not([type="range"]):user-invalid {
     translate: 0 0;
   }
   50% {
-    translate: 0 -5px;
+    translate: 0 -7px;
+  }
+}
+
+@keyframes overlayFloatLegacy {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-7px);
   }
 }
 
@@ -93,7 +131,14 @@ input:not([type="range"]):user-invalid {
   translate: 0px;
   rotate: 0deg;
   scale: 1;
-  animation: overlayFloat 4.8s ease-in-out infinite;
+  will-change: translate;
+  animation: overlayFloat 4.2s ease-in-out infinite;
+}
+
+@supports not (translate: 0px) {
+  .giveaway-float-card {
+    animation: overlayFloatLegacy 4.2s ease-in-out infinite;
+  }
 }
 
 .studio-card-tile {
@@ -122,7 +167,8 @@ input:not([type="range"]):user-invalid {
 
 /* ============================================================
    RARITY OUTLINES (see components/RarityRing.tsx)
-   Animated frame AROUND the card – card art itself stays clean.
+   Hollow perimeter ring + hollow perimeter glow so transparent
+   Booster PNGs inside the ring keep 100% transparent backgrounds!
    ============================================================ */
 .rarity-frame-rare,
 .rarity-frame-epic,
@@ -177,7 +223,12 @@ input:not([type="range"]):user-invalid {
   position: absolute;
   inset: calc(-1 * var(--glow-spread, 0px));
   border-radius: inherit;
+  padding: calc(var(--ring-w) * 2.4 + var(--glow-spread, 0px));
   overflow: hidden;
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
   filter: blur(var(--glow-blur));
   opacity: 0.95;
 }

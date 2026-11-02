@@ -56,7 +56,7 @@ export default function LoginPage() {
   };
 
   return (
-    <main className="relative w-screen h-screen overflow-hidden flex items-center justify-center bg-black select-none">
+    <main className="studio-shell relative w-screen h-screen overflow-hidden flex items-center justify-center bg-black text-white select-none">
       <PlaymatBackground theme="dark-carbon" />
 
       {/* Soft tri-colour ambience hinting at the three rarity tiers */}

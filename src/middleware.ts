@@ -10,12 +10,9 @@ export async function middleware(request: NextRequest) {
     return authed ? NextResponse.redirect(new URL('/', request.url)) : NextResponse.next();
   }
 
-  // Allow OBS Browser Source access to /overlay when carrying a valid ?key=... token
+  // Always allow /overlay to render transparently (never redirect OBS Browser Source to opaque /login)
   if (pathname === '/overlay' || pathname.startsWith('/overlay/')) {
-    const keyOk = await isValidOverlayKey(request.nextUrl.searchParams.get('key'));
-    if (authed || keyOk) {
-      return NextResponse.next();
-    }
+    return NextResponse.next();
   }
 
   // Allow read-only GET /api/sync for OBS Browser Source when carrying a valid overlay key

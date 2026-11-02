@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'ManaCards · Giveaway Overlay Studio',
-  description: 'Transparentes OBS Giveaway Overlay & Regie-Studio für Whatnot Streams.',
+  description: 'Transparente OBS Browser-Quelle & Regie-Studio für Whatnot Booster- und Karten-Giveaways.',
   manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
@@ -19,7 +19,6 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#090a0f',
 };
 
 export default function RootLayout({
@@ -28,13 +27,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="de" className="dark h-full w-full">
+    <html lang="de" className="h-full w-full">
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
-      <body className="h-full w-full text-white antialiased">
+      <body className="h-full w-full antialiased">
         {children}
       </body>
     </html>
