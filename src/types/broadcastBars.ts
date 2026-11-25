@@ -7,6 +7,9 @@ export type SocialPlatform =
   | 'discord'
   | 'custom';
 
+/** Visual design language shared by rotator + ticker */
+export type BroadcastDesign = 'minimal' | 'mana-wood';
+
 export type RotatorAnimationPreset = 'unfold' | 'wipe' | 'mana-surge';
 
 export type VeinColorMode = 'mana-blue' | 'platform';
@@ -21,7 +24,6 @@ export interface RotatorSlide {
   eyebrow: string;
   headline: string;
   subline: string;
-  badgeText: string;
   enabled: boolean;
 }
 
@@ -36,9 +38,8 @@ export interface RotatorBarSettings {
   animationPreset: RotatorAnimationPreset;
   veinColorMode: VeinColorMode;
   edgeStyle: BarEdgeStyle;
-  /** Target width in px inside the OBS Browser Source (portrait-ready) */
+  /** Max width in px inside the OBS Browser Source (portrait-ready) */
   widthPx: number;
-  showProgressBar: boolean;
   showWoodVeins: boolean;
 }
 
@@ -65,11 +66,14 @@ export interface TickerBarSettings {
 export interface BroadcastBarsSnapshot {
   updatedAt: number;
   senderId: string;
+  design: BroadcastDesign;
   rotator: RotatorBarSettings;
   slides: RotatorSlide[];
   ticker: TickerBarSettings;
   tickerItems: TickerItem[];
 }
+
+export const DEFAULT_BROADCAST_DESIGN: BroadcastDesign = 'minimal';
 
 export const DEFAULT_ROTATOR_SETTINGS: RotatorBarSettings = {
   visible: true,
@@ -80,7 +84,6 @@ export const DEFAULT_ROTATOR_SETTINGS: RotatorBarSettings = {
   veinColorMode: 'mana-blue',
   edgeStyle: 'angled',
   widthPx: 680,
-  showProgressBar: true,
   showWoodVeins: true,
 };
 
@@ -100,55 +103,49 @@ export const DEFAULT_ROTATOR_SLIDES: RotatorSlide[] = [
   {
     id: 'slide_instagram',
     platform: 'instagram',
-    eyebrow: 'FOLGT UNS AUF INSTAGRAM',
+    eyebrow: 'Folgt uns auf Instagram',
     headline: '@manacards_de_',
     subline: 'Drops, Hits & Behind the Scenes',
-    badgeText: 'FOLLOW',
     enabled: true,
   },
   {
     id: 'slide_tiktok',
     platform: 'tiktok',
-    eyebrow: 'FOLGT UNS AUF TIKTOK',
+    eyebrow: 'Folgt uns auf TikTok',
     headline: '@manacards_de',
     subline: 'Tägliche Pulls & Stream-Clips',
-    badgeText: 'TIKTOK',
     enabled: true,
   },
   {
     id: 'slide_whatnot',
     platform: 'whatnot',
-    eyebrow: 'ACCOUNT ADDEN · WHATNOT',
+    eyebrow: 'Account adden · Whatnot',
     headline: 'manacards_de',
     subline: 'Bookmark & kein Live-Break verpassen',
-    badgeText: 'ADD ACCOUNT',
     enabled: true,
   },
   {
     id: 'slide_buyback',
     platform: 'buyback',
-    eyebrow: 'WIR KAUFEN EURE KARTEN AN',
+    eyebrow: 'Wir kaufen eure Karten an',
     headline: 'manacards.de',
     subline: 'Einzelkarten & Sammlungen · Schnell übers Formular',
-    badgeText: 'ANKAUF',
     enabled: true,
   },
   {
     id: 'slide_whatsapp',
     platform: 'whatsapp',
-    eyebrow: 'WHATSAPP COMMUNITY',
+    eyebrow: 'WhatsApp Community',
     headline: 'ManaCards Community',
     subline: 'Stream-Alerts, Restocks & exklusive Infos',
-    badgeText: 'JOIN',
     enabled: true,
   },
   {
     id: 'slide_discord',
     platform: 'discord',
-    eyebrow: 'DISCORD SERVER',
+    eyebrow: 'Discord Server',
     headline: 'ManaCards Discord',
     subline: 'Tauschen, Pulls teilen & Community-Talk',
-    badgeText: 'JOIN',
     enabled: true,
   },
 ];
@@ -157,42 +154,42 @@ export const DEFAULT_TICKER_ITEMS: TickerItem[] = [
   {
     id: 'tick_buyback',
     platform: 'buyback',
-    label: 'KARTENANKAUF',
+    label: 'Kartenankauf',
     highlight: 'Wir kaufen eure Karten & Sammlungen · Formular auf manacards.de',
     enabled: true,
   },
   {
     id: 'tick_instagram',
     platform: 'instagram',
-    label: 'INSTAGRAM',
-    highlight: 'Folgt uns: @manacards_de_',
+    label: 'Instagram',
+    highlight: '@manacards_de_',
     enabled: true,
   },
   {
     id: 'tick_tiktok',
     platform: 'tiktok',
-    label: 'TIKTOK',
-    highlight: 'Clips & Pulls: @manacards_de',
+    label: 'TikTok',
+    highlight: '@manacards_de',
     enabled: true,
   },
   {
     id: 'tick_whatnot',
     platform: 'whatnot',
-    label: 'WHATNOT',
+    label: 'Whatnot',
     highlight: 'Account adden: manacards_de',
     enabled: true,
   },
   {
     id: 'tick_whatsapp',
     platform: 'whatsapp',
-    label: 'WHATSAPP',
+    label: 'WhatsApp',
     highlight: 'Join unsere WhatsApp Community',
     enabled: true,
   },
   {
     id: 'tick_discord',
     platform: 'discord',
-    label: 'DISCORD',
+    label: 'Discord',
     highlight: 'Join unseren Discord Server · Link in Bio',
     enabled: true,
   },
@@ -202,6 +199,7 @@ export function createDefaultBroadcastBarsSnapshot(senderId = 'init'): Broadcast
   return {
     updatedAt: 0,
     senderId,
+    design: DEFAULT_BROADCAST_DESIGN,
     rotator: { ...DEFAULT_ROTATOR_SETTINGS },
     slides: DEFAULT_ROTATOR_SLIDES.map((s) => ({ ...s })),
     ticker: { ...DEFAULT_TICKER_SETTINGS },
@@ -239,7 +237,6 @@ export function normalizeBroadcastBarsSnapshot(
           eyebrow: typeof s.eyebrow === 'string' ? s.eyebrow : '',
           headline: typeof s.headline === 'string' ? s.headline : '',
           subline: typeof s.subline === 'string' ? s.subline : '',
-          badgeText: typeof s.badgeText === 'string' ? s.badgeText : '',
           enabled: s.enabled !== false,
         }))
     : base.slides;
@@ -259,6 +256,7 @@ export function normalizeBroadcastBarsSnapshot(
   return {
     updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : 0,
     senderId: typeof raw.senderId === 'string' ? raw.senderId : fallbackSenderId,
+    design: raw.design === 'mana-wood' || raw.design === 'minimal' ? raw.design : DEFAULT_BROADCAST_DESIGN,
     rotator: {
       ...DEFAULT_ROTATOR_SETTINGS,
       ...(raw.rotator && typeof raw.rotator === 'object' ? raw.rotator : {}),

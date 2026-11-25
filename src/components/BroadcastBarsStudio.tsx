@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   BroadcastBarsSnapshot,
+  BroadcastDesign,
   RotatorAnimationPreset,
   RotatorBarSettings,
   RotatorSlide,
@@ -17,8 +18,7 @@ import {
   BARS_STORAGE_KEY,
   BroadcastBarsSyncController,
 } from '../lib/barsLiveSync';
-import { SocialRotatorBar } from './SocialRotatorBar';
-import { LiveTickerBar } from './LiveTickerBar';
+import { BroadcastRotator, BroadcastTicker } from './BroadcastBars';
 import { PLATFORM_THEMES, SocialBrandIcon } from './SocialBrandIcons';
 import { sound } from '../utils/sound';
 import {
@@ -59,10 +59,25 @@ const PLATFORM_OPTIONS: { id: SocialPlatform; label: string }[] = [
   { id: 'custom', label: 'ManaCards / Info' },
 ];
 
-const ANIMATION_PRESETS: { id: RotatorAnimationPreset; label: string; desc: string }[] = [
-  { id: 'unfold', label: 'Verzauberter Nebel', desc: 'Schrift schwebt aus arkanem Dunst' },
-  { id: 'wipe', label: 'Runen-Rolle', desc: 'Zeilen rollen wie eine Holztrommel' },
-  { id: 'mana-surge', label: 'Mana-Ausbruch', desc: 'Lettern entzünden sich im Mana-Blitz' },
+const ANIMATION_PRESETS: Record<
+  BroadcastDesign,
+  { id: RotatorAnimationPreset; label: string; desc: string }[]
+> = {
+  minimal: [
+    { id: 'unfold', label: 'Slide', desc: 'Zeilen gleiten maskiert nach oben' },
+    { id: 'wipe', label: 'Wipe', desc: 'Text wird von links aufgedeckt' },
+    { id: 'mana-surge', label: 'Fade', desc: 'Ruhige Überblendung' },
+  ],
+  'mana-wood': [
+    { id: 'unfold', label: 'Verzauberter Nebel', desc: 'Schrift schwebt aus arkanem Dunst' },
+    { id: 'wipe', label: 'Runen-Rolle', desc: 'Zeilen rollen wie eine Holztrommel' },
+    { id: 'mana-surge', label: 'Mana-Ausbruch', desc: 'Lettern entzünden sich im Mana-Blitz' },
+  ],
+};
+
+const DESIGN_OPTIONS: { id: BroadcastDesign; label: string; desc: string }[] = [
+  { id: 'minimal', label: 'Minimal Lower Third', desc: 'Neutral, monochrom, passt zu jedem Stream' },
+  { id: 'mana-wood', label: 'ManaCards Holz', desc: 'Fantasy-Holz mit leuchtenden Mana-Adern' },
 ];
 
 export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
@@ -188,7 +203,6 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
           eyebrow: 'MANACARDS HINWEIS',
           headline: 'Neuer Stream-Hinweis',
           subline: 'manacards.de',
-          badgeText: 'INFO',
           enabled: true,
         },
       ],
@@ -400,6 +414,37 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
           })}
         </div>
 
+        {/* Design language switch (applies to rotator + ticker) */}
+        <div className="p-4 border border-white/10 bg-zinc-950/75 space-y-2.5">
+          <span className="block text-[11px] font-bold uppercase tracking-[0.12em] text-slate-400">
+            Design-Stil (Rotator &amp; Ticker)
+          </span>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {DESIGN_OPTIONS.map((opt) => {
+              const active = snapshot.design === opt.id;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => {
+                    sound.playClick(660);
+                    commitUpdate(() => ({ design: opt.id }));
+                  }}
+                  className={`min-h-[44px] p-2.5 border text-left transition-colors ${
+                    active
+                      ? 'bg-sky-400/15 border-sky-400/60 text-white'
+                      : 'bg-black/40 border-white/10 text-slate-300 hover:border-white/25'
+                  }`}
+                >
+                  <div className="text-xs font-extrabold">{opt.label}</div>
+                  <div className="text-[10.5px] text-slate-400 mt-0.5">{opt.desc}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Sub-Tab Bar: Rotator vs. Ticker */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/10 pb-2">
           <div
@@ -570,7 +615,7 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                   Animations-Stil
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  {ANIMATION_PRESETS.map((p) => {
+                  {ANIMATION_PRESETS[snapshot.design].map((p) => {
                     const active = snapshot.rotator.animationPreset === p.id;
                     return (
                       <button
@@ -594,8 +639,9 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                 </div>
               </div>
 
-              {/* Style Toggles Row */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] font-bold">
+              {/* Style Toggles Row (wood design only) */}
+              {snapshot.design === 'mana-wood' && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] font-bold">
                 <button
                   type="button"
                   onClick={() =>
@@ -646,22 +692,8 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                     {snapshot.rotator.showWoodVeins ? 'Aktiviert' : 'Nur Holztextur'}
                   </div>
                 </button>
-
-                <button
-                  type="button"
-                  onClick={() =>
-                    updateRotator('showProgressBar', !snapshot.rotator.showProgressBar)
-                  }
-                  className="py-2 px-2.5 border border-white/15 bg-black/45 hover:bg-white/10 text-left"
-                >
-                  <div className="text-[9.5px] uppercase tracking-wider text-slate-400">
-                    Mana-Kanal (Timer)
-                  </div>
-                  <div className={snapshot.rotator.showProgressBar ? 'text-emerald-300 mt-0.5' : 'text-slate-400 mt-0.5'}>
-                    {snapshot.rotator.showProgressBar ? 'Sichtbar' : 'Aus'}
-                  </div>
-                </button>
               </div>
+              )}
             </div>
 
             {/* Slides Header + Add Button */}
@@ -847,7 +879,7 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                           />
                         </label>
 
-                        <label className="space-y-1">
+                        <label className="space-y-1 sm:col-span-2">
                           <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
                             Unterzeile (optional)
                           </span>
@@ -859,21 +891,6 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                             }
                             placeholder="z. B. Einzelkarten & Sammlungen übers Formular"
                             className="w-full h-9 px-2.5 bg-black/55 border border-white/12 text-xs text-slate-200 placeholder:text-slate-600 focus:outline-none focus:border-sky-400"
-                          />
-                        </label>
-
-                        <label className="space-y-1">
-                          <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            CTA-Tag rechts (optional)
-                          </span>
-                          <input
-                            type="text"
-                            value={slide.badgeText}
-                            onChange={(e) =>
-                              updateSlide(slide.id, { badgeText: e.target.value })
-                            }
-                            placeholder="z. B. ANKAUF / FOLLOW / JOIN"
-                            className="w-full h-9 px-2.5 bg-black/55 border border-white/12 text-xs font-bold uppercase text-white placeholder:text-slate-600 focus:outline-none focus:border-sky-400"
                           />
                         </label>
                       </div>
@@ -1029,7 +1046,11 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                   </div>
                 </label>
 
-                <div className="grid grid-cols-3 gap-1.5 items-end">
+                <div
+                  className={`grid gap-1.5 items-end ${
+                    snapshot.design === 'mana-wood' ? 'grid-cols-3' : 'grid-cols-1'
+                  }`}
+                >
                   <button
                     type="button"
                     onClick={() =>
@@ -1040,31 +1061,39 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                     }
                     className="h-9 px-2 border border-white/15 bg-black/45 hover:bg-white/10 text-[10.5px] font-bold text-sky-300 truncate"
                   >
-                    {snapshot.ticker.veinColorMode === 'mana-blue'
-                      ? 'Icons: Mana'
-                      : 'Icons: Bunt'}
+                    {snapshot.design === 'mana-wood'
+                      ? snapshot.ticker.veinColorMode === 'mana-blue'
+                        ? 'Icons: Mana'
+                        : 'Icons: Bunt'
+                      : snapshot.ticker.veinColorMode === 'mana-blue'
+                      ? 'Icons: Weiß'
+                      : 'Icons: Plattformfarbe'}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateTicker(
-                        'edgeStyle',
-                        snapshot.ticker.edgeStyle === 'sharp' ? 'angled' : 'sharp'
-                      )
-                    }
-                    className="h-9 px-2 border border-white/15 bg-black/45 hover:bg-white/10 text-[10.5px] font-bold text-white truncate"
-                  >
-                    {snapshot.ticker.edgeStyle === 'sharp' ? 'Glatt gesägt' : 'Rau gebrochen'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateTicker('showWoodVeins', !snapshot.ticker.showWoodVeins)
-                    }
-                    className="h-9 px-2 border border-white/15 bg-black/45 hover:bg-white/10 text-[10.5px] font-bold text-emerald-300 truncate"
-                  >
-                    {snapshot.ticker.showWoodVeins ? 'Adern: An' : 'Adern: Aus'}
-                  </button>
+                  {snapshot.design === 'mana-wood' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateTicker(
+                            'edgeStyle',
+                            snapshot.ticker.edgeStyle === 'sharp' ? 'angled' : 'sharp'
+                          )
+                        }
+                        className="h-9 px-2 border border-white/15 bg-black/45 hover:bg-white/10 text-[10.5px] font-bold text-white truncate"
+                      >
+                        {snapshot.ticker.edgeStyle === 'sharp' ? 'Glatt gesägt' : 'Rau gebrochen'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateTicker('showWoodVeins', !snapshot.ticker.showWoodVeins)
+                        }
+                        className="h-9 px-2 border border-white/15 bg-black/45 hover:bg-white/10 text-[10.5px] font-bold text-emerald-300 truncate"
+                      >
+                        {snapshot.ticker.showWoodVeins ? 'Adern: An' : 'Adern: Aus'}
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
@@ -1267,7 +1296,8 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
             {/* Simulated Card Playmat Center + Positioned Horizontal Rotator */}
             <div className="flex-1 flex flex-col items-center justify-between py-4 px-2">
               <div className="w-full flex justify-center">
-                <SocialRotatorBar
+                <BroadcastRotator
+                  design={snapshot.design}
                   slides={snapshot.slides}
                   settings={snapshot.rotator}
                   scale={previewScale}
@@ -1280,7 +1310,11 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
 
               {/* Horizontal Ticker positioned cleanly above Whatnot chat zone */}
               <div className="w-full">
-                <LiveTickerBar items={snapshot.tickerItems} settings={snapshot.ticker} />
+                <BroadcastTicker
+                  design={snapshot.design}
+                  items={snapshot.tickerItems}
+                  settings={snapshot.ticker}
+                />
               </div>
             </div>
 
@@ -1313,7 +1347,8 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
               </div>
               <div className="min-h-[96px] flex items-center justify-center overflow-hidden">
                 {snapshot.rotator.visible ? (
-                  <SocialRotatorBar
+                  <BroadcastRotator
+                    design={snapshot.design}
                     slides={snapshot.slides}
                     settings={snapshot.rotator}
                     scale={previewScale}
@@ -1336,7 +1371,11 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
               </div>
               <div className="min-h-[56px] flex items-center justify-center">
                 {snapshot.ticker.visible ? (
-                  <LiveTickerBar items={snapshot.tickerItems} settings={snapshot.ticker} />
+                  <BroadcastTicker
+                    design={snapshot.design}
+                    items={snapshot.tickerItems}
+                    settings={snapshot.ticker}
+                  />
                 ) : (
                   <span className="text-xs font-bold text-slate-500">
                     Ticker im Stream ausgeblendet

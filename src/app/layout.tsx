@@ -1,6 +1,13 @@
 import type { Metadata, Viewport } from 'next';
-import { Alegreya_Sans, Cinzel } from 'next/font/google';
+import { Alegreya_Sans, Cinzel, Geist } from 'next/font/google';
 import './globals.css';
+
+// Neutral geometric sans for the minimal lower-third design
+const geist = Geist({
+  subsets: ['latin'],
+  variable: '--font-geist',
+  display: 'swap',
+});
 
 // Fantasy display serif (carved inscriptions) + humanist storybook sans (readable copy)
 const cinzel = Cinzel({
@@ -43,7 +50,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="de" className={`h-full w-full ${cinzel.variable} ${alegreyaSans.variable}`}>
+    <html
+      lang="de"
+      className={`h-full w-full ${cinzel.variable} ${alegreyaSans.variable} ${geist.variable}`}
+    >
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />

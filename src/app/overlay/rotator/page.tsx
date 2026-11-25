@@ -11,8 +11,7 @@ import {
   BARS_STORAGE_KEY,
   BroadcastBarsSyncController,
 } from '../../../lib/barsLiveSync';
-import { SocialRotatorBar } from '../../../components/SocialRotatorBar';
-import { LiveTickerBar } from '../../../components/LiveTickerBar';
+import { BroadcastRotator, BroadcastTicker } from '../../../components/BroadcastBars';
 
 type AlignMode = 'top' | 'center' | 'bottom';
 
@@ -104,14 +103,20 @@ function RotatorOverlaySurface() {
           className="flex flex-col items-center gap-2.5 max-w-full"
           style={{ width: `${effectiveWidth}px` }}
         >
-          <SocialRotatorBar
+          <BroadcastRotator
+            design={snapshot.design}
             slides={snapshot.slides}
             settings={{ ...snapshot.rotator, widthPx: effectiveWidth }}
           />
-          <LiveTickerBar items={snapshot.tickerItems} settings={snapshot.ticker} />
+          <BroadcastTicker
+            design={snapshot.design}
+            items={snapshot.tickerItems}
+            settings={snapshot.ticker}
+          />
         </div>
       ) : (
-        <SocialRotatorBar
+        <BroadcastRotator
+          design={snapshot.design}
           slides={snapshot.slides}
           settings={{ ...snapshot.rotator, widthPx: effectiveWidth }}
         />

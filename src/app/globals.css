@@ -501,24 +501,6 @@ input:not([type="range"]):user-invalid {
    Flat (non-nested) media queries so older OBS CEF builds parse them.
    ============================================================ */
 
-/* Carved mana channel: fills left → right over the slide interval */
-@keyframes mcManaChannel {
-  from {
-    stroke-dashoffset: 1;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
-
-.mc-mana-channel {
-  stroke-dasharray: 1 1;
-  stroke-dashoffset: 1;
-  animation-name: mcManaChannel;
-  animation-timing-function: linear;
-  animation-fill-mode: forwards;
-}
-
 /* Bright mana droplet travelling along each vein */
 @keyframes mcManaFlow {
   from {

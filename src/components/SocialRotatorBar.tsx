@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   RotatorAnimationPreset,
@@ -8,15 +8,8 @@ import {
   RotatorSlide,
 } from '../types/broadcastBars';
 import { SocialBrandIcon, resolveVeinPalette } from './SocialBrandIcons';
-import {
-  BranchRune,
-  LogMedallion,
-  ManaWoodPlank,
-  Pt,
-  WOOD,
-  seededRandom,
-  smoothOpenPath,
-} from './ManaWoodPlank';
+import { BranchRune, LogMedallion, ManaWoodPlank, WOOD } from './ManaWoodPlank';
+import { useRotatorCycle } from './useRotatorCycle';
 
 interface SocialRotatorBarProps {
   slides: RotatorSlide[];
@@ -83,46 +76,8 @@ export const SocialRotatorBar: React.FC<SocialRotatorBarProps> = ({
   scale = 1,
 }) => {
   const reduceMotion = useReducedMotion() ?? false;
-
-  const enabledSlides = useMemo(
-    () => slides.filter((s) => s.enabled && (s.headline.trim() || s.eyebrow.trim())),
-    [slides]
-  );
-
-  const [cycleIndex, setCycleIndex] = useState(0);
-  const [turn, setTurn] = useState(0);
-
-  useEffect(() => {
-    if (cycleIndex >= enabledSlides.length) setCycleIndex(0);
-  }, [enabledSlides.length, cycleIndex]);
-
-  const pinnedSlide = useMemo(() => {
-    const targetId = previewSlideId || settings.pinnedSlideId;
-    if (!targetId) return null;
-    return slides.find((s) => s.id === targetId) ?? null;
-  }, [previewSlideId, settings.pinnedSlideId, slides]);
-
-  const isCycling =
-    settings.visible && !settings.paused && !pinnedSlide && enabledSlides.length > 1;
-
-  useEffect(() => {
-    if (!isCycling) return;
-    const ms = Math.max(3000, settings.intervalSec * 1000);
-    const id = setInterval(() => {
-      setCycleIndex((prev) => (prev + 1) % enabledSlides.length);
-    }, ms);
-    return () => clearInterval(id);
-  }, [isCycling, settings.intervalSec, enabledSlides.length]);
-
-  const activeSlide: RotatorSlide | null =
-    pinnedSlide ??
-    (enabledSlides.length > 0 ? enabledSlides[cycleIndex % enabledSlides.length] : null);
+  const { activeSlide, turn } = useRotatorCycle(slides, settings, previewSlideId);
   const activeId = activeSlide?.id ?? null;
-
-  // Each slide change turns the log token and re-keys the choreography
-  useEffect(() => {
-    if (activeId) setTurn((t) => t + 1);
-  }, [activeId]);
 
   // ---------------------------------------------------------------------------
   // Pixel-exact geometry (generated at the real size → zero stretching)
@@ -151,19 +106,6 @@ export const SocialRotatorBar: React.FC<SocialRotatorBarProps> = ({
     ],
     [x0, x1]
   );
-
-  // Carved mana channel along the lower edge (fills as the timer runs)
-  const channelPath = useMemo(() => {
-    const rand = seededRandom(91);
-    const start = textLeft - 6;
-    const end = lashR - 14;
-    const pts: Pt[] = [];
-    const steps = Math.max(3, Math.round((end - start) / 46));
-    for (let i = 0; i <= steps; i++) {
-      pts.push([start + ((end - start) * i) / steps, y1 - 6 + (rand() - 0.5) * 1.6]);
-    }
-    return smoothOpenPath(pts);
-  }, [textLeft, lashR, y1]);
 
   const show = settings.visible && !!activeSlide;
   const palette = resolveVeinPalette(activeSlide?.platform ?? 'custom', settings.veinColorMode);
@@ -220,7 +162,7 @@ export const SocialRotatorBar: React.FC<SocialRotatorBarProps> = ({
               endStyle={endStyle}
               lashings={[lashL, lashR]}
               twigs={twigs}
-              veinQuietZone={[textLeft - 8, textLeft + (W - textLeft - textRight) * 0.72]}
+              veinQuietZone={[textLeft - 8, W - textRight]}
             />
 
             {/* ========== Smoky reading vignette behind the text lane ========== */}
@@ -254,51 +196,6 @@ export const SocialRotatorBar: React.FC<SocialRotatorBarProps> = ({
               animate={{ opacity: [0, 1, 0] }}
               transition={{ duration: 1.3, ease: 'easeOut' }}
             />
-
-            {/* ========== Carved mana channel (slide timer) ========== */}
-            {settings.showProgressBar && (
-              <svg
-                width={W}
-                height={totalH}
-                viewBox={`0 0 ${W} ${totalH}`}
-                className="pointer-events-none absolute inset-0"
-                aria-hidden="true"
-                focusable="false"
-              >
-                <path
-                  d={channelPath}
-                  fill="none"
-                  stroke="#07040a"
-                  strokeOpacity={0.75}
-                  strokeWidth={3.4}
-                  strokeLinecap="round"
-                />
-                <path
-                  d={channelPath}
-                  fill="none"
-                  stroke={palette.accentHex}
-                  strokeOpacity={0.16}
-                  strokeWidth={1.6}
-                  strokeLinecap="round"
-                />
-                <path
-                  key={`channel_${slideKey}_${settings.intervalSec}_${isCycling ? 1 : 0}`}
-                  d={channelPath}
-                  pathLength={1}
-                  fill="none"
-                  stroke={palette.accentSoftHex}
-                  strokeWidth={1.7}
-                  strokeLinecap="round"
-                  className={isCycling ? 'mc-mana-channel' : undefined}
-                  style={{
-                    filter: `drop-shadow(0 0 3px ${palette.accentHex})`,
-                    ...(isCycling
-                      ? { animationDuration: `${settings.intervalSec}s` }
-                      : { strokeDasharray: '1 1', strokeDashoffset: 0 }),
-                  }}
-                />
-              </svg>
-            )}
 
             {/* ========== Text lane ========== */}
             <div
@@ -367,33 +264,6 @@ export const SocialRotatorBar: React.FC<SocialRotatorBarProps> = ({
                   </motion.div>
                 </AnimatePresence>
               </div>
-
-              {/* Carved, recessed inlay tag with glowing rune lettering */}
-              {activeSlide.badgeText.trim() && !isCompact && (
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={`badge_${slideKey}`}
-                    className="relative shrink-0 px-3 py-[7px] font-mana-display text-[11px] font-bold tracking-[0.14em] uppercase whitespace-nowrap"
-                    style={{
-                      color: palette.accentSoftHex,
-                      background: 'linear-gradient(180deg, #110a15 0%, #1d1424 100%)',
-                      clipPath: 'polygon(4% 0, 97% 6%, 100% 52%, 96% 100%, 3% 94%, 0 46%)',
-                      boxShadow:
-                        'inset 0 2px 4px rgba(0, 0, 0, 0.85), inset 0 -1px 0 rgba(190, 160, 210, 0.14)',
-                      textShadow: `0 0 8px rgba(${palette.accentRgb}, 0.9)`,
-                    }}
-                    initial={{ opacity: 0, filter: 'blur(4px)' }}
-                    animate={{
-                      opacity: 1,
-                      filter: 'blur(0px)',
-                      transition: { duration: 0.5, delay: 0.32, ease: EASE_OUT },
-                    }}
-                    exit={{ opacity: 0, filter: 'blur(4px)', transition: { duration: 0.22 } }}
-                  >
-                    {activeSlide.badgeText}
-                  </motion.div>
-                </AnimatePresence>
-              )}
             </div>
 
             {/* ========== Log-slice token (turns on every change) ========== */}

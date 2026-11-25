@@ -272,10 +272,8 @@ function buildVeins(
 
   while (x < x1 - 40) {
     const len = Math.min(x1 - 4 - x, 90 + rand() * 120);
-    // Inside the text lane veins hug the very top edge so lettering (and the
-    // carved timer channel along the bottom) stay crisp
+    // Inside the text lane veins hug the very outer edges so lettering stays crisp
     const quietSeg = inQuiet(x + len / 2);
-    if (quietSeg) top = true;
     const bandOffset = quietSeg ? h * (0.06 + rand() * 0.02) : h * (0.13 + rand() * 0.1);
     const bandY = top ? y0 + bandOffset : y1 - bandOffset;
     const ampl = quietSeg ? h * 0.035 : h * 0.12;

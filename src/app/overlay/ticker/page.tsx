@@ -11,7 +11,7 @@ import {
   BARS_STORAGE_KEY,
   BroadcastBarsSyncController,
 } from '../../../lib/barsLiveSync';
-import { LiveTickerBar } from '../../../components/LiveTickerBar';
+import { BroadcastTicker } from '../../../components/BroadcastBars';
 
 type AlignMode = 'top' | 'center' | 'bottom';
 
@@ -94,7 +94,11 @@ function TickerOverlaySurface() {
         </div>
       ) : (
         <div className="w-full">
-          <LiveTickerBar items={snapshot.tickerItems} settings={snapshot.ticker} />
+          <BroadcastTicker
+            design={snapshot.design}
+            items={snapshot.tickerItems}
+            settings={snapshot.ticker}
+          />
         </div>
       )}
     </main>
