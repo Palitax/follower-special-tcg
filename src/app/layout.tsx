@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from 'next';
-import { Alegreya_Sans, Cinzel, Geist } from 'next/font/google';
+import { Alegreya_Sans, Cinzel, Figtree } from 'next/font/google';
 import './globals.css';
 
-// Neutral geometric sans for the minimal lower-third design
-const geist = Geist({
+// Friendly bold geometric sans for the Whatnot-native overlay design
+const figtree = Figtree({
   subsets: ['latin'],
-  variable: '--font-geist',
+  weight: ['500', '600', '700', '800', '900'],
+  variable: '--font-figtree',
   display: 'swap',
 });
 
@@ -52,7 +53,7 @@ export default function RootLayout({
   return (
     <html
       lang="de"
-      className={`h-full w-full ${cinzel.variable} ${alegreyaSans.variable} ${geist.variable}`}
+      className={`h-full w-full ${cinzel.variable} ${alegreyaSans.variable} ${figtree.variable}`}
     >
       <head>
         <meta name="mobile-web-app-capable" content="yes" />

@@ -156,10 +156,12 @@ export const SocialBrandIcon: React.FC<SocialBrandIconProps> = ({
       return (
         <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
           <path
-            d="M3.2 6.2h3.1l2.25 8.55L10.95 6.8h2.15l2.35 7.95L17.7 6.2h3.1l-3.65 12.1h-2.75L12 10.65 9.6 18.3H6.85L3.2 6.2Z"
-            fill={color}
+            d="M3.6 6.4 7.7 17.6 12 9.6l4.3 8L20.4 6.4"
+            stroke={color}
+            strokeWidth="3.3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
           />
-          <rect x="4.5" y="19.8" width="15" height="1.7" fill={color} opacity="0.72" />
         </svg>
       );
 
@@ -190,34 +192,26 @@ export const SocialBrandIcon: React.FC<SocialBrandIconProps> = ({
       );
 
     case 'buyback':
-      // Crisp overlapping trading cards + exchange arrows (TCG Card Buyback)
+      // Fanned trading cards with a euro mark (TCG card buyback)
       return (
         <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
           <rect
-            x="4"
-            y="4"
-            width="10.5"
-            height="14.5"
+            x="3.6"
+            y="5.4"
+            width="10.4"
+            height="14.6"
+            rx="2"
+            transform="rotate(-14 8.8 12.7)"
             stroke={color}
-            strokeWidth="1.9"
+            strokeWidth="1.8"
+            opacity="0.6"
           />
+          <rect x="8.4" y="3.8" width="11.2" height="16.2" rx="2.2" stroke={color} strokeWidth="2" />
           <path
-            d="M14.5 6.8H19.5V20H9.5V18.5"
-            stroke={color}
-            strokeWidth="1.9"
-            strokeLinejoin="miter"
-          />
-          <path
-            d="M7.1 10.2h4.3M7.1 13.2h2.9"
+            d="M16.2 9.6a3.3 3.3 0 1 0 0 4.8M11.4 11.3h3.6M11.4 12.9h3.6"
             stroke={color}
             strokeWidth="1.7"
-            strokeLinecap="square"
-          />
-          <path
-            d="M14.2 13.6h3.2M15.8 12v3.2"
-            stroke={color}
-            strokeWidth="1.7"
-            strokeLinecap="square"
+            strokeLinecap="round"
           />
         </svg>
       );

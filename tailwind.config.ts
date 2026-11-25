@@ -15,7 +15,7 @@ const config: Config = {
       fontFamily: {
         'mana-display': ['var(--font-cinzel)', 'Georgia', 'serif'],
         'mana-body': ['var(--font-alegreya-sans)', 'system-ui', 'sans-serif'],
-        'lt-sans': ['var(--font-geist)', 'Inter', 'system-ui', '-apple-system', 'sans-serif'],
+        'wn-sans': ['var(--font-figtree)', 'Avenir Next', 'system-ui', '-apple-system', 'sans-serif'],
       },
       animation: {
         'shimmer': 'shimmer 2.5s infinite linear',

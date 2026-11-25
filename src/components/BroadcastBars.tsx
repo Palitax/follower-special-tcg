@@ -10,7 +10,7 @@ import {
 } from '../types/broadcastBars';
 import { SocialRotatorBar } from './SocialRotatorBar';
 import { LiveTickerBar } from './LiveTickerBar';
-import { MinimalLowerThird, MinimalTicker } from './MinimalBars';
+import { WhatnotLowerThird, WhatnotTicker } from './WhatnotBars';
 
 interface BroadcastRotatorProps {
   design: BroadcastDesign;
@@ -22,7 +22,7 @@ interface BroadcastRotatorProps {
 
 /** Renders the social rotator in the selected design language */
 export const BroadcastRotator: React.FC<BroadcastRotatorProps> = ({ design, ...props }) =>
-  design === 'mana-wood' ? <SocialRotatorBar {...props} /> : <MinimalLowerThird {...props} />;
+  design === 'mana-wood' ? <SocialRotatorBar {...props} /> : <WhatnotLowerThird {...props} />;
 
 interface BroadcastTickerProps {
   design: BroadcastDesign;
@@ -33,4 +33,4 @@ interface BroadcastTickerProps {
 
 /** Renders the horizontal ticker in the selected design language */
 export const BroadcastTicker: React.FC<BroadcastTickerProps> = ({ design, ...props }) =>
-  design === 'mana-wood' ? <LiveTickerBar {...props} /> : <MinimalTicker {...props} />;
+  design === 'mana-wood' ? <LiveTickerBar {...props} /> : <WhatnotTicker {...props} />;

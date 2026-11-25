@@ -63,9 +63,9 @@ const ANIMATION_PRESETS: Record<
   BroadcastDesign,
   { id: RotatorAnimationPreset; label: string; desc: string }[]
 > = {
-  minimal: [
-    { id: 'unfold', label: 'Slide', desc: 'Zeilen gleiten maskiert nach oben' },
-    { id: 'wipe', label: 'Wipe', desc: 'Text wird von links aufgedeckt' },
+  whatnot: [
+    { id: 'unfold', label: 'Pop', desc: 'Sticker springt auf, Icon dreht sich' },
+    { id: 'wipe', label: 'Slide', desc: 'Inhalte gleiten seitlich herein' },
     { id: 'mana-surge', label: 'Fade', desc: 'Ruhige Überblendung' },
   ],
   'mana-wood': [
@@ -76,7 +76,7 @@ const ANIMATION_PRESETS: Record<
 };
 
 const DESIGN_OPTIONS: { id: BroadcastDesign; label: string; desc: string }[] = [
-  { id: 'minimal', label: 'Minimal Lower Third', desc: 'Neutral, monochrom, passt zu jedem Stream' },
+  { id: 'whatnot', label: 'Whatnot Live', desc: 'Native Whatnot-Optik · Gelbe Sticker & App-Icons' },
   { id: 'mana-wood', label: 'ManaCards Holz', desc: 'Fantasy-Holz mit leuchtenden Mana-Adern' },
 ];
 
@@ -1046,11 +1046,8 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                   </div>
                 </label>
 
-                <div
-                  className={`grid gap-1.5 items-end ${
-                    snapshot.design === 'mana-wood' ? 'grid-cols-3' : 'grid-cols-1'
-                  }`}
-                >
+                {snapshot.design === 'mana-wood' && (
+                <div className="grid grid-cols-3 gap-1.5 items-end">
                   <button
                     type="button"
                     onClick={() =>
@@ -1061,16 +1058,11 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                     }
                     className="h-9 px-2 border border-white/15 bg-black/45 hover:bg-white/10 text-[10.5px] font-bold text-sky-300 truncate"
                   >
-                    {snapshot.design === 'mana-wood'
-                      ? snapshot.ticker.veinColorMode === 'mana-blue'
-                        ? 'Icons: Mana'
-                        : 'Icons: Bunt'
-                      : snapshot.ticker.veinColorMode === 'mana-blue'
-                      ? 'Icons: Weiß'
-                      : 'Icons: Plattformfarbe'}
+                    {snapshot.ticker.veinColorMode === 'mana-blue'
+                      ? 'Icons: Mana'
+                      : 'Icons: Bunt'}
                   </button>
-                  {snapshot.design === 'mana-wood' && (
-                    <>
+                  <>
                       <button
                         type="button"
                         onClick={() =>
@@ -1093,8 +1085,8 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                         {snapshot.ticker.showWoodVeins ? 'Adern: An' : 'Adern: Aus'}
                       </button>
                     </>
-                  )}
                 </div>
+                )}
               </div>
             </div>
 

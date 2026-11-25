@@ -8,7 +8,7 @@ export type SocialPlatform =
   | 'custom';
 
 /** Visual design language shared by rotator + ticker */
-export type BroadcastDesign = 'minimal' | 'mana-wood';
+export type BroadcastDesign = 'whatnot' | 'mana-wood';
 
 export type RotatorAnimationPreset = 'unfold' | 'wipe' | 'mana-surge';
 
@@ -73,7 +73,7 @@ export interface BroadcastBarsSnapshot {
   tickerItems: TickerItem[];
 }
 
-export const DEFAULT_BROADCAST_DESIGN: BroadcastDesign = 'minimal';
+export const DEFAULT_BROADCAST_DESIGN: BroadcastDesign = 'whatnot';
 
 export const DEFAULT_ROTATOR_SETTINGS: RotatorBarSettings = {
   visible: true,
@@ -256,7 +256,7 @@ export function normalizeBroadcastBarsSnapshot(
   return {
     updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : 0,
     senderId: typeof raw.senderId === 'string' ? raw.senderId : fallbackSenderId,
-    design: raw.design === 'mana-wood' || raw.design === 'minimal' ? raw.design : DEFAULT_BROADCAST_DESIGN,
+    design: raw.design === 'mana-wood' ? 'mana-wood' : DEFAULT_BROADCAST_DESIGN,
     rotator: {
       ...DEFAULT_ROTATOR_SETTINGS,
       ...(raw.rotator && typeof raw.rotator === 'object' ? raw.rotator : {}),
