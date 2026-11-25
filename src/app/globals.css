@@ -495,3 +495,79 @@ input:not([type="range"]):user-invalid {
     opacity: 0.45;
   }
 }
+
+/* ============================================================
+   MANACARDS SOCIAL ROTATOR & HORIZONTAL TICKER BARS
+   Compositor-only transforms/opacity + reduced-motion discipline
+   ============================================================ */
+@keyframes mcRotatorProgress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.mc-rotator-progress {
+  transform-origin: left center;
+  will-change: transform;
+  animation-name: mcRotatorProgress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
+}
+
+@keyframes mcTickerMarquee {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.mc-ticker-track {
+  will-change: transform;
+  animation-name: mcTickerMarquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+
+  @media (prefers-reduced-motion: reduce) {
+    animation-duration: 90s !important;
+  }
+}
+
+@keyframes mcVeinPulse {
+  0%, 100% {
+    opacity: 0.62;
+  }
+  50% {
+    opacity: 0.96;
+  }
+}
+
+.mc-vein-pulse {
+  opacity: 0.78;
+  @media (prefers-reduced-motion: no-preference) {
+    animation: mcVeinPulse 5.2s ease-in-out infinite;
+  }
+}
+
+.mc-vein-pulse-delayed {
+  opacity: 0.74;
+  @media (prefers-reduced-motion: no-preference) {
+    animation: mcVeinPulse 6.1s ease-in-out 1.8s infinite;
+  }
+}
+
+/* Accessible studio mode tabs — border underline indicator (never color alone) */
+.mc-studio-tab {
+  position: relative;
+}
+
+.mc-studio-tab[aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  inset: auto 10px 0;
+  border-block-end: 2.5px solid #38bdf8;
+}

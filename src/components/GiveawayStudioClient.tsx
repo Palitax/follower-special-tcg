@@ -14,6 +14,7 @@ import {
 import { PlaymatBackground } from './PlaymatBackground';
 import { DEFAULT_GIVEAWAY_IMAGE, GiveawayOverlayCard } from './GiveawayOverlayCard';
 import { TierSetupModal } from './TierSetupModal';
+import { BroadcastBarsStudio } from './BroadcastBarsStudio';
 import {
   LiveGiveawaySnapshot,
   LiveGiveawaySyncController,
@@ -291,6 +292,7 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
   });
 
   // UI Modals & Preview state
+  const [studioMode, setStudioMode] = useState<'giveaways' | 'bars'>('giveaways');
   const [isTierModalOpen, setIsTierModalOpen] = useState(false);
   const [overlayKey, setOverlayKey] = useState<string>(initialOverlayKey);
   const [originUrl, setOriginUrl] = useState<string>('');
@@ -1050,7 +1052,48 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
           </div>
 
           <div
-            className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-bold select-none ${
+            role="tablist"
+            aria-label="ManaCards Studio Module"
+            className="flex items-center border border-white/15 bg-black/50 p-0.5 shrink-0"
+          >
+            <button
+              type="button"
+              role="tab"
+              id="studio-tab-giveaways"
+              aria-selected={studioMode === 'giveaways'}
+              onClick={() => {
+                sound.playClick(640);
+                setStudioMode('giveaways');
+              }}
+              className={`mc-studio-tab px-2.5 sm:px-3.5 py-1.5 text-[11px] font-black uppercase tracking-[0.1em] transition-colors select-none whitespace-nowrap ${
+                studioMode === 'giveaways'
+                  ? 'text-white bg-white/10'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Follower Special
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="studio-tab-bars"
+              aria-selected={studioMode === 'bars'}
+              onClick={() => {
+                sound.playClick(640);
+                setStudioMode('bars');
+              }}
+              className={`mc-studio-tab px-2.5 sm:px-3.5 py-1.5 text-[11px] font-black uppercase tracking-[0.1em] transition-colors select-none whitespace-nowrap ${
+                studioMode === 'bars'
+                  ? 'text-sky-200 bg-sky-500/15'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Social Rotator &amp; Ticker
+            </button>
+          </div>
+
+          <div
+            className={`hidden xl:inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-bold select-none ${
               syncMeta.overlayCount > 0
                 ? 'bg-emerald-500/15 border-emerald-400/45 text-emerald-200 shadow-[0_0_14px_rgba(16,185,129,0.2)]'
                 : syncMeta.status === 'live'
@@ -1080,52 +1123,56 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
 
         {/* Right: Quick OBS Copy + Standalone Open + Tier Setup + Mute + Logout */}
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleCopyOverlayLink}
-            className={`h-9 px-3 sm:px-3.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all active:scale-95 select-none ${
-              copiedLink
-                ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-400/25'
-                : 'bg-amber-400 hover:bg-amber-300 text-black shadow-lg shadow-amber-400/15'
-            }`}
-            title="Transparente Browser-Quellen-URL für OBS Studio kopieren"
-          >
-            {copiedLink ? (
-              <>
-                <Check className="w-3.5 h-3.5 stroke-[3]" />
-                <span>Browser-Quellen-URL kopiert!</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" />
-                <span>Browser-Quellen-URL kopieren</span>
-              </>
-            )}
-          </button>
+          {studioMode === 'giveaways' && (
+            <>
+              <button
+                type="button"
+                onClick={handleCopyOverlayLink}
+                className={`h-9 px-3 sm:px-3.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all active:scale-95 select-none ${
+                  copiedLink
+                    ? 'bg-emerald-400 text-black shadow-lg shadow-emerald-400/25'
+                    : 'bg-amber-400 hover:bg-amber-300 text-black shadow-lg shadow-amber-400/15'
+                }`}
+                title="Transparente Browser-Quellen-URL für OBS Studio kopieren"
+              >
+                {copiedLink ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    <span>Browser-Quellen-URL kopiert!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Browser-Quellen-URL kopieren</span>
+                  </>
+                )}
+              </button>
 
-          <a
-            href={obsOverlayUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="h-9 px-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-bold text-slate-200 hover:text-white flex items-center gap-1.5 transition-all select-none"
-            title="Nur-Giveaway-Ansicht (transparenter Hintergrund) in eigenem Tab öffnen"
-          >
-            <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
-            <span className="hidden lg:inline">Browser-Quelle öffnen</span>
-          </a>
+              <a
+                href={obsOverlayUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="h-9 px-2.5 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-bold text-slate-200 hover:text-white flex items-center gap-1.5 transition-all select-none"
+                title="Nur-Giveaway-Ansicht (transparenter Hintergrund) in eigenem Tab öffnen"
+              >
+                <ExternalLink className="w-3.5 h-3.5 text-amber-300" />
+                <span className="hidden lg:inline">Browser-Quelle öffnen</span>
+              </a>
 
-          <button
-            type="button"
-            onClick={() => {
-              sound.playClick(620);
-              setIsTierModalOpen(true);
-            }}
-            className="h-9 px-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-bold text-slate-200 hover:text-white flex items-center gap-1.5 transition-all active:scale-95 select-none"
-            title="Giveaway-Anzahl für Rare, Epic & Legendary anpassen"
-          >
-            <Layers className="w-3.5 h-3.5 text-cyan-300" />
-            <span className="hidden sm:inline">Stufen-Anzahl</span>
-          </button>
+              <button
+                type="button"
+                onClick={() => {
+                  sound.playClick(620);
+                  setIsTierModalOpen(true);
+                }}
+                className="h-9 px-3 rounded-xl bg-white/10 hover:bg-white/15 border border-white/15 text-xs font-bold text-slate-200 hover:text-white flex items-center gap-1.5 transition-all active:scale-95 select-none"
+                title="Giveaway-Anzahl für Rare, Epic & Legendary anpassen"
+              >
+                <Layers className="w-3.5 h-3.5 text-cyan-300" />
+                <span className="hidden sm:inline">Stufen-Anzahl</span>
+              </button>
+            </>
+          )}
 
           <button
             type="button"
@@ -1167,7 +1214,9 @@ export const GiveawayStudioClient: React.FC<GiveawayStudioClientProps> = ({
       {/* =====================================================================
           MAIN STUDIO BODY
          ===================================================================== */}
-      {hasInitialized && totalPoolItems === 0 ? (
+      {studioMode === 'bars' ? (
+        <BroadcastBarsStudio overlayKey={overlayKey} originUrl={originUrl} />
+      ) : hasInitialized && totalPoolItems === 0 ? (
         /* Initial First-Run Setup View (pre-filled with 30 Rare / 15 Epic / 10 Legendary) */
         <main className="relative z-20 flex-1 overflow-y-auto studio-scroll flex items-center justify-center p-4 sm:p-8">
           <div className="w-full max-w-xl rounded-3xl bg-stone-900/85 backdrop-blur-xl border border-white/15 shadow-[0_30px_80px_rgba(0,0,0,0.75)] p-6 sm:p-8 space-y-6">

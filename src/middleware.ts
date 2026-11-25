@@ -15,8 +15,11 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Allow read-only GET /api/sync for OBS Browser Source when carrying a valid overlay key
-  if (pathname === '/api/sync' && request.method === 'GET') {
+  // Allow read-only GET /api/sync and /api/bars-sync for OBS Browser Source when carrying a valid overlay key
+  if (
+    (pathname === '/api/sync' || pathname === '/api/bars-sync') &&
+    request.method === 'GET'
+  ) {
     const suppliedKey =
       request.nextUrl.searchParams.get('key') ?? request.headers.get('x-overlay-key');
     if (authed || (await isValidOverlayKey(suppliedKey))) {
