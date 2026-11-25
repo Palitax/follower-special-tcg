@@ -501,6 +501,13 @@ input:not([type="range"]):user-invalid {
    Flat (non-nested) media queries so older OBS CEF builds parse them.
    ============================================================ */
 
+/* Crisp high-DPI text & vector rendering inside OBS Chromium Browser Source */
+.mc-crisp-overlay {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+}
+
 /* Bright mana droplet travelling along each vein */
 @keyframes mcManaFlow {
   from {

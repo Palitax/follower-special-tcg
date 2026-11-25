@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   BroadcastBarsSnapshot,
   BroadcastDesign,
+  OverlayQualityScale,
+  OverlayResizeMode,
   RotatorAnimationPreset,
   RotatorBarSettings,
   RotatorSlide,
@@ -19,7 +21,8 @@ import {
   BroadcastBarsSyncController,
 } from '../lib/barsLiveSync';
 import { BroadcastRotator, BroadcastTicker } from './BroadcastBars';
-import { PLATFORM_THEMES, SocialBrandIcon } from './SocialBrandIcons';
+import { PlatformBadge } from './WhatnotBars';
+import { PLATFORM_THEMES } from './SocialBrandIcons';
 import { sound } from '../utils/sound';
 import {
   Check,
@@ -324,11 +327,33 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
   const activeTickerCount = snapshot.tickerItems.filter((t) => t.enabled).length;
   const pinnedSlide = snapshot.slides.find((s) => s.id === snapshot.rotator.pinnedSlideId);
 
-  // Preview scale so wide rotators fit comfortably inside the right-hand monitor
+  // Recommended OBS Browser Source dimensions matching native HiDPI qualityScale (0 upscaling blur)
+  const rotQ = snapshot.rotator.qualityScale ?? 2;
+  const tickQ = snapshot.ticker.qualityScale ?? 2;
+  const obsRotatorW = Math.max(800, Math.round((snapshot.rotator.widthPx + 40) * rotQ));
+  const obsRotatorH = Math.max(180, Math.round((snapshot.rotator.heightPx + 56) * rotQ));
+  const obsTickerW = snapshot.ticker.fullWidth
+    ? Math.round(1080 * Math.min(1.5, tickQ))
+    : Math.max(640, Math.round((snapshot.ticker.widthPx + 32) * tickQ));
+  const obsTickerH = Math.max(100, Math.round((snapshot.ticker.heightPx + 32) * tickQ));
+  const obsComboW = Math.max(obsRotatorW, obsTickerW);
+  const obsComboH = obsRotatorH + obsTickerH;
+
+  // Preview scale factors so HiDPI 2x overlays render razor-sharp inside the monitor without overflow
   const previewScale = useMemo(() => {
-    const targetBoxWidth = previewMode === 'portrait' ? 270 : 420;
-    return Math.min(1, targetBoxWidth / Math.max(380, snapshot.rotator.widthPx));
-  }, [previewMode, snapshot.rotator.widthPx]);
+    const targetBoxWidth = previewMode === 'portrait' ? 268 : 420;
+    const renderedW = Math.max(300, snapshot.rotator.widthPx) * rotQ;
+    return Math.min(1 / rotQ, targetBoxWidth / renderedW);
+  }, [previewMode, snapshot.rotator.widthPx, rotQ]);
+
+  const tickerPreviewScale = useMemo(() => {
+    const targetBoxWidth = previewMode === 'portrait' ? 276 : 420;
+    if (snapshot.ticker.fullWidth) {
+      return Math.min(1, 1 / tickQ);
+    }
+    const renderedW = Math.max(360, snapshot.ticker.widthPx) * tickQ;
+    return Math.min(1 / tickQ, targetBoxWidth / renderedW);
+  }, [previewMode, snapshot.ticker.fullWidth, snapshot.ticker.widthPx, tickQ]);
 
   return (
     <div className="relative z-20 flex-1 min-h-0 flex flex-col xl:flex-row overflow-hidden">
@@ -342,21 +367,21 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
             {
               id: 'rotator',
               title: 'Social Rotator',
-              sizeHint: 'OBS: 800 × 140 px',
+              sizeHint: `OBS: ${obsRotatorW} × ${obsRotatorH} px (${rotQ}×)`,
               url: obsUrls.rotator,
               accent: 'border-sky-400/35 bg-sky-500/[0.06]',
             },
             {
               id: 'ticker',
               title: 'Horizontal Ticker',
-              sizeHint: 'OBS: 1080 × 76 px',
+              sizeHint: `OBS: ${obsTickerW} × ${obsTickerH} px (${tickQ}×)`,
               url: obsUrls.ticker,
               accent: 'border-amber-400/35 bg-amber-500/[0.06]',
             },
             {
               id: 'combined',
               title: 'Kombi-Dock (Beide)',
-              sizeHint: 'OBS: 960 × 210 px',
+              sizeHint: `OBS: ${obsComboW} × ${obsComboH} px`,
               url: obsUrls.combined,
               accent: 'border-purple-400/35 bg-purple-500/[0.06]',
             },
@@ -569,7 +594,166 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                 </div>
               </div>
 
+              {/* Resize Mode & HiDPI Quality Selector */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-white/10">
+                <div className="space-y-1.5">
+                  <span className="block text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                    Größen-Modus
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(
+                      [
+                        {
+                          id: 'together',
+                          label: 'Zusammen',
+                          sub: 'Hintergrund + Text',
+                        },
+                        {
+                          id: 'background-only',
+                          label: 'Nur Hintergrund',
+                          sub: 'Text bleibt fix',
+                        },
+                      ] as { id: OverlayResizeMode; label: string; sub: string }[]
+                    ).map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => {
+                          sound.playClick(620);
+                          updateRotator('resizeMode', m.id);
+                        }}
+                        className={`p-2 border text-left transition-colors ${
+                          snapshot.rotator.resizeMode === m.id
+                            ? 'bg-sky-400/15 border-sky-400/60 text-white'
+                            : 'bg-black/40 border-white/10 text-slate-300 hover:border-white/25'
+                        }`}
+                      >
+                        <div className="text-[11px] font-extrabold">{m.label}</div>
+                        <div className="text-[10px] text-slate-400">{m.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="block text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                    OBS Schärfe / Auflösung
+                  </span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(
+                      [
+                        { id: 1, label: '1×', sub: 'Standard' },
+                        { id: 1.5, label: '1.5×', sub: 'HD' },
+                        { id: 2, label: '2×', sub: 'Retina' },
+                      ] as { id: OverlayQualityScale; label: string; sub: string }[]
+                    ).map((qOpt) => (
+                      <button
+                        key={qOpt.id}
+                        type="button"
+                        onClick={() => {
+                          sound.playClick(640);
+                          updateRotator('qualityScale', qOpt.id);
+                        }}
+                        className={`p-2 border text-center transition-colors ${
+                          snapshot.rotator.qualityScale === qOpt.id
+                            ? 'bg-emerald-400/15 border-emerald-400/60 text-emerald-200'
+                            : 'bg-black/40 border-white/10 text-slate-300 hover:border-white/25'
+                        }`}
+                      >
+                        <div className="text-xs font-black">{qOpt.label}</div>
+                        <div className="text-[9.5px] text-slate-400">{qOpt.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Independent Width, Height, Content Scale & Interval Sliders */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Width Slider + Fixed/Auto toggle */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs gap-2">
+                    <span className="font-bold text-slate-300">
+                      {snapshot.rotator.resizeMode === 'background-only'
+                        ? 'Hintergrund-Breite'
+                        : 'Breite (unabhängig)'}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {snapshot.design === 'whatnot' && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            updateRotator(
+                              'widthMode',
+                              snapshot.rotator.widthMode === 'fixed' ? 'auto' : 'fixed'
+                            )
+                          }
+                          className="px-1.5 py-0.5 text-[10px] font-bold border border-white/15 bg-white/5 hover:bg-white/10 text-slate-200"
+                          title="Fix verwendet exakt den Breiten-Regler; Auto passt die Karte an den Text an"
+                        >
+                          {snapshot.rotator.widthMode === 'fixed' ? 'Fix' : 'Auto'}
+                        </button>
+                      )}
+                      <span className="font-black text-sky-300">
+                        {snapshot.rotator.widthPx} px
+                      </span>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min={300}
+                    max={1100}
+                    step={10}
+                    value={snapshot.rotator.widthPx}
+                    onChange={(e) => updateRotator('widthPx', Number(e.target.value))}
+                    className="w-full cursor-pointer"
+                  />
+                </div>
+
+                {/* Independent Height Slider */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-300">
+                      {snapshot.rotator.resizeMode === 'background-only'
+                        ? 'Hintergrund-Höhe'
+                        : 'Höhe (unabhängig)'}
+                    </span>
+                    <span className="font-black text-sky-300">
+                      {snapshot.rotator.heightPx} px
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={60}
+                    max={260}
+                    step={2}
+                    value={snapshot.rotator.heightPx}
+                    onChange={(e) => updateRotator('heightPx', Number(e.target.value))}
+                    className="w-full cursor-pointer"
+                  />
+                </div>
+
+                {/* Independent Text & Icon Scale */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-300">
+                      Text- &amp; Logo-Größe
+                    </span>
+                    <span className="font-black text-amber-300">
+                      {snapshot.rotator.contentScale}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={60}
+                    max={220}
+                    step={5}
+                    value={snapshot.rotator.contentScale}
+                    onChange={(e) => updateRotator('contentScale', Number(e.target.value))}
+                    className="w-full cursor-pointer"
+                  />
+                </div>
+
                 {/* Interval Slider */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
@@ -585,25 +769,6 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                     step={1}
                     value={snapshot.rotator.intervalSec}
                     onChange={(e) => updateRotator('intervalSec', Number(e.target.value))}
-                    className="w-full cursor-pointer"
-                  />
-                </div>
-
-                {/* Width Slider */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-300">Breite in OBS</span>
-                    <span className="font-black text-sky-300">
-                      {snapshot.rotator.widthPx} px
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={400}
-                    max={980}
-                    step={20}
-                    value={snapshot.rotator.widthPx}
-                    onChange={(e) => updateRotator('widthPx', Number(e.target.value))}
                     className="w-full cursor-pointer"
                   />
                 </div>
@@ -736,12 +901,11 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                     <div className="p-3.5 pl-4 space-y-3">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex items-center gap-2.5">
-                          <div
-                            className="w-8 h-8 flex items-center justify-center bg-black/60 border border-white/15 shrink-0"
-                            style={{ color: theme.accentHex }}
-                          >
-                            <SocialBrandIcon platform={slide.platform} className="w-4 h-4" />
-                          </div>
+                          <PlatformBadge
+                            platform={slide.platform}
+                            size={34}
+                            radius={9}
+                          />
 
                           <select
                             aria-label="Plattform"
@@ -966,7 +1130,142 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                 </div>
               </div>
 
+              {/* Ticker Resize Mode & HiDPI Quality */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-1 border-t border-white/10">
+                <div className="space-y-1.5">
+                  <span className="block text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                    Größen-Modus
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {(
+                      [
+                        { id: 'together', label: 'Zusammen', sub: 'Hintergrund + Text' },
+                        { id: 'background-only', label: 'Nur Hintergrund', sub: 'Text bleibt fix' },
+                      ] as { id: OverlayResizeMode; label: string; sub: string }[]
+                    ).map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => updateTicker('resizeMode', m.id)}
+                        className={`p-2 border text-left transition-colors ${
+                          snapshot.ticker.resizeMode === m.id
+                            ? 'bg-sky-400/15 border-sky-400/60 text-white'
+                            : 'bg-black/40 border-white/10 text-slate-300 hover:border-white/25'
+                        }`}
+                      >
+                        <div className="text-[11px] font-extrabold">{m.label}</div>
+                        <div className="text-[10px] text-slate-400">{m.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="block text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                    OBS Schärfe / Auflösung
+                  </span>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {(
+                      [
+                        { id: 1, label: '1×', sub: 'Standard' },
+                        { id: 1.5, label: '1.5×', sub: 'HD' },
+                        { id: 2, label: '2×', sub: 'Retina' },
+                      ] as { id: OverlayQualityScale; label: string; sub: string }[]
+                    ).map((qOpt) => (
+                      <button
+                        key={qOpt.id}
+                        type="button"
+                        onClick={() => updateTicker('qualityScale', qOpt.id)}
+                        className={`p-2 border text-center transition-colors ${
+                          snapshot.ticker.qualityScale === qOpt.id
+                            ? 'bg-emerald-400/15 border-emerald-400/60 text-emerald-200'
+                            : 'bg-black/40 border-white/10 text-slate-300 hover:border-white/25'
+                        }`}
+                      >
+                        <div className="text-xs font-black">{qOpt.label}</div>
+                        <div className="text-[9.5px] text-slate-400">{qOpt.sub}</div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Width Slider + Full Width Toggle */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs gap-2">
+                    <span className="font-bold text-slate-300">
+                      {snapshot.ticker.resizeMode === 'background-only'
+                        ? 'Hintergrund-Breite'
+                        : 'Breite (unabhängig)'}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateTicker('fullWidth', !snapshot.ticker.fullWidth)}
+                        className="px-1.5 py-0.5 text-[10px] font-bold border border-white/15 bg-white/5 hover:bg-white/10 text-slate-200"
+                      >
+                        {snapshot.ticker.fullWidth ? '100% OBS' : 'Fix px'}
+                      </button>
+                      <span className="font-black text-sky-300">
+                        {snapshot.ticker.fullWidth ? 'Voll' : `${snapshot.ticker.widthPx} px`}
+                      </span>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min={360}
+                    max={1400}
+                    step={20}
+                    disabled={snapshot.ticker.fullWidth}
+                    value={snapshot.ticker.widthPx}
+                    onChange={(e) => updateTicker('widthPx', Number(e.target.value))}
+                    className="w-full cursor-pointer disabled:opacity-40"
+                  />
+                </div>
+
+                {/* Height Slider */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-300">
+                      {snapshot.ticker.resizeMode === 'background-only'
+                        ? 'Hintergrund-Höhe'
+                        : 'Höhe (unabhängig)'}
+                    </span>
+                    <span className="font-black text-sky-300">
+                      {snapshot.ticker.heightPx} px
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={38}
+                    max={160}
+                    step={2}
+                    value={snapshot.ticker.heightPx}
+                    onChange={(e) => updateTicker('heightPx', Number(e.target.value))}
+                    className="w-full cursor-pointer"
+                  />
+                </div>
+
+                {/* Text & Icon Scale */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="font-bold text-slate-300">Text- &amp; Logo-Größe</span>
+                    <span className="font-black text-amber-300">
+                      {snapshot.ticker.contentScale}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={60}
+                    max={220}
+                    step={5}
+                    value={snapshot.ticker.contentScale}
+                    onChange={(e) => updateTicker('contentScale', Number(e.target.value))}
+                    className="w-full cursor-pointer"
+                  />
+                </div>
+
                 {/* Speed Picker */}
                 <div className="space-y-1.5">
                   <span className="block text-[11px] font-bold text-slate-300">
@@ -994,25 +1293,6 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                       </button>
                     ))}
                   </div>
-                </div>
-
-                {/* Height Slider */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-300">Höhe der Ticker-Leiste</span>
-                    <span className="font-black text-sky-300">
-                      {snapshot.ticker.heightPx} px
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={38}
-                    max={68}
-                    step={2}
-                    value={snapshot.ticker.heightPx}
-                    onChange={(e) => updateTicker('heightPx', Number(e.target.value))}
-                    className="w-full cursor-pointer"
-                  />
                 </div>
               </div>
 
@@ -1122,10 +1402,12 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                       style={{ backgroundColor: theme.accentHex }}
                     />
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span style={{ color: theme.accentHex }}>
-                          <SocialBrandIcon platform={item.platform} className="w-4 h-4" />
-                        </span>
+                      <div className="flex items-center gap-2.5">
+                        <PlatformBadge
+                          platform={item.platform}
+                          size={30}
+                          radius={8}
+                        />
                         <select
                           aria-label="Ticker Plattform"
                           value={item.platform}
@@ -1301,11 +1583,12 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
               </div>
 
               {/* Horizontal Ticker positioned cleanly above Whatnot chat zone */}
-              <div className="w-full">
+              <div className="w-full flex justify-center">
                 <BroadcastTicker
                   design={snapshot.design}
                   items={snapshot.tickerItems}
                   settings={snapshot.ticker}
+                  scale={tickerPreviewScale}
                 />
               </div>
             </div>
@@ -1361,12 +1644,13 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                   {snapshot.ticker.paused ? 'Pausiert' : `Speed: ${snapshot.ticker.speed}`}
                 </span>
               </div>
-              <div className="min-h-[56px] flex items-center justify-center">
+              <div className="min-h-[56px] flex items-center justify-center overflow-hidden">
                 {snapshot.ticker.visible ? (
                   <BroadcastTicker
                     design={snapshot.design}
                     items={snapshot.tickerItems}
                     settings={snapshot.ticker}
+                    scale={tickerPreviewScale}
                   />
                 ) : (
                   <span className="text-xs font-bold text-slate-500">
@@ -1381,17 +1665,18 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
         {/* Quick OBS Setup Tips for Portrait Streams */}
         <div className="p-3.5 border border-white/10 bg-black/45 space-y-1.5 text-[11px] text-slate-300 leading-relaxed">
           <div className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-300">
-            OBS Einrichtung (9:16 Portrait)
+            OBS Schärfe-Tipp (kein Verpixeln im Stream)
           </div>
           <p>
-            1. Neue <strong>Browser-Quelle</strong> in OBS anlegen und URL oben kopieren.
+            1. Trage in OBS bei der Browser-Quelle die oben berechnete <strong>2× Retina-Auflösung</strong> ein:
+            Rotator <code className="text-sky-200">{obsRotatorW} × {obsRotatorH}</code>, Ticker{' '}
+            <code className="text-amber-200">{obsTickerW} × {obsTickerH}</code>.
           </p>
           <p>
-            2. Für den <strong>Social Rotator</strong> z. B. <code className="text-sky-200">800 × 140</code>, für den{' '}
-            <strong>Ticker</strong> <code className="text-amber-200">1080 × 76</code> eintragen.
+            2. Verkleinere die Quelle in OBS auf deine gewünschte Größe (Runterskalieren = gestochen scharf, Hochskalieren = pixelig).
           </p>
           <p>
-            3. Alle Änderungen (Texte, Takt, Pinnen, Ein/Aus) landen automatisch live im Stream.
+            3. Über <strong>Nur Hintergrund</strong> kannst du Breite &amp; Höhe der Karte frei ändern, ohne Text oder Logos zu vergrößern.
           </p>
         </div>
       </aside>

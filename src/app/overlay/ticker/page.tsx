@@ -30,6 +30,7 @@ function TickerOverlaySurface() {
     createDefaultBroadcastBarsSnapshot('ticker_overlay_init')
   );
   const [missingKeyHint, setMissingKeyHint] = useState(false);
+  const [viewport, setViewport] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const snapshotRef = useRef<BroadcastBarsSnapshot>(snapshot);
 
   useEffect(() => {
@@ -37,6 +38,13 @@ function TickerOverlaySurface() {
     return () => {
       document.documentElement.classList.remove('obs-overlay-root');
     };
+  }, []);
+
+  useEffect(() => {
+    const updateVp = () => setViewport({ w: window.innerWidth, h: window.innerHeight });
+    updateVp();
+    window.addEventListener('resize', updateVp);
+    return () => window.removeEventListener('resize', updateVp);
   }, []);
 
   useEffect(() => {
@@ -82,9 +90,22 @@ function TickerOverlaySurface() {
   const effectiveAlign: AlignMode =
     alignParam && alignParam in ALIGN_CLASSES ? alignParam : 'center';
 
+  const q = snapshot.ticker.qualityScale ?? 2;
+  const renderedH = Math.round((snapshot.ticker.heightPx + 18) * q);
+  const renderedW = snapshot.ticker.fullWidth ? 0 : Math.round(snapshot.ticker.widthPx * q);
+
+  const safeFitScale =
+    viewport.w > 0 && viewport.h > 0
+      ? Math.min(
+          1,
+          (viewport.h - 12) / Math.max(1, renderedH),
+          renderedW > 0 ? (viewport.w - 16) / Math.max(1, renderedW) : 1
+        )
+      : 1;
+
   return (
     <main
-      className={`w-screen h-screen overflow-hidden flex justify-center ${ALIGN_CLASSES[effectiveAlign]}`}
+      className={`w-screen h-screen overflow-hidden flex justify-center px-2 ${ALIGN_CLASSES[effectiveAlign]}`}
       style={{ background: 'transparent', backgroundColor: 'rgba(0, 0, 0, 0)' }}
     >
       {missingKeyHint ? (
@@ -93,11 +114,14 @@ function TickerOverlaySurface() {
           Ticker-URL (inkl. ?key=…) kopieren.
         </div>
       ) : (
-        <div className="w-full">
+        <div
+          className={snapshot.ticker.fullWidth ? 'w-full' : 'flex justify-center'}
+        >
           <BroadcastTicker
             design={snapshot.design}
             items={snapshot.tickerItems}
             settings={snapshot.ticker}
+            scale={safeFitScale}
           />
         </div>
       )}

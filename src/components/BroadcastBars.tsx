@@ -29,6 +29,7 @@ interface BroadcastTickerProps {
   items: TickerItem[];
   settings: TickerBarSettings;
   className?: string;
+  scale?: number;
 }
 
 /** Renders the horizontal ticker in the selected design language */

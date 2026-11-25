@@ -7,16 +7,15 @@ import {
   RotatorBarSettings,
   RotatorSlide,
 } from '../types/broadcastBars';
-import { SocialBrandIcon, resolveVeinPalette } from './SocialBrandIcons';
+import { resolveVeinPalette } from './SocialBrandIcons';
+import { PlatformBadge } from './WhatnotBars';
 import { BranchRune, LogMedallion, ManaWoodPlank, WOOD } from './ManaWoodPlank';
 import { useRotatorCycle } from './useRotatorCycle';
 
 interface SocialRotatorBarProps {
   slides: RotatorSlide[];
   settings: RotatorBarSettings;
-  /** Optional Studio override to inspect a specific slide immediately */
   previewSlideId?: string | null;
-  /** Optional scale multiplier for fitting inside Studio Preview monitor */
   scale?: number;
 }
 
@@ -26,45 +25,45 @@ const EASE_IN_OUT = [0.65, 0, 0.35, 1] as const;
 const PLANK_SEED = 7331;
 const MEDALLION_SEED = 4242;
 
-/** Per-preset text choreography — soft, magical transitions instead of UI wipes */
+function clamp(v: number, lo: number, hi: number) {
+  return Math.min(hi, Math.max(lo, v));
+}
+
 function getTextMotion(preset: RotatorAnimationPreset, reduce: boolean) {
   if (reduce) {
     return {
       initial: { opacity: 0 },
       animate: { opacity: 1 },
       exit: { opacity: 0 },
-      transition: { duration: 0.4, ease: EASE_OUT },
+      transition: { duration: 0.38, ease: EASE_OUT },
       stagger: 0.05,
     };
   }
   switch (preset) {
     case 'wipe':
-      // "Runen-Rolle": lines roll through the carved lane like a turning wooden drum
       return {
         initial: { opacity: 0, y: '70%' },
         animate: { opacity: 1, y: '0%' },
         exit: { opacity: 0, y: '-70%' },
-        transition: { duration: 0.46, ease: EASE_IN_OUT },
+        transition: { duration: 0.44, ease: EASE_IN_OUT },
         stagger: 0.06,
       };
     case 'mana-surge':
-      // "Mana-Ausbruch": words ignite from a bright mana flash
       return {
-        initial: { opacity: 0, scale: 0.94, filter: 'blur(3px) brightness(2.2)' },
-        animate: { opacity: 1, scale: 1, filter: 'blur(0px) brightness(1)' },
-        exit: { opacity: 0, scale: 1.03, filter: 'blur(4px) brightness(1.6)' },
-        transition: { duration: 0.6, ease: EASE_OUT },
-        stagger: 0.08,
+        initial: { opacity: 0, scale: 0.94 },
+        animate: { opacity: 1, scale: 1 },
+        exit: { opacity: 0, scale: 1.03 },
+        transition: { duration: 0.5, ease: EASE_OUT },
+        stagger: 0.07,
       };
     case 'unfold':
     default:
-      // "Verzauberter Nebel": letters drift in out of arcane mist
       return {
-        initial: { opacity: 0, y: 6, filter: 'blur(6px)' },
-        animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
-        exit: { opacity: 0, y: -6, filter: 'blur(6px)' },
-        transition: { duration: 0.6, ease: EASE_OUT },
-        stagger: 0.08,
+        initial: { opacity: 0, y: 8 },
+        animate: { opacity: 1, y: 0 },
+        exit: { opacity: 0, y: -8 },
+        transition: { duration: 0.48, ease: EASE_OUT },
+        stagger: 0.07,
       };
   }
 }
@@ -79,24 +78,30 @@ export const SocialRotatorBar: React.FC<SocialRotatorBarProps> = ({
   const { activeSlide, turn } = useRotatorCycle(slides, settings, previewSlideId);
   const activeId = activeSlide?.id ?? null;
 
-  // ---------------------------------------------------------------------------
-  // Pixel-exact geometry (generated at the real size → zero stretching)
-  // ---------------------------------------------------------------------------
-  const W = settings.widthPx;
-  const isCompact = W < 520;
-  const plankH = isCompact ? 60 : 70;
-  const pad = 13;
+  const q = settings.qualityScale ?? 2;
+  const baseH = 84;
+  const userContentFactor = clamp((settings.contentScale ?? 105) / 100, 0.6, 2.2);
+  const innerScale =
+    settings.resizeMode === 'background-only'
+      ? userContentFactor
+      : clamp(settings.heightPx / baseH, 0.7, 2.4) * userContentFactor;
+
+  const W = Math.round(settings.widthPx * q);
+  const plankH = Math.round(settings.heightPx * q);
+  const pad = Math.round(14 * q);
   const totalH = plankH + pad * 2;
-  const discSize = plankH + 22;
-  const discTop = (totalH - discSize) / 2;
+
+  const discSize = Math.round(clamp(plankH + 18 * q, 68 * q, totalH));
+  const discTop = Math.round((totalH - discSize) / 2);
+  const badgeSize = Math.round(clamp(44 * innerScale * q, 26 * q, discSize * 0.68));
   const x0 = Math.round(discSize * 0.5);
-  const x1 = W - 4;
+  const x1 = W - Math.round(4 * q);
   const y0 = pad;
   const y1 = pad + plankH;
-  const lashL = discSize + 9;
-  const lashR = W - 32;
-  const textLeft = lashL + 11 + 14;
-  const textRight = W - lashR + 11 + 12;
+  const lashL = discSize + Math.round(9 * q);
+  const lashR = W - Math.round(32 * q);
+  const textLeft = lashL + Math.round(25 * q);
+  const textRight = W - lashR + Math.round(23 * q);
   const endStyle = settings.edgeStyle === 'angled' ? 'ragged' : 'clean';
 
   const twigs = useMemo(
@@ -113,214 +118,223 @@ export const SocialRotatorBar: React.FC<SocialRotatorBarProps> = ({
   const textMotion = getTextMotion(preset, reduceMotion);
   const slideKey = `${activeId ?? 'none'}_${turn}`;
 
+  const eyebrowPx = Math.round(clamp(11 * innerScale, 9, 24) * q);
+  const headlinePx = Math.round(clamp(23 * innerScale, 14, 52) * q);
+  const sublinePx = Math.round(clamp(13.5 * innerScale, 10, 30) * q);
+
   const line = (i: number) => ({
     initial: textMotion.initial,
     animate: {
       ...textMotion.animate,
       transition: {
         ...textMotion.transition,
-        delay: 0.12 + i * textMotion.stagger,
+        delay: 0.1 + i * textMotion.stagger,
       },
     },
   });
 
   return (
     <div
-      className="relative select-none"
+      className="relative select-none shrink-0"
       style={{
-        width: `${W}px`,
-        height: `${totalH}px`,
-        transform: scale !== 1 ? `scale(${scale})` : undefined,
-        transformOrigin: 'center center',
+        width: `${Math.round(W * scale)}px`,
+        height: `${Math.round(totalH * scale)}px`,
       }}
     >
-      <AnimatePresence>
-        {show && activeSlide && (
-          <motion.div
-            key="mana-rotator"
-            className="absolute inset-0"
-            initial={{ opacity: 0, y: reduceMotion ? 0 : 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: reduceMotion ? 0 : 8 }}
-            transition={{ duration: 0.55, ease: EASE_OUT }}
-            style={{
-              filter: `drop-shadow(0 10px 14px rgba(0, 0, 0, 0.72)) drop-shadow(0 0 16px rgba(${palette.accentRgb}, 0.2))`,
-            }}
-          >
-            {/* ========== Painted plank with lashings & branch stubs ========== */}
-            <ManaWoodPlank
-              width={W}
-              height={totalH}
-              x0={x0}
-              y0={y0}
-              x1={x1}
-              y1={y1}
-              seed={PLANK_SEED}
-              veinHex={palette.accentHex}
-              veinSoftHex={palette.accentSoftHex}
-              showVeins={settings.showWoodVeins}
-              endStyle={endStyle}
-              lashings={[lashL, lashR]}
-              twigs={twigs}
-              veinQuietZone={[textLeft - 8, W - textRight]}
-            />
-
-            {/* ========== Smoky reading vignette behind the text lane ========== */}
-            <div
-              className="pointer-events-none absolute"
-              style={{
-                left: textLeft - 18,
-                right: textRight - 10,
-                top: y0 + 6,
-                height: plankH - 12,
-                background:
-                  'radial-gradient(75% 85% at 38% 50%, rgba(10, 6, 14, 0.55) 0%, rgba(10, 6, 14, 0) 100%)',
-              }}
-            />
-
-            {/* ========== Mana surge washing through the wood on each change ========== */}
+      <div
+        className="absolute left-0 top-0 mc-crisp-overlay"
+        style={{
+          width: `${W}px`,
+          height: `${totalH}px`,
+          transform: scale !== 1 ? `scale(${scale})` : undefined,
+          transformOrigin: 'top left',
+        }}
+      >
+        <AnimatePresence>
+          {show && activeSlide && (
             <motion.div
-              key={`surge_${slideKey}`}
-              className="pointer-events-none absolute"
+              key="mana-rotator"
+              className="absolute inset-0"
+              initial={{ opacity: 0, y: reduceMotion ? 0 : Math.round(12 * q) }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: reduceMotion ? 0 : Math.round(8 * q) }}
+              transition={{ duration: 0.5, ease: EASE_OUT }}
               style={{
-                left: x0,
-                right: 4,
-                top: y0,
-                height: plankH,
-                mixBlendMode: 'screen',
-                background: `radial-gradient(70% 140% at 0% 50%, rgba(${palette.accentRgb}, ${
-                  preset === 'mana-surge' ? 0.42 : 0.22
-                }) 0%, rgba(${palette.accentRgb}, 0) 72%)`,
+                filter: `drop-shadow(0 ${Math.round(10 * q)}px ${Math.round(
+                  14 * q
+                )}px rgba(0, 0, 0, 0.72)) drop-shadow(0 0 ${Math.round(
+                  16 * q
+                )}px rgba(${palette.accentRgb}, 0.2))`,
               }}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 1, 0] }}
-              transition={{ duration: 1.3, ease: 'easeOut' }}
-            />
-
-            {/* ========== Text lane ========== */}
-            <div
-              className="absolute flex items-center gap-3"
-              style={{ left: textLeft, right: textRight, top: y0, height: plankH }}
             >
-              <div className="relative flex-1 min-w-0 h-full overflow-hidden flex items-center">
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={`txt_${slideKey}`}
-                    className="min-w-0 w-full"
-                    initial={{ opacity: 1 }}
-                    animate={{ opacity: 1 }}
-                    exit={{
-                      ...textMotion.exit,
-                      transition: { duration: 0.3, ease: EASE_IN_OUT },
-                    }}
-                  >
-                    {activeSlide.eyebrow.trim() && (
-                      <motion.div className="flex items-center gap-1.5 min-w-0" {...line(0)}>
-                        <BranchRune
-                          color={palette.accentSoftHex}
-                          className="w-[9px] h-3 shrink-0"
-                          style={{
-                            filter: `drop-shadow(0 0 4px rgba(${palette.accentRgb}, 0.9))`,
-                          }}
-                        />
-                        <span
-                          className="font-mana-display truncate text-[11px] font-bold tracking-[0.16em] leading-none uppercase"
-                          style={{
-                            color: palette.accentSoftHex,
-                            textShadow: `0 0 8px rgba(${palette.accentRgb}, 0.7), 0 1px 1px rgba(0, 0, 0, 0.9)`,
-                          }}
-                        >
-                          {activeSlide.eyebrow}
-                        </span>
-                      </motion.div>
-                    )}
+              <ManaWoodPlank
+                width={W}
+                height={totalH}
+                x0={x0}
+                y0={y0}
+                x1={x1}
+                y1={y1}
+                seed={PLANK_SEED}
+                veinHex={palette.accentHex}
+                veinSoftHex={palette.accentSoftHex}
+                showVeins={settings.showWoodVeins}
+                endStyle={endStyle}
+                lashings={[lashL, lashR]}
+                twigs={twigs}
+                veinQuietZone={[textLeft - Math.round(8 * q), W - textRight]}
+              />
 
-                    <motion.div
-                      className="font-mana-display truncate font-bold leading-[1.12] mt-1"
-                      style={{
-                        fontSize: isCompact ? 19 : 24,
-                        letterSpacing: '0.03em',
-                        color: WOOD.parchment,
-                        textShadow:
-                          '0 2px 0 rgba(8, 5, 11, 0.95), 0 0 14px rgba(0, 0, 0, 0.75)',
-                      }}
-                      {...line(1)}
-                    >
-                      {activeSlide.headline}
-                    </motion.div>
-
-                    {activeSlide.subline.trim() && (
-                      <motion.div
-                        className="font-mana-body truncate text-[13.5px] font-medium leading-tight mt-0.5"
-                        style={{
-                          color: WOOD.parchmentMuted,
-                          textShadow: '0 1px 1px rgba(8, 5, 11, 0.9)',
-                        }}
-                        {...line(2)}
-                      >
-                        {activeSlide.subline}
-                      </motion.div>
-                    )}
-                  </motion.div>
-                </AnimatePresence>
-              </div>
-            </div>
-
-            {/* ========== Log-slice token (turns on every change) ========== */}
-            <div
-              className="absolute"
-              style={{ left: 0, top: discTop, width: discSize, height: discSize }}
-            >
-              <motion.div
-                key={`flare_${slideKey}`}
+              <div
                 className="pointer-events-none absolute"
                 style={{
-                  inset: -16,
-                  background: `radial-gradient(circle, rgba(${palette.accentRgb}, 0.55) 0%, rgba(${palette.accentRgb}, 0) 66%)`,
+                  left: textLeft - Math.round(18 * q),
+                  right: textRight - Math.round(10 * q),
+                  top: y0 + Math.round(6 * q),
+                  height: plankH - Math.round(12 * q),
+                  background:
+                    'radial-gradient(75% 85% at 38% 50%, rgba(10, 6, 14, 0.55) 0%, rgba(10, 6, 14, 0) 100%)',
                 }}
-                initial={{ opacity: 0, scale: 0.75 }}
-                animate={{ opacity: [0, 0.9, 0], scale: [0.75, 1.05, 1.12] }}
-                transition={{ duration: 1.1, ease: 'easeOut' }}
               />
 
               <motion.div
-                className="absolute inset-0"
-                animate={{ rotate: reduceMotion ? 0 : turn * 120 }}
-                transition={{ type: 'spring', stiffness: 55, damping: 13 }}
-              >
-                <LogMedallion
-                  size={discSize}
-                  seed={MEDALLION_SEED}
-                  veinHex={palette.accentHex}
-                  veinSoftHex={palette.accentSoftHex}
-                  showVeins={settings.showWoodVeins}
-                />
-              </motion.div>
+                key={`surge_${slideKey}`}
+                className="pointer-events-none absolute"
+                style={{
+                  left: x0,
+                  right: Math.round(4 * q),
+                  top: y0,
+                  height: plankH,
+                  mixBlendMode: 'screen',
+                  background: `radial-gradient(70% 140% at 0% 50%, rgba(${palette.accentRgb}, ${
+                    preset === 'mana-surge' ? 0.42 : 0.22
+                  }) 0%, rgba(${palette.accentRgb}, 0) 72%)`,
+                }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: [0, 1, 0] }}
+                transition={{ duration: 1.2, ease: 'easeOut' }}
+              />
 
-              <div className="absolute inset-0 flex items-center justify-center">
-                <AnimatePresence mode="wait">
-                  <motion.div
-                    key={`icon_${activeSlide.id}`}
-                    initial={{ opacity: 0, scale: 0.6, rotate: reduceMotion ? 0 : -25 }}
-                    animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                    exit={{ opacity: 0, scale: 0.6, rotate: reduceMotion ? 0 : 25 }}
-                    transition={{ duration: 0.4, ease: EASE_OUT }}
-                    style={{
-                      filter: `drop-shadow(0 0 6px rgba(${palette.accentRgb}, 0.95)) drop-shadow(0 0 14px rgba(${palette.accentRgb}, 0.6)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.85))`,
-                    }}
-                  >
-                    <SocialBrandIcon
-                      platform={activeSlide.platform}
-                      color={WOOD.parchment}
-                      className={isCompact ? 'w-8 h-8' : 'w-9 h-9'}
-                    />
-                  </motion.div>
-                </AnimatePresence>
+              {/* Text lane */}
+              <div
+                className="absolute flex items-center"
+                style={{ left: textLeft, right: textRight, top: y0, height: plankH }}
+              >
+                <div className="relative flex-1 min-w-0 h-full overflow-hidden flex items-center">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={`txt_${slideKey}`}
+                      className="min-w-0 w-full"
+                      initial={{ opacity: 1 }}
+                      animate={{ opacity: 1 }}
+                      exit={{
+                        ...textMotion.exit,
+                        transition: { duration: 0.28, ease: EASE_IN_OUT },
+                      }}
+                    >
+                      {activeSlide.eyebrow.trim() && (
+                        <motion.div
+                          className="flex items-center min-w-0"
+                          style={{ gap: Math.round(6 * q) }}
+                          {...line(0)}
+                        >
+                          <BranchRune
+                            color={palette.accentSoftHex}
+                            className="shrink-0"
+                            style={{
+                              width: Math.round(9 * innerScale * q),
+                              height: Math.round(12 * innerScale * q),
+                              filter: `drop-shadow(0 0 ${Math.round(4 * q)}px rgba(${palette.accentRgb}, 0.9))`,
+                            }}
+                          />
+                          <span
+                            className="font-mana-display truncate font-bold tracking-[0.16em] leading-none uppercase"
+                            style={{
+                              fontSize: eyebrowPx,
+                              color: palette.accentSoftHex,
+                              textShadow: `0 0 ${Math.round(8 * q)}px rgba(${palette.accentRgb}, 0.7), 0 ${Math.round(q)}px ${Math.round(q)}px rgba(0, 0, 0, 0.9)`,
+                            }}
+                          >
+                            {activeSlide.eyebrow}
+                          </span>
+                        </motion.div>
+                      )}
+
+                      <motion.div
+                        className="font-mana-display truncate font-bold leading-[1.12]"
+                        style={{
+                          marginTop: Math.round(4 * q),
+                          fontSize: headlinePx,
+                          letterSpacing: '0.03em',
+                          color: WOOD.parchment,
+                          textShadow: `0 ${Math.round(2 * q)}px 0 rgba(8, 5, 11, 0.95), 0 0 ${Math.round(
+                            14 * q
+                          )}px rgba(0, 0, 0, 0.75)`,
+                        }}
+                        {...line(1)}
+                      >
+                        {activeSlide.headline}
+                      </motion.div>
+
+                      {activeSlide.subline.trim() && (
+                        <motion.div
+                          className="font-mana-body truncate font-medium leading-tight"
+                          style={{
+                            marginTop: Math.round(2 * q),
+                            fontSize: sublinePx,
+                            color: WOOD.parchmentMuted,
+                            textShadow: `0 ${Math.round(q)}px ${Math.round(q)}px rgba(8, 5, 11, 0.9)`,
+                          }}
+                          {...line(2)}
+                        >
+                          {activeSlide.subline}
+                        </motion.div>
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
               </div>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+
+              {/* Log-slice token holding the unified rounded platform tile */}
+              <div
+                className="absolute"
+                style={{ left: 0, top: discTop, width: discSize, height: discSize }}
+              >
+                <motion.div
+                  className="absolute inset-0"
+                  animate={{ rotate: reduceMotion ? 0 : turn * 120 }}
+                  transition={{ type: 'spring', stiffness: 55, damping: 13 }}
+                >
+                  <LogMedallion
+                    size={discSize}
+                    seed={MEDALLION_SEED}
+                    veinHex={palette.accentHex}
+                    veinSoftHex={palette.accentSoftHex}
+                    showVeins={settings.showWoodVeins}
+                  />
+                </motion.div>
+
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={`icon_${activeSlide.id}`}
+                      initial={{ opacity: 0, scale: 0.7 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.72 }}
+                      transition={{ duration: 0.34, ease: EASE_OUT }}
+                    >
+                      <PlatformBadge
+                        platform={activeSlide.platform}
+                        size={badgeSize}
+                        radius={Math.round(badgeSize * 0.28)}
+                      />
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 };

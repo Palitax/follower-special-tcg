@@ -18,6 +18,15 @@ export type BarEdgeStyle = 'sharp' | 'angled';
 
 export type TickerSpeed = 'slow' | 'normal' | 'fast';
 
+/** 'together' scales text + icon along with height; 'background-only' resizes only the container */
+export type OverlayResizeMode = 'together' | 'background-only';
+
+/** 'fixed' uses widthPx directly for the card background; 'auto' shrinks card to fit each slide's text */
+export type RotatorWidthMode = 'fixed' | 'auto';
+
+/** Native HiDPI pixel multiplier so OBS Browser Sources never upscale blurry textures */
+export type OverlayQualityScale = 1 | 1.5 | 2;
+
 export interface RotatorSlide {
   id: string;
   platform: SocialPlatform;
@@ -38,8 +47,18 @@ export interface RotatorBarSettings {
   animationPreset: RotatorAnimationPreset;
   veinColorMode: VeinColorMode;
   edgeStyle: BarEdgeStyle;
-  /** Max width in px inside the OBS Browser Source (portrait-ready) */
+  /** Independent background / container width in logical px */
   widthPx: number;
+  /** Independent background / container height in logical px */
+  heightPx: number;
+  /** Whether widthPx sets exact card width ('fixed') or acts as max-width ('auto') */
+  widthMode: RotatorWidthMode;
+  /** Whether resizing scales text+icon together or only changes the background box */
+  resizeMode: OverlayResizeMode;
+  /** Text & icon scale in percent (60–200), independent in 'background-only' mode */
+  contentScale: number;
+  /** HiDPI native render multiplier (1x, 1.5x, 2x) for razor-sharp OBS output */
+  qualityScale: OverlayQualityScale;
   showWoodVeins: boolean;
 }
 
@@ -60,7 +79,18 @@ export interface TickerBarSettings {
   showBrandAnchor: boolean;
   brandAnchorText: string;
   showWoodVeins: boolean;
+  /** Independent width in logical px (used when fullWidth is false) */
+  widthPx: number;
+  /** Fill 100% of OBS Browser Source width */
+  fullWidth: boolean;
+  /** Independent background height in logical px */
   heightPx: number;
+  /** Whether heightPx scales text+icons together or only changes the background bar */
+  resizeMode: OverlayResizeMode;
+  /** Text & icon scale in percent (60–200) */
+  contentScale: number;
+  /** HiDPI native render multiplier (1x, 1.5x, 2x) for razor-sharp OBS output */
+  qualityScale: OverlayQualityScale;
 }
 
 export interface BroadcastBarsSnapshot {
@@ -83,7 +113,12 @@ export const DEFAULT_ROTATOR_SETTINGS: RotatorBarSettings = {
   animationPreset: 'unfold',
   veinColorMode: 'mana-blue',
   edgeStyle: 'angled',
-  widthPx: 680,
+  widthPx: 540,
+  heightPx: 92,
+  widthMode: 'fixed',
+  resizeMode: 'together',
+  contentScale: 105,
+  qualityScale: 2,
   showWoodVeins: true,
 };
 
@@ -96,7 +131,12 @@ export const DEFAULT_TICKER_SETTINGS: TickerBarSettings = {
   showBrandAnchor: true,
   brandAnchorText: 'MANACARDS',
   showWoodVeins: true,
-  heightPx: 48,
+  widthPx: 960,
+  fullWidth: true,
+  heightPx: 54,
+  resizeMode: 'together',
+  contentScale: 105,
+  qualityScale: 2,
 };
 
 export const DEFAULT_ROTATOR_SLIDES: RotatorSlide[] = [
@@ -128,7 +168,7 @@ export const DEFAULT_ROTATOR_SLIDES: RotatorSlide[] = [
     id: 'slide_buyback',
     platform: 'buyback',
     eyebrow: 'Wir kaufen eure Karten an',
-    headline: 'manacards.de',
+    headline: 'manacards.de/ankauf',
     subline: 'Einzelkarten & Sammlungen · Schnell übers Formular',
     enabled: true,
   },
@@ -155,7 +195,7 @@ export const DEFAULT_TICKER_ITEMS: TickerItem[] = [
     id: 'tick_buyback',
     platform: 'buyback',
     label: 'Kartenankauf',
-    highlight: 'Wir kaufen eure Karten & Sammlungen · Formular auf manacards.de',
+    highlight: 'Wir kaufen eure Karten & Sammlungen · manacards.de/ankauf',
     enabled: true,
   },
   {
@@ -207,6 +247,11 @@ export function createDefaultBroadcastBarsSnapshot(senderId = 'init'): Broadcast
   };
 }
 
+function normQualityScale(val: unknown, fallback: OverlayQualityScale): OverlayQualityScale {
+  if (val === 1 || val === 1.5 || val === 2) return val;
+  return fallback;
+}
+
 export function normalizeBroadcastBarsSnapshot(
   raw: Partial<BroadcastBarsSnapshot> | null | undefined,
   fallbackSenderId = 'local'
@@ -253,30 +298,55 @@ export function normalizeBroadcastBarsSnapshot(
         }))
     : base.tickerItems;
 
+  const rawRot = raw.rotator && typeof raw.rotator === 'object' ? raw.rotator : undefined;
+  const rawTick = raw.ticker && typeof raw.ticker === 'object' ? raw.ticker : undefined;
+
   return {
     updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : 0,
     senderId: typeof raw.senderId === 'string' ? raw.senderId : fallbackSenderId,
     design: raw.design === 'mana-wood' ? 'mana-wood' : DEFAULT_BROADCAST_DESIGN,
     rotator: {
       ...DEFAULT_ROTATOR_SETTINGS,
-      ...(raw.rotator && typeof raw.rotator === 'object' ? raw.rotator : {}),
+      ...rawRot,
       intervalSec: Math.max(
         3,
-        Math.min(30, Number(raw.rotator?.intervalSec ?? DEFAULT_ROTATOR_SETTINGS.intervalSec) || 7)
+        Math.min(30, Number(rawRot?.intervalSec ?? DEFAULT_ROTATOR_SETTINGS.intervalSec) || 7)
       ),
       widthPx: Math.max(
-        380,
-        Math.min(1040, Number(raw.rotator?.widthPx ?? DEFAULT_ROTATOR_SETTINGS.widthPx) || 680)
+        300,
+        Math.min(1200, Number(rawRot?.widthPx ?? DEFAULT_ROTATOR_SETTINGS.widthPx) || 540)
       ),
+      heightPx: Math.max(
+        60,
+        Math.min(260, Number(rawRot?.heightPx ?? DEFAULT_ROTATOR_SETTINGS.heightPx) || 92)
+      ),
+      widthMode: rawRot?.widthMode === 'auto' ? 'auto' : 'fixed',
+      resizeMode: rawRot?.resizeMode === 'background-only' ? 'background-only' : 'together',
+      contentScale: Math.max(
+        60,
+        Math.min(220, Number(rawRot?.contentScale ?? DEFAULT_ROTATOR_SETTINGS.contentScale) || 105)
+      ),
+      qualityScale: normQualityScale(rawRot?.qualityScale, DEFAULT_ROTATOR_SETTINGS.qualityScale),
     },
     slides,
     ticker: {
       ...DEFAULT_TICKER_SETTINGS,
-      ...(raw.ticker && typeof raw.ticker === 'object' ? raw.ticker : {}),
+      ...rawTick,
+      widthPx: Math.max(
+        360,
+        Math.min(1400, Number(rawTick?.widthPx ?? DEFAULT_TICKER_SETTINGS.widthPx) || 960)
+      ),
+      fullWidth: rawTick?.fullWidth !== false,
       heightPx: Math.max(
         38,
-        Math.min(72, Number(raw.ticker?.heightPx ?? DEFAULT_TICKER_SETTINGS.heightPx) || 48)
+        Math.min(160, Number(rawTick?.heightPx ?? DEFAULT_TICKER_SETTINGS.heightPx) || 54)
       ),
+      resizeMode: rawTick?.resizeMode === 'background-only' ? 'background-only' : 'together',
+      contentScale: Math.max(
+        60,
+        Math.min(220, Number(rawTick?.contentScale ?? DEFAULT_TICKER_SETTINGS.contentScale) || 105)
+      ),
+      qualityScale: normQualityScale(rawTick?.qualityScale, DEFAULT_TICKER_SETTINGS.qualityScale),
     },
     tickerItems,
   };
