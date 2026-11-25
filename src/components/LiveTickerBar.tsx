@@ -2,7 +2,11 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { TickerBarSettings, TickerItem, TickerSpeed } from '../types/broadcastBars';
-import { MANA_SIGNATURE_VEIN, PLATFORM_THEMES } from './SocialBrandIcons';
+import {
+  EmbossedCategoryWatermark,
+  MANA_SIGNATURE_VEIN,
+  PLATFORM_THEMES,
+} from './SocialBrandIcons';
 import { PlatformBadge } from './WhatnotBars';
 import { BranchRune, ManaWoodPlank, WOOD } from './ManaWoodPlank';
 
@@ -116,12 +120,29 @@ export const LiveTickerBar: React.FC<LiveTickerBarProps> = ({
             className="flex items-center shrink-0 whitespace-nowrap"
           >
             <div
-              className="flex items-center"
+              className="relative flex items-center"
               style={{
                 gap: Math.round(10 * q),
                 padding: `0 ${Math.round(20 * q)}px`,
               }}
             >
+              <div
+                className="pointer-events-none absolute flex items-center justify-center opacity-70"
+                style={{
+                  right: Math.round(12 * q),
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                }}
+              >
+                <EmbossedCategoryWatermark
+                  platform={item.platform}
+                  size={Math.round(poleH * 1.02)}
+                  qualityScale={q}
+                  surface="wood"
+                  rotateDeg={-9}
+                />
+              </div>
+
               <PlatformBadge
                 platform={item.platform}
                 size={badgeSize}
@@ -130,7 +151,7 @@ export const LiveTickerBar: React.FC<LiveTickerBarProps> = ({
 
               {item.label.trim() && (
                 <span
-                  className="font-mana-display font-bold tracking-[0.14em] uppercase"
+                  className="relative z-10 font-mana-display font-bold tracking-[0.14em] uppercase"
                   style={{
                     fontSize: labelPx,
                     color: labelColor,
@@ -143,7 +164,7 @@ export const LiveTickerBar: React.FC<LiveTickerBarProps> = ({
 
               {item.highlight.trim() && (
                 <span
-                  className="font-mana-body font-bold"
+                  className="relative z-10 font-mana-body font-bold"
                   style={{
                     fontSize: textPx,
                     color: WOOD.parchment,

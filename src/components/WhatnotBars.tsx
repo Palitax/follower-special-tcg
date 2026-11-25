@@ -11,7 +11,7 @@ import {
   TickerItem,
   TickerSpeed,
 } from '../types/broadcastBars';
-import { SocialBrandIcon } from './SocialBrandIcons';
+import { EmbossedCategoryWatermark, SocialBrandIcon } from './SocialBrandIcons';
 import { useRotatorCycle } from './useRotatorCycle';
 
 /**
@@ -407,6 +407,41 @@ export const WhatnotLowerThird: React.FC<WhatnotLowerThirdProps> = ({
                     : { duration: 0.16, ease: EASE_OUT }
                 }
               >
+                {/* Monochrome embossed category logo pressed into the card background */}
+                <div
+                  className="pointer-events-none absolute inset-0 overflow-hidden"
+                  style={{
+                    maskImage:
+                      'linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.22) 32%, rgba(0,0,0,0.92) 72%, rgba(0,0,0,1) 100%)',
+                    WebkitMaskImage:
+                      'linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.22) 32%, rgba(0,0,0,0.92) 72%, rgba(0,0,0,1) 100%)',
+                  }}
+                >
+                  <AnimatePresence mode="wait">
+                    <motion.div
+                      key={`emboss_${activeSlide.platform}`}
+                      initial={{ opacity: 0, scale: 0.92 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 1.04 }}
+                      transition={{ duration: 0.42, ease: EASE_OUT }}
+                      className="absolute flex items-center justify-center"
+                      style={{
+                        right: Math.round(-cardH * 0.08),
+                        top: '50%',
+                        marginTop: -Math.round(cardH * 0.62),
+                      }}
+                    >
+                      <EmbossedCategoryWatermark
+                        platform={activeSlide.platform}
+                        size={Math.round(cardH * 1.24)}
+                        qualityScale={q}
+                        surface="charcoal"
+                        rotateDeg={-11}
+                      />
+                    </motion.div>
+                  </AnimatePresence>
+                </div>
+
                 {/* Soft light sweep on slide switch */}
                 {!reduce && (
                   <motion.div
@@ -621,12 +656,30 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
           className="flex items-center shrink-0 whitespace-nowrap"
         >
           <div
-            className="flex items-center"
+            className="relative flex items-center"
             style={{
               gap: Math.round(10 * Math.sqrt(innerScale) * q),
               padding: `0 ${Math.round(18 * Math.sqrt(innerScale) * q)}px`,
             }}
           >
+            {/* Subtle monochrome embossed category mark pressed behind each ticker segment */}
+            <div
+              className="pointer-events-none absolute flex items-center justify-center opacity-75"
+              style={{
+                right: Math.round(10 * q),
+                top: '50%',
+                transform: 'translateY(-50%)',
+              }}
+            >
+              <EmbossedCategoryWatermark
+                platform={item.platform}
+                size={Math.round(H * 1.08)}
+                qualityScale={q}
+                surface="charcoal"
+                rotateDeg={-10}
+              />
+            </div>
+
             <PlatformBadge
               platform={item.platform}
               size={badgeSize}
@@ -634,7 +687,7 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
             />
             {item.label.trim() && (
               <span
-                className="font-extrabold uppercase"
+                className="relative z-10 font-extrabold uppercase"
                 style={{ fontSize: labelPx, letterSpacing: '0.05em', color: WN.yellow }}
               >
                 {item.label}
@@ -642,7 +695,7 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
             )}
             {item.highlight.trim() && (
               <span
-                className="font-semibold"
+                className="relative z-10 font-semibold"
                 style={{ fontSize: textPx, letterSpacing: '-0.01em', color: WN.ink }}
               >
                 {item.highlight}

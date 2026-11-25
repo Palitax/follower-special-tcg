@@ -192,27 +192,33 @@ export const SocialBrandIcon: React.FC<SocialBrandIconProps> = ({
       );
 
     case 'buyback':
-      // Fanned trading cards with a euro mark (TCG card buyback)
+      // Crisp monochrome Mana-Flasche silhouette (tilted round potion bottle, cork & liquid wave)
       return (
         <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-          <rect
-            x="3.6"
-            y="5.4"
-            width="10.4"
-            height="14.6"
-            rx="2"
-            transform="rotate(-14 8.8 12.7)"
-            stroke={color}
-            strokeWidth="1.8"
-            opacity="0.6"
-          />
-          <rect x="8.4" y="3.8" width="11.2" height="16.2" rx="2.2" stroke={color} strokeWidth="2" />
-          <path
-            d="M16.2 9.6a3.3 3.3 0 1 0 0 4.8M11.4 11.3h3.6M11.4 12.9h3.6"
-            stroke={color}
-            strokeWidth="1.7"
-            strokeLinecap="round"
-          />
+          <g transform="rotate(14 12 12)">
+            {/* Cork stopper */}
+            <path
+              d="M9.7 2.2h4.6l-.45 2.7h-3.7L9.7 2.2Z"
+              fill={color}
+            />
+            {/* Lip & rope collar */}
+            <rect x="8.6" y="4.9" width="6.8" height="1.5" rx="0.75" fill={color} />
+            <rect x="9.4" y="6.8" width="5.2" height="1.15" rx="0.55" fill={color} opacity="0.85" />
+            {/* Neck + round potion flask */}
+            <path
+              d="M10.1 8.1v2.25a6.65 6.65 0 1 0 3.8 0V8.1"
+              stroke={color}
+              strokeWidth="1.9"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Mana liquid wave inside the round flask */}
+            <path
+              d="M6.85 15.1c1.3-1.05 2.7-1.05 4.2 0 1.45 1 2.9 1 4.4-.15.65-.48 1.2-.55 1.7-.35a5.25 5.25 0 0 1-10.3.5Z"
+              fill={color}
+              opacity="0.72"
+            />
+          </g>
         </svg>
       );
 
@@ -229,4 +235,72 @@ export const SocialBrandIcon: React.FC<SocialBrandIconProps> = ({
         </svg>
       );
   }
+};
+
+interface EmbossedCategoryWatermarkProps {
+  platform: SocialPlatform;
+  /** Size in rendered px */
+  size: number;
+  /** Render scale (1, 1.5, 2) so bevel offset stays razor-sharp at HiDPI */
+  qualityScale?: number;
+  /** Surface tone: 'charcoal' for Whatnot HUD cards, 'wood' for ManaCards timber */
+  surface?: 'charcoal' | 'wood';
+  /** Subtle tilt angle in degrees (default -11) */
+  rotateDeg?: number;
+  className?: string;
+}
+
+/**
+ * Tactile monochrome blind-debossed / pressed-in category mark for card & ticker backgrounds.
+ * Uses 3 crisp offset vector layers (top-left recess shadow, bottom-right catch-light rim,
+ * recessed matte core) — zero CSS blur so OBS CEF keeps razor-sharp edges.
+ */
+export const EmbossedCategoryWatermark: React.FC<EmbossedCategoryWatermarkProps> = ({
+  platform,
+  size,
+  qualityScale = 2,
+  surface = 'charcoal',
+  rotateDeg = -11,
+  className = '',
+}) => {
+  const bevel = Math.max(1, Math.round(1.25 * qualityScale * 10) / 10);
+  const highlightColor =
+    surface === 'wood' ? 'rgba(225, 200, 245, 0.13)' : 'rgba(255, 255, 255, 0.15)';
+  const shadowColor =
+    surface === 'wood' ? 'rgba(4, 2, 7, 0.72)' : 'rgba(0, 0, 0, 0.68)';
+  const coreColor =
+    surface === 'wood' ? 'rgba(10, 6, 15, 0.48)' : 'rgba(12, 10, 13, 0.46)';
+
+  return (
+    <div
+      aria-hidden="true"
+      className={`pointer-events-none select-none relative shrink-0 ${className}`}
+      style={{
+        width: size,
+        height: size,
+        transform: rotateDeg !== 0 ? `rotate(${rotateDeg}deg)` : undefined,
+      }}
+    >
+      {/* 1. Bottom-right overhead catch-light lip of the recessed stamp */}
+      <div
+        className="absolute inset-0"
+        style={{ transform: `translate(${bevel}px, ${bevel}px)` }}
+      >
+        <SocialBrandIcon platform={platform} color={highlightColor} className="w-full h-full" />
+      </div>
+
+      {/* 2. Top-left deep recess shadow inside the stamped bevel */}
+      <div
+        className="absolute inset-0"
+        style={{ transform: `translate(-${bevel}px, -${bevel}px)` }}
+      >
+        <SocialBrandIcon platform={platform} color={shadowColor} className="w-full h-full" />
+      </div>
+
+      {/* 3. Matte monochrome recessed body */}
+      <div className="absolute inset-0">
+        <SocialBrandIcon platform={platform} color={coreColor} className="w-full h-full" />
+      </div>
+    </div>
+  );
 };

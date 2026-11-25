@@ -7,7 +7,7 @@ import {
   RotatorBarSettings,
   RotatorSlide,
 } from '../types/broadcastBars';
-import { resolveVeinPalette } from './SocialBrandIcons';
+import { EmbossedCategoryWatermark, resolveVeinPalette } from './SocialBrandIcons';
 import { PlatformBadge } from './WhatnotBars';
 import { BranchRune, LogMedallion, ManaWoodPlank, WOOD } from './ManaWoodPlank';
 import { useRotatorCycle } from './useRotatorCycle';
@@ -195,6 +195,45 @@ export const SocialRotatorBar: React.FC<SocialRotatorBarProps> = ({
                     'radial-gradient(75% 85% at 38% 50%, rgba(10, 6, 14, 0.55) 0%, rgba(10, 6, 14, 0) 100%)',
                 }}
               />
+
+              {/* Monochrome carved/embossed category stamp inside the timber plank */}
+              <div
+                className="pointer-events-none absolute overflow-hidden"
+                style={{
+                  left: x0,
+                  right: Math.round(38 * q),
+                  top: y0 + Math.round(3 * q),
+                  height: plankH - Math.round(6 * q),
+                  maskImage:
+                    'linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.28) 45%, rgba(0,0,0,0.95) 82%, rgba(0,0,0,0) 100%)',
+                  WebkitMaskImage:
+                    'linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.28) 45%, rgba(0,0,0,0.95) 82%, rgba(0,0,0,0) 100%)',
+                }}
+              >
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={`wood_emboss_${activeSlide.platform}`}
+                    initial={{ opacity: 0, scale: 0.92 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 1.04 }}
+                    transition={{ duration: 0.42, ease: EASE_OUT }}
+                    className="absolute flex items-center justify-center"
+                    style={{
+                      right: Math.round(12 * q),
+                      top: '50%',
+                      marginTop: -Math.round(plankH * 0.56),
+                    }}
+                  >
+                    <EmbossedCategoryWatermark
+                      platform={activeSlide.platform}
+                      size={Math.round(plankH * 1.12)}
+                      qualityScale={q}
+                      surface="wood"
+                      rotateDeg={-10}
+                    />
+                  </motion.div>
+                </AnimatePresence>
+              </div>
 
               <motion.div
                 key={`surge_${slideKey}`}
