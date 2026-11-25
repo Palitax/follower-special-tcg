@@ -498,23 +498,48 @@ input:not([type="range"]):user-invalid {
 
 /* ============================================================
    MANACARDS SOCIAL ROTATOR & HORIZONTAL TICKER BARS
-   Compositor-only transforms/opacity + reduced-motion discipline
+   Flat (non-nested) media queries so older OBS CEF builds parse them.
    ============================================================ */
-@keyframes mcRotatorProgress {
+
+/* Carved mana channel: fills left → right over the slide interval */
+@keyframes mcManaChannel {
   from {
-    transform: scaleX(0);
+    stroke-dashoffset: 1;
   }
   to {
-    transform: scaleX(1);
+    stroke-dashoffset: 0;
   }
 }
 
-.mc-rotator-progress {
-  transform-origin: left center;
-  will-change: transform;
-  animation-name: mcRotatorProgress;
+.mc-mana-channel {
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  animation-name: mcManaChannel;
   animation-timing-function: linear;
   animation-fill-mode: forwards;
+}
+
+/* Bright mana droplet travelling along each vein */
+@keyframes mcManaFlow {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.mc-mana-flow {
+  stroke-dasharray: 0.09 0.91;
+  stroke-dashoffset: 1;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mc-mana-flow {
+    opacity: 0.9;
+    animation: mcManaFlow var(--flow-dur, 4.5s) linear var(--flow-delay, 0s) infinite;
+  }
 }
 
 @keyframes mcTickerMarquee {
@@ -531,32 +556,30 @@ input:not([type="range"]):user-invalid {
   animation-name: mcTickerMarquee;
   animation-timing-function: linear;
   animation-iteration-count: infinite;
+}
 
-  @media (prefers-reduced-motion: reduce) {
+@media (prefers-reduced-motion: reduce) {
+  .mc-ticker-track {
     animation-duration: 90s !important;
   }
 }
 
 @keyframes mcVeinPulse {
   0%, 100% {
-    opacity: 0.62;
+    opacity: 0.6;
   }
   50% {
-    opacity: 0.96;
+    opacity: 1;
   }
 }
 
 .mc-vein-pulse {
-  opacity: 0.78;
-  @media (prefers-reduced-motion: no-preference) {
-    animation: mcVeinPulse 5.2s ease-in-out infinite;
-  }
+  opacity: 0.8;
 }
 
-.mc-vein-pulse-delayed {
-  opacity: 0.74;
-  @media (prefers-reduced-motion: no-preference) {
-    animation: mcVeinPulse 6.1s ease-in-out 1.8s infinite;
+@media (prefers-reduced-motion: no-preference) {
+  .mc-vein-pulse {
+    animation: mcVeinPulse 5.2s ease-in-out infinite;
   }
 }
 

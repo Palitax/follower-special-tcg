@@ -60,9 +60,9 @@ const PLATFORM_OPTIONS: { id: SocialPlatform; label: string }[] = [
 ];
 
 const ANIMATION_PRESETS: { id: RotatorAnimationPreset; label: string; desc: string }[] = [
-  { id: 'unfold', label: 'Lower-Third Unfold', desc: 'Minimalistisches Auf- & Zuklappen' },
-  { id: 'wipe', label: 'Broadcast Wipe', desc: 'Stehende Bar · vertikaler Text-Switch' },
-  { id: 'mana-surge', label: 'Mana Surge', desc: 'Fließender Gleit- & Lichtimpuls' },
+  { id: 'unfold', label: 'Verzauberter Nebel', desc: 'Schrift schwebt aus arkanem Dunst' },
+  { id: 'wipe', label: 'Runen-Rolle', desc: 'Zeilen rollen wie eine Holztrommel' },
+  { id: 'mana-surge', label: 'Mana-Ausbruch', desc: 'Lettern entzünden sich im Mana-Blitz' },
 ];
 
 export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
@@ -627,10 +627,10 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                   className="py-2 px-2.5 border border-white/15 bg-black/45 hover:bg-white/10 text-left"
                 >
                   <div className="text-[9.5px] uppercase tracking-wider text-slate-400">
-                    Kantenform
+                    Holzenden
                   </div>
                   <div className="text-white mt-0.5">
-                    {snapshot.rotator.edgeStyle === 'angled' ? '45° Angled Cut' : '90° Kantig'}
+                    {snapshot.rotator.edgeStyle === 'angled' ? 'Rau gebrochen' : 'Glatt gesägt'}
                   </div>
                 </button>
 
@@ -655,7 +655,7 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                   className="py-2 px-2.5 border border-white/15 bg-black/45 hover:bg-white/10 text-left"
                 >
                   <div className="text-[9.5px] uppercase tracking-wider text-slate-400">
-                    Timer-Linie
+                    Mana-Kanal (Timer)
                   </div>
                   <div className={snapshot.rotator.showProgressBar ? 'text-emerald-300 mt-0.5' : 'text-slate-400 mt-0.5'}>
                     {snapshot.rotator.showProgressBar ? 'Sichtbar' : 'Aus'}
@@ -1054,7 +1054,7 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                     }
                     className="h-9 px-2 border border-white/15 bg-black/45 hover:bg-white/10 text-[10.5px] font-bold text-white truncate"
                   >
-                    {snapshot.ticker.edgeStyle === 'sharp' ? '90° Kantig' : '45° Cut'}
+                    {snapshot.ticker.edgeStyle === 'sharp' ? 'Glatt gesägt' : 'Rau gebrochen'}
                   </button>
                   <button
                     type="button"

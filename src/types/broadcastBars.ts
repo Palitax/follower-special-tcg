@@ -89,7 +89,7 @@ export const DEFAULT_TICKER_SETTINGS: TickerBarSettings = {
   paused: false,
   speed: 'normal',
   veinColorMode: 'mana-blue',
-  edgeStyle: 'sharp',
+  edgeStyle: 'angled',
   showBrandAnchor: true,
   brandAnchorText: 'MANACARDS',
   showWoodVeins: true,

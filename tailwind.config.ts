@@ -12,6 +12,10 @@ const config: Config = {
         background: "var(--background)",
         foreground: "var(--foreground)",
       },
+      fontFamily: {
+        'mana-display': ['var(--font-cinzel)', 'Georgia', 'serif'],
+        'mana-body': ['var(--font-alegreya-sans)', 'system-ui', 'sans-serif'],
+      },
       animation: {
         'shimmer': 'shimmer 2.5s infinite linear',
         'pulse-subtle': 'pulseSubtle 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',

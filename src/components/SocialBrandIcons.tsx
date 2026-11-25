@@ -19,9 +19,9 @@ export interface PlatformVisualTheme {
 }
 
 export const MANA_SIGNATURE_VEIN = {
-  accentHex: '#38bdf8',
-  accentSoftHex: '#bae6fd',
-  accentRgb: '56, 189, 248',
+  accentHex: '#3fb6ff',
+  accentSoftHex: '#dff5ff',
+  accentRgb: '63, 182, 255',
 };
 
 export const PLATFORM_THEMES: Record<SocialPlatform, PlatformVisualTheme> = {

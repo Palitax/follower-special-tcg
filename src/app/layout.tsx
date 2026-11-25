@@ -1,5 +1,21 @@
 import type { Metadata, Viewport } from 'next';
+import { Alegreya_Sans, Cinzel } from 'next/font/google';
 import './globals.css';
+
+// Fantasy display serif (carved inscriptions) + humanist storybook sans (readable copy)
+const cinzel = Cinzel({
+  subsets: ['latin'],
+  weight: ['500', '600', '700', '800', '900'],
+  variable: '--font-cinzel',
+  display: 'swap',
+});
+
+const alegreyaSans = Alegreya_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '700'],
+  variable: '--font-alegreya-sans',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   title: 'ManaCards · Giveaway Overlay Studio',
@@ -27,7 +43,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="de" className="h-full w-full">
+    <html lang="de" className={`h-full w-full ${cinzel.variable} ${alegreyaSans.variable}`}>
       <head>
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
