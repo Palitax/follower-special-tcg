@@ -1,8 +1,32 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { AUTH_COOKIE, isValidOverlayKey, isValidSession } from './lib/auth';
 
+const LINKTREE_URL = process.env.LINKTREE_URL ?? 'https://linktr.ee/manacards_de';
+const PUBLIC_LINKTREE_HOSTS = new Set(
+  (process.env.LINKTREE_REDIRECT_HOSTS ?? 'manacards.de,www.manacards.de')
+    .split(',')
+    .map((h) => h.trim().toLowerCase())
+    .filter(Boolean)
+);
+
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  const host = (request.headers.get('host') ?? '').toLowerCase().split(':')[0];
+
+  // Keep manacards.de / www.manacards.de root redirecting straight to Linktree
+  if (PUBLIC_LINKTREE_HOSTS.has(host) && pathname === '/') {
+    return NextResponse.redirect(LINKTREE_URL, 307);
+  }
+
+  // Public Kartenankauf tool (/ankauf + POST /api/ankauf) — accessible without Studio login
+  if (
+    pathname === '/ankauf' ||
+    pathname.startsWith('/ankauf/') ||
+    (pathname === '/api/ankauf' && request.method === 'POST')
+  ) {
+    return NextResponse.next();
+  }
+
   const authed = await isValidSession(request.cookies.get(AUTH_COOKIE)?.value);
 
   // Already logged in → skip the login screen
