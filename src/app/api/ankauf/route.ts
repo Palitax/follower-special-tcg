@@ -3,14 +3,17 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const MAX_PHOTOS = 8;
+const MAX_PHOTOS_PER_REQUEST = 8;
+const MAX_TOTAL_PHOTOS = 20;
 const MAX_SINGLE_FILE_BYTES = 2.5 * 1024 * 1024; // 2.5 MB per compressed file
-const MAX_TOTAL_BYTES = 4.2 * 1024 * 1024; // Safe headroom under Vercel's 4.5 MB limit
+const MAX_REQUEST_BYTES = 4.0 * 1024 * 1024; // Safe headroom under Vercel's 4.5 MB limit
 const ALLOWED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 
-// Lightweight in-memory rate limit (per serverless instance)
+const BATCH_SECRET = process.env.AUTH_SECRET ?? 'manacards-follower-special-v1';
+
+// Lightweight in-memory rate limit (per serverless instance, only counts main submissions)
 const RATE_WINDOW_MS = 10 * 60 * 1000;
-const RATE_MAX_REQUESTS = 6;
+const RATE_MAX_REQUESTS = 8;
 const rateBuckets = new Map<string, number[]>();
 
 function isRateLimited(ip: string): boolean {
@@ -30,6 +33,26 @@ function cleanText(val: FormDataEntryValue | null, maxLen: number): string {
   return val.trim().replace(/\r\n/g, '\n').slice(0, maxLen);
 }
 
+async function createBatchToken(ticketId: string): Promise<string> {
+  const data = new TextEncoder().encode(`ankauf-batch:${ticketId}:${BATCH_SECRET}`);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(digest))
+    .slice(0, 16)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function isValidBatchToken(ticketId: string, supplied: string): Promise<boolean> {
+  if (!ticketId || !supplied) return false;
+  const expected = await createBatchToken(ticketId);
+  if (expected.length !== supplied.length) return false;
+  let diff = 0;
+  for (let i = 0; i < expected.length; i++) {
+    diff |= expected.charCodeAt(i) ^ supplied.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 function buildQuickContactLink(channel: string, rawValue: string): string | null {
   const trimmed = rawValue.trim();
   if (!trimmed) return null;
@@ -41,16 +64,6 @@ function buildQuickContactLink(channel: string, rawValue: string): string | null
     else if (digits.startsWith('0')) digits = `49${digits.slice(1)}`;
     if (digits.length >= 8) {
       return `https://wa.me/${digits}`;
-    }
-  }
-
-  if (channel === 'Instagram') {
-    const handle = trimmed
-      .replace(/^https?:\/\/(www\.)?instagram\.com\//i, '')
-      .replace(/^@+/, '')
-      .split(/[/?#]/)[0];
-    if (handle && /^[a-zA-Z0-9._]+$/.test(handle)) {
-      return `https://instagram.com/${handle}`;
     }
   }
 
@@ -66,7 +79,134 @@ function generateTicketId(): string {
   return `MC-${code}`;
 }
 
+function extractValidatedPhotos(formData: FormData): {
+  photos: File[];
+  error?: string;
+} {
+  const rawPhotos = formData.getAll('photos');
+  const photos: File[] = [];
+  let totalBytes = 0;
+
+  for (const entry of rawPhotos) {
+    if (entry instanceof File && entry.size > 0) {
+      if (photos.length >= MAX_PHOTOS_PER_REQUEST) break;
+      if (!ALLOWED_MIME.has(entry.type)) {
+        return { photos: [], error: 'Bitte lade nur Bilder (JPG, PNG oder WebP) hoch.' };
+      }
+      if (entry.size > MAX_SINGLE_FILE_BYTES) {
+        return {
+          photos: [],
+          error: `Das Foto „${entry.name}“ ist zu groß. Bitte wähle ein kleineres Bild.`,
+        };
+      }
+      totalBytes += entry.size;
+      if (totalBytes > MAX_REQUEST_BYTES) {
+        return {
+          photos: [],
+          error: 'Ein Foto-Paket überschreitet das Upload-Limit. Bitte lade kleinere Bilder hoch.',
+        };
+      }
+      photos.push(entry);
+    }
+  }
+
+  return { photos };
+}
+
 export async function POST(request: NextRequest) {
+  const webhookUrl = process.env.DISCORD_ANKAUF_WEBHOOK_URL?.trim();
+  if (!webhookUrl || !webhookUrl.startsWith('https://')) {
+    return NextResponse.json(
+      {
+        error:
+          'Discord-Webhook ist noch nicht eingerichtet. Bitte hinterlege DISCORD_ANKAUF_WEBHOOK_URL in den Vercel Environment Variables.',
+      },
+      { status: 503 }
+    );
+  }
+
+  let formData: FormData;
+  try {
+    formData = await request.formData();
+  } catch {
+    return NextResponse.json(
+      {
+        error:
+          'Die Anfrage konnte nicht gelesen werden. Bitte verkleinere die Fotos oder versuche es erneut.',
+      },
+      { status: 400 }
+    );
+  }
+
+  const batchMode = cleanText(formData.get('mode'), 20) === 'photo-batch';
+
+  // =========================================================================
+  // FOLLOW-UP PHOTO BATCH (for submissions with 9–20 photos)
+  // Splits cleanly under Vercel's 4.5 MB body limit & Discord's 10-file limit
+  // =========================================================================
+  if (batchMode) {
+    const ticketId = cleanText(formData.get('ticketId'), 24);
+    const batchToken = cleanText(formData.get('batchToken'), 64);
+    const senderName = cleanText(formData.get('name'), 100);
+    const batchIndex = Math.max(2, Number(cleanText(formData.get('batchIndex'), 5)) || 2);
+    const totalBatches = Math.max(batchIndex, Number(cleanText(formData.get('totalBatches'), 5)) || batchIndex);
+    const photoOffset = Math.max(0, Number(cleanText(formData.get('photoOffset'), 5)) || 0);
+
+    if (!(await isValidBatchToken(ticketId, batchToken))) {
+      return NextResponse.json({ error: 'Ungültiges Foto-Paket.' }, { status: 403 });
+    }
+
+    const { photos, error: photoErr } = extractValidatedPhotos(formData);
+    if (photoErr) {
+      return NextResponse.json({ error: photoErr }, { status: 400 });
+    }
+    if (photos.length === 0) {
+      return NextResponse.json({ ok: true, ticketId });
+    }
+
+    const discordForm = new FormData();
+    const attachmentsMeta = photos.map((file, idx) => {
+      const ext =
+        file.type === 'image/png' ? 'png' : file.type === 'image/webp' ? 'webp' : 'jpg';
+      const photoNum = photoOffset + idx + 1;
+      const safeName = `${ticketId.toLowerCase()}_foto_${photoNum}.${ext}`;
+      discordForm.append(`files[${idx}]`, file, safeName);
+      return { id: idx, filename: safeName };
+    });
+
+    const payloadJson = {
+      username: 'ManaCards Ankauf',
+      content: `**Weitere Fotos zu \`${ticketId}\`** (${senderName || 'Verkäufer'} · Paket ${batchIndex}/${totalBatches}, Fotos ${photoOffset + 1}–${photoOffset + photos.length})`,
+      attachments: attachmentsMeta,
+    };
+    discordForm.append('payload_json', JSON.stringify(payloadJson));
+
+    try {
+      const discordRes = await fetch(webhookUrl, { method: 'POST', body: discordForm });
+      if (!discordRes.ok) {
+        const errText = await discordRes.text().catch(() => '');
+        console.error('Discord photo batch failed:', discordRes.status, errText);
+        return NextResponse.json(
+          { error: 'Ein Teil der Fotos konnte nicht an Discord gesendet werden.' },
+          { status: 502 }
+        );
+      }
+      return NextResponse.json(
+        { ok: true, ticketId },
+        { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      );
+    } catch (err) {
+      console.error('Discord photo batch network error:', err);
+      return NextResponse.json(
+        { error: 'Verbindungsfehler beim Senden der Fotos.' },
+        { status: 502 }
+      );
+    }
+  }
+
+  // =========================================================================
+  // PRIMARY SUBMISSION (Embed + Batch 1 of photos)
+  // =========================================================================
   const forwarded = request.headers.get('x-forwarded-for');
   const clientIp = forwarded?.split(',')[0]?.trim() || 'unknown';
 
@@ -77,17 +217,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let formData: FormData;
-  try {
-    formData = await request.formData();
-  } catch {
-    return NextResponse.json(
-      { error: 'Die Anfrage konnte nicht gelesen werden. Bitte verkleinere die Fotos oder versuche es erneut.' },
-      { status: 400 }
-    );
-  }
-
-  // Honeypot anti-spam check: silently accept bots without posting to Discord
+  // Honeypot anti-spam check
   const honeypot = cleanText(formData.get('company_website'), 120);
   if (honeypot.length > 0) {
     return NextResponse.json({ ok: true, ticketId: 'MC-0000' });
@@ -100,21 +230,20 @@ export async function POST(request: NextRequest) {
   const condition = cleanText(formData.get('condition'), 80);
   const expectedPrice = cleanText(formData.get('expectedPrice'), 60);
   const notes = cleanText(formData.get('notes'), 1500);
+  const declaredTotalPhotos = Math.min(
+    MAX_TOTAL_PHOTOS,
+    Math.max(0, Number(cleanText(formData.get('totalPhotos'), 5)) || 0)
+  );
 
   const categories = formData
     .getAll('categories')
     .filter((v): v is string => typeof v === 'string' && v.trim().length > 0)
     .map((v) => v.trim().slice(0, 50))
-    .slice(0, 12);
+    .slice(0, 4);
+  const effectiveCategories = categories.length > 0 ? categories : ['Pokémon'];
 
   if (!name) {
     return NextResponse.json({ error: 'Bitte gib deinen Namen an.' }, { status: 400 });
-  }
-  if (categories.length === 0) {
-    return NextResponse.json(
-      { error: 'Bitte wähle mindestens eine TCG-Kategorie aus.' },
-      { status: 400 }
-    );
   }
   if (!collectionType) {
     return NextResponse.json(
@@ -129,52 +258,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Collect & validate uploaded photos
-  const rawPhotos = formData.getAll('photos');
-  const photos: File[] = [];
-  let totalBytes = 0;
-
-  for (const entry of rawPhotos) {
-    if (entry instanceof File && entry.size > 0) {
-      if (photos.length >= MAX_PHOTOS) break;
-      if (!ALLOWED_MIME.has(entry.type)) {
-        return NextResponse.json(
-          { error: 'Bitte lade nur Bilder (JPG, PNG oder WebP) hoch.' },
-          { status: 400 }
-        );
-      }
-      if (entry.size > MAX_SINGLE_FILE_BYTES) {
-        return NextResponse.json(
-          { error: `Das Foto „${entry.name}“ ist zu groß. Bitte wähle ein kleineres Bild.` },
-          { status: 400 }
-        );
-      }
-      totalBytes += entry.size;
-      if (totalBytes > MAX_TOTAL_BYTES) {
-        return NextResponse.json(
-          { error: 'Die Fotos sind insgesamt zu groß. Bitte sende maximal 8 Bilder.' },
-          { status: 400 }
-        );
-      }
-      photos.push(entry);
-    }
+  const { photos, error: photoErr } = extractValidatedPhotos(formData);
+  if (photoErr) {
+    return NextResponse.json({ error: photoErr }, { status: 400 });
   }
 
-  const webhookUrl = process.env.DISCORD_ANKAUF_WEBHOOK_URL?.trim();
-  if (!webhookUrl || !webhookUrl.startsWith('https://')) {
-    return NextResponse.json(
-      {
-        error:
-          'Discord-Webhook ist noch nicht eingerichtet. Bitte hinterlege DISCORD_ANKAUF_WEBHOOK_URL in den Vercel Environment Variables.',
-      },
-      { status: 503 }
-    );
-  }
-
+  const totalPhotoCount = Math.max(photos.length, declaredTotalPhotos);
   const ticketId = generateTicketId();
+  const batchToken = await createBatchToken(ticketId);
   const quickLink = buildQuickContactLink(contactChannel, contactValue);
   const contactDisplay = quickLink
-    ? `${contactChannel}: **${contactValue}**\n[Direkt öffnen](${quickLink})`
+    ? `${contactChannel}: **${contactValue}**\n[Direkt in WhatsApp öffnen](${quickLink})`
     : `${contactChannel}: **${contactValue}**`;
 
   const fields = [
@@ -185,13 +279,18 @@ export async function POST(request: NextRequest) {
       value: expectedPrice ? `${expectedPrice}` : 'Bitte um Angebot',
       inline: true,
     },
-    { name: 'Kategorien', value: categories.join(' · '), inline: false },
+    { name: 'Kategorie', value: effectiveCategories.join(' · '), inline: true },
     { name: 'Art', value: collectionType, inline: true },
     { name: 'Zustand', value: condition || 'Nicht angegeben', inline: true },
     {
       name: 'Fotos',
-      value: photos.length > 0 ? `${photos.length} Bild${photos.length === 1 ? '' : 'er'} angehängt` : 'Keine Fotos hochgeladen',
-      inline: true,
+      value:
+        totalPhotoCount > 0
+          ? `${totalPhotoCount} Bild${totalPhotoCount === 1 ? '' : 'er'}${
+              totalPhotoCount > photos.length ? ' (folgen in Paketen)' : ' angehängt'
+            }`
+          : 'Keine Fotos hochgeladen',
+      inline: false,
     },
   ];
 
@@ -214,10 +313,10 @@ export async function POST(request: NextRequest) {
 
   const payloadJson = {
     username: 'ManaCards Ankauf',
-    content: `**Neue Ankauf-Anfrage \`${ticketId}\`** von **${name}** (${categories.join(', ')})`,
+    content: `**Neue Pokémon Ankauf-Anfrage \`${ticketId}\`** von **${name}**`,
     embeds: [
       {
-        title: `Kartenankauf · ${ticketId}`,
+        title: `Pokémon Kartenankauf · ${ticketId}`,
         color: 0x3fb6ff,
         fields,
         footer: {
@@ -244,19 +343,25 @@ export async function POST(request: NextRequest) {
       const errText = await discordRes.text().catch(() => '');
       console.error('Discord webhook rejected request:', discordRes.status, errText);
       return NextResponse.json(
-        { error: 'Übermittlung an Discord fehlgeschlagen. Bitte versuche es in einem Moment erneut.' },
+        {
+          error:
+            'Übermittlung an Discord fehlgeschlagen. Bitte versuche es in einem Moment erneut.',
+        },
         { status: 502 }
       );
     }
 
     return NextResponse.json(
-      { ok: true, ticketId },
+      { ok: true, ticketId, batchToken },
       { headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
   } catch (err) {
     console.error('Discord webhook network error:', err);
     return NextResponse.json(
-      { error: 'Verbindungsfehler beim Senden. Bitte prüfe deine Internetverbindung und versuche es erneut.' },
+      {
+        error:
+          'Verbindungsfehler beim Senden. Bitte prüfe deine Internetverbindung und versuche es erneut.',
+      },
       { status: 502 }
     );
   }

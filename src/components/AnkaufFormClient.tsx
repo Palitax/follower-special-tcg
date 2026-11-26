@@ -7,24 +7,15 @@ import {
   CheckCircle2,
   Clock,
   ImagePlus,
+  Mail,
   Send,
   ShieldCheck,
   X,
 } from 'lucide-react';
 
 const LINKTREE_URL = 'https://linktr.ee/manacards_de';
-const MAX_PHOTOS = 8;
-
-const TCG_CATEGORIES = [
-  'Pokémon',
-  'One Piece',
-  'Yu-Gi-Oh!',
-  'Magic: The Gathering',
-  'Lorcana',
-  'Graded Slabs (PSA / BGS / CGC)',
-  'Sealed Produkte',
-  'Sonstiges',
-] as const;
+const MAX_PHOTOS = 20;
+const PHOTOS_PER_BATCH = 8;
 
 const COLLECTION_TYPES = [
   { value: 'Einzelkarten / Hits', desc: 'Ausgewählte Karten, Alt-Arts & Chase-Cards' },
@@ -52,31 +43,11 @@ const CONTACT_CHANNELS = [
     inputMode: 'tel' as const,
   },
   {
-    value: 'Instagram',
-    label: 'Instagram',
-    inputLabel: 'Dein Instagram-Name',
-    placeholder: 'z. B. @dein_name',
-    helper: 'Achte darauf, dass wir dir eine DM senden können.',
-    type: 'text' as const,
-    autoComplete: 'username',
-    inputMode: 'text' as const,
-  },
-  {
-    value: 'Discord',
-    label: 'Discord',
-    inputLabel: 'Dein Discord-Benutzername',
-    placeholder: 'z. B. deinname',
-    helper: 'Gern auch auf unserem ManaCards Discord Server.',
-    type: 'text' as const,
-    autoComplete: 'username',
-    inputMode: 'text' as const,
-  },
-  {
     value: 'E-Mail',
     label: 'E-Mail',
     inputLabel: 'Deine E-Mail-Adresse',
     placeholder: 'name@beispiel.de',
-    helper: 'Du erhältst unser Angebot direkt per Mail.',
+    helper: 'Du erhältst unser Angebot direkt per E-Mail.',
     type: 'email' as const,
     autoComplete: 'email',
     inputMode: 'email' as const,
@@ -91,10 +62,10 @@ interface CompressedPhoto {
 }
 
 /**
- * Compresses mobile camera photos client-side to crisp JPEG (~200-350 KB)
- * so up to 8 binder/card photos upload quickly and reliably on mobile data.
+ * Compresses mobile camera photos client-side to crisp JPEG (~180-300 KB)
+ * so up to 20 binder/card photos upload quickly and reliably in batched requests.
  */
-async function compressPhotoForUpload(file: File, maxDim = 1400): Promise<CompressedPhoto> {
+async function compressPhotoForUpload(file: File, maxDim = 1350): Promise<CompressedPhoto> {
   const id = `ph_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
 
   const blob: Blob = await new Promise((resolve) => {
@@ -123,11 +94,7 @@ async function compressPhotoForUpload(file: File, maxDim = 1400): Promise<Compre
           return;
         }
         ctx.drawImage(img, 0, 0, width, height);
-        canvas.toBlob(
-          (out) => resolve(out ?? file),
-          'image/jpeg',
-          0.82
-        );
+        canvas.toBlob((out) => resolve(out ?? file), 'image/jpeg', 0.8);
       };
       img.src = String(reader.result);
     };
@@ -151,10 +118,8 @@ export const AnkaufFormClient: React.FC = () => {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const nameInputRef = useRef<HTMLInputElement>(null);
   const contactInputRef = useRef<HTMLInputElement>(null);
-  const categorySectionRef = useRef<HTMLFieldSetElement>(null);
   const successRef = useRef<HTMLDivElement>(null);
 
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(['Pokémon']);
   const [collectionType, setCollectionType] = useState<string>(COLLECTION_TYPES[0].value);
   const [condition, setCondition] = useState<string>(CONDITIONS[1].value);
   const [photos, setPhotos] = useState<CompressedPhoto[]>([]);
@@ -168,26 +133,16 @@ export const AnkaufFormClient: React.FC = () => {
   const [honeypot, setHoneypot] = useState('');
 
   const [fieldErrors, setFieldErrors] = useState<{
-    categories?: string;
     name?: string;
     contactValue?: string;
   }>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [submitProgress, setSubmitProgress] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submittedTicket, setSubmittedTicket] = useState<string | null>(null);
 
   const activeChannelMeta =
     CONTACT_CHANNELS.find((c) => c.value === contactChannel) ?? CONTACT_CHANNELS[0];
-
-  const toggleCategory = (cat: string) => {
-    setSelectedCategories((prev) => {
-      const next = prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat];
-      if (next.length > 0 && fieldErrors.categories) {
-        setFieldErrors((errs) => ({ ...errs, categories: undefined }));
-      }
-      return next;
-    });
-  };
 
   const handlePhotoFiles = async (fileList: FileList | null) => {
     if (!fileList || fileList.length === 0) return;
@@ -221,10 +176,7 @@ export const AnkaufFormClient: React.FC = () => {
   };
 
   const validateAndFocus = (): boolean => {
-    const nextErrors: { categories?: string; name?: string; contactValue?: string } = {};
-    if (selectedCategories.length === 0) {
-      nextErrors.categories = 'Bitte wähle mindestens eine Kategorie aus.';
-    }
+    const nextErrors: { name?: string; contactValue?: string } = {};
     if (!name.trim()) {
       nextErrors.name = 'Bitte gib deinen Namen an.';
     }
@@ -233,10 +185,6 @@ export const AnkaufFormClient: React.FC = () => {
     }
     setFieldErrors(nextErrors);
 
-    if (nextErrors.categories) {
-      categorySectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      return false;
-    }
     if (nextErrors.name) {
       nameInputRef.current?.focus();
       return false;
@@ -256,7 +204,14 @@ export const AnkaufFormClient: React.FC = () => {
     if (!validateAndFocus()) return;
 
     setIsSubmitting(true);
+    const totalBatches = Math.max(1, Math.ceil(photos.length / PHOTOS_PER_BATCH));
+    setSubmitProgress(
+      totalBatches > 1 ? `Anfrage & Fotos werden gesendet (1/${totalBatches})…` : 'Anfrage wird gesendet…'
+    );
+
     try {
+      // 1. Primary request (form details + first batch of up to 8 photos)
+      const firstBatch = photos.slice(0, PHOTOS_PER_BATCH);
       const fd = new FormData();
       fd.append('name', name.trim());
       fd.append('contactChannel', contactChannel);
@@ -266,10 +221,10 @@ export const AnkaufFormClient: React.FC = () => {
       fd.append('expectedPrice', expectedPrice.trim());
       fd.append('notes', notes.trim());
       fd.append('company_website', honeypot);
-      for (const cat of selectedCategories) {
-        fd.append('categories', cat);
-      }
-      for (const p of photos) {
+      fd.append('categories', 'Pokémon');
+      fd.append('totalPhotos', String(photos.length));
+
+      for (const p of firstBatch) {
         fd.append('photos', p.file, p.file.name);
       }
 
@@ -288,9 +243,48 @@ export const AnkaufFormClient: React.FC = () => {
         return;
       }
 
+      const ticketId = typeof data?.ticketId === 'string' ? data.ticketId : 'MC-OK';
+      const batchToken = typeof data?.batchToken === 'string' ? data.batchToken : '';
+
+      // 2. Remaining photos in crisp follow-up batches (up to 8 photos per batch → up to 20 total)
+      if (photos.length > PHOTOS_PER_BATCH && batchToken) {
+        for (let b = 1; b < totalBatches; b++) {
+          const offset = b * PHOTOS_PER_BATCH;
+          const chunk = photos.slice(offset, offset + PHOTOS_PER_BATCH);
+          if (chunk.length === 0) continue;
+
+          setSubmitProgress(`Weitere Fotos werden gesendet (${b + 1}/${totalBatches})…`);
+          const batchFd = new FormData();
+          batchFd.append('mode', 'photo-batch');
+          batchFd.append('ticketId', ticketId);
+          batchFd.append('batchToken', batchToken);
+          batchFd.append('name', name.trim());
+          batchFd.append('batchIndex', String(b + 1));
+          batchFd.append('totalBatches', String(totalBatches));
+          batchFd.append('photoOffset', String(offset));
+          for (const p of chunk) {
+            batchFd.append('photos', p.file, p.file.name);
+          }
+
+          const bRes = await fetch('/api/ankauf', {
+            method: 'POST',
+            body: batchFd,
+          });
+          if (!bRes.ok) {
+            const bData = await bRes.json().catch(() => ({}));
+            setSubmitError(
+              typeof bData?.error === 'string'
+                ? `${bData.error} (Deine Basis-Anfrage ${ticketId} ist bereits eingegangen.)`
+                : `Einige Fotos konnten nicht gesendet werden (Basis-Anfrage ${ticketId} ist eingegangen).`
+            );
+            return;
+          }
+        }
+      }
+
       photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
       setPhotos([]);
-      setSubmittedTicket(typeof data?.ticketId === 'string' ? data.ticketId : 'MC-OK');
+      setSubmittedTicket(ticketId);
       requestAnimationFrame(() => {
         successRef.current?.focus();
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -299,6 +293,7 @@ export const AnkaufFormClient: React.FC = () => {
       setSubmitError('Keine Verbindung zum Server. Bitte prüfe dein Internet und versuche es erneut.');
     } finally {
       setIsSubmitting(false);
+      setSubmitProgress(null);
     }
   };
 
@@ -370,7 +365,7 @@ export const AnkaufFormClient: React.FC = () => {
           </div>
 
           <p className="text-[15px] text-slate-300 leading-relaxed">
-            Schick uns kurz Fotos und Infos zu deinen Einzelkarten, Bindern, Slabs oder
+            Schick uns kurz Fotos und Infos zu deinen Pokémon Einzelkarten, Bindern, Slabs oder
             kompletten Sammlungen. Wir schauen sie uns an und melden uns mit einem fairen Angebot.
           </p>
 
@@ -446,6 +441,8 @@ export const AnkaufFormClient: React.FC = () => {
             noValidate
             className="space-y-6"
           >
+            <input type="hidden" name="categories" value="Pokémon" />
+
             {/* Anti-spam honeypot hidden from users & assistive tech */}
             <div aria-hidden="true" className="absolute -left-[9999px] top-auto w-px h-px overflow-hidden">
               <label htmlFor="company_website">Website</label>
@@ -460,51 +457,35 @@ export const AnkaufFormClient: React.FC = () => {
               />
             </div>
 
-            {/* SECTION 1: CATEGORIES */}
-            <fieldset
-              ref={categorySectionRef}
-              className="rounded-2xl bg-[#111521] border border-white/10 p-4 sm:p-5 space-y-3"
-            >
+            {/* SECTION 1: POKÉMON CATEGORY (Logo instead of plain text) */}
+            <fieldset className="rounded-2xl bg-[#111521] border border-white/10 p-4 sm:p-5 space-y-3">
               <legend className="text-sm font-extrabold text-white tracking-tight px-1">
-                1. Welche Karten möchtest du verkaufen? <span className="text-[#FFE406]" aria-hidden="true">*</span>
+                1. Kategorie
               </legend>
-              <p className="text-xs text-slate-400">Mehrfachauswahl möglich.</p>
 
-              <div className="grid grid-cols-2 gap-2">
-                {TCG_CATEGORIES.map((cat) => {
-                  const checked = selectedCategories.includes(cat);
-                  const id = `cat_${cat.replace(/[^a-zA-Z0-9]/g, '_')}`;
-                  return (
-                    <label
-                      key={cat}
-                      htmlFor={id}
-                      className={`min-h-[48px] px-3 py-2.5 rounded-xl border text-[13.5px] font-semibold flex items-center gap-2.5 cursor-pointer transition-colors select-none ${
-                        checked
-                          ? 'bg-sky-400/15 border-sky-400/65 text-white'
-                          : 'bg-[#171c2b] border-white/10 text-slate-300 hover:border-white/25'
-                      }`}
-                    >
-                      <input
-                        id={id}
-                        type="checkbox"
-                        name="categories"
-                        value={cat}
-                        checked={checked}
-                        onChange={() => toggleCategory(cat)}
-                        className="w-4 h-4 shrink-0 accent-[#FFE406] cursor-pointer"
-                      />
-                      <span className="leading-snug">{cat}</span>
-                    </label>
-                  );
-                })}
-              </div>
-
-              {fieldErrors.categories && (
-                <p role="alert" className="text-xs font-semibold text-rose-300 flex items-center gap-1.5 pt-1">
-                  <AlertCircle className="w-4 h-4 shrink-0" />
-                  <span>{fieldErrors.categories}</span>
-                </p>
-              )}
+              <label
+                htmlFor="cat_pokemon"
+                className="relative flex items-center justify-between gap-4 min-h-[76px] px-4 py-3 rounded-xl border border-sky-400/65 bg-sky-400/12 cursor-pointer select-none"
+              >
+                <input
+                  id="cat_pokemon"
+                  type="radio"
+                  name="categoryDisplay"
+                  value="Pokémon"
+                  checked
+                  readOnly
+                  aria-label="Pokémon"
+                  className="sr-only"
+                />
+                <img
+                  src="/images/logos/pokemon-logo.svg"
+                  alt="Pokémon"
+                  className="h-11 sm:h-12 w-auto object-contain select-none"
+                />
+                <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-sky-400/20 border border-sky-300/60 text-sky-200 shrink-0">
+                  <CheckCircle2 className="w-5 h-5" aria-hidden="true" />
+                </span>
+              </label>
             </fieldset>
 
             {/* SECTION 2: COLLECTION TYPE & CONDITION */}
@@ -584,7 +565,7 @@ export const AnkaufFormClient: React.FC = () => {
               </fieldset>
             </div>
 
-            {/* SECTION 3: PHOTOS */}
+            {/* SECTION 3: PHOTOS (up to 20 images) */}
             <div className="rounded-2xl bg-[#111521] border border-white/10 p-4 sm:p-5 space-y-3">
               <div className="flex items-baseline justify-between gap-2">
                 <label htmlFor="ankauf-photos" className="text-sm font-extrabold text-white tracking-tight">
@@ -596,7 +577,8 @@ export const AnkaufFormClient: React.FC = () => {
                 </span>
               </div>
               <p className="text-xs text-slate-400">
-                Übersichtsfotos von Binder-Seiten, Hits oder Rückseiten helfen uns für ein schnelles, genaues Angebot.
+                Lade bis zu {MAX_PHOTOS} Fotos von Binder-Seiten, Hits oder Rückseiten hoch – wir
+                optimieren die Dateigröße automatisch für schnellen Upload.
               </p>
 
               <input
@@ -626,7 +608,7 @@ export const AnkaufFormClient: React.FC = () => {
                       : 'Fotos auswählen oder aufnehmen'}
                   </div>
                   <div className="text-xs text-slate-400">
-                    JPG, PNG, HEIC oder WebP · automatische Komprimierung
+                    Bis zu {MAX_PHOTOS} Bilder · JPG, PNG, HEIC oder WebP
                   </div>
                 </button>
               )}
@@ -698,7 +680,7 @@ export const AnkaufFormClient: React.FC = () => {
               </div>
             </div>
 
-            {/* SECTION 5: CONTACT DETAILS */}
+            {/* SECTION 5: CONTACT DETAILS (WhatsApp & E-Mail only) */}
             <div className="rounded-2xl bg-[#111521] border border-white/10 p-4 sm:p-5 space-y-4">
               <div className="space-y-1.5">
                 <label htmlFor="ankauf-name" className="block text-sm font-extrabold text-white">
@@ -737,7 +719,7 @@ export const AnkaufFormClient: React.FC = () => {
                 <legend className="text-sm font-extrabold text-white">
                   Wie sollen wir dir antworten? <span className="text-[#FFE406]" aria-hidden="true">*</span>
                 </legend>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 gap-2.5">
                   {CONTACT_CHANNELS.map((ch) => {
                     const checked = contactChannel === ch.value;
                     const id = `ch_${ch.value}`;
@@ -745,7 +727,7 @@ export const AnkaufFormClient: React.FC = () => {
                       <label
                         key={ch.value}
                         htmlFor={id}
-                        className={`min-h-[48px] px-3 py-2 rounded-xl border text-[13.5px] font-bold flex items-center justify-center gap-2 cursor-pointer transition-colors select-none ${
+                        className={`min-h-[52px] px-3.5 py-2.5 rounded-xl border text-sm font-bold flex items-center justify-center gap-2.5 cursor-pointer transition-colors select-none ${
                           checked
                             ? 'bg-sky-400/15 border-sky-400/65 text-white'
                             : 'bg-[#171c2b] border-white/10 text-slate-300 hover:border-white/25'
@@ -763,6 +745,16 @@ export const AnkaufFormClient: React.FC = () => {
                           }}
                           className="w-4 h-4 shrink-0 accent-[#FFE406] cursor-pointer"
                         />
+                        {ch.value === 'WhatsApp' ? (
+                          <img
+                            src="/images/logos/whatsapp.png"
+                            alt=""
+                            aria-hidden="true"
+                            className="w-5 h-5 rounded-md object-cover shrink-0"
+                          />
+                        ) : (
+                          <Mail className="w-4 h-4 text-sky-300 shrink-0" aria-hidden="true" />
+                        )}
                         <span>{ch.label}</span>
                       </label>
                     );
@@ -832,7 +824,7 @@ export const AnkaufFormClient: React.FC = () => {
             >
               <Send className="w-4 h-4 stroke-[2.5]" />
               <span>
-                {isSubmitting ? 'Anfrage wird gesendet…' : 'Ankauf-Anfrage absenden'}
+                {submitProgress ?? 'Ankauf-Anfrage absenden'}
               </span>
             </button>
 
