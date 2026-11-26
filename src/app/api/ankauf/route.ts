@@ -53,7 +53,11 @@ async function isValidBatchToken(ticketId: string, supplied: string): Promise<bo
   return diff === 0;
 }
 
-function buildQuickContactLink(channel: string, rawValue: string): string | null {
+function buildQuickContactLink(
+  channel: string,
+  rawValue: string,
+  ctx: { name: string; ticketId: string; collectionType: string }
+): string | null {
   const trimmed = rawValue.trim();
   if (!trimmed) return null;
 
@@ -63,7 +67,16 @@ function buildQuickContactLink(channel: string, rawValue: string): string | null
     else if (digits.startsWith('+')) digits = digits.slice(1);
     else if (digits.startsWith('0')) digits = `49${digits.slice(1)}`;
     if (digits.length >= 8) {
-      return `https://wa.me/${digits}`;
+      const firstName = ctx.name.trim().split(/\s+/)[0] || ctx.name.trim();
+      const prefillText =
+        `Hey ${firstName}, hier ist das Team von ManaCards!\n` +
+        `Vielen Dank für deine Pokémon Ankauf-Anfrage (${ctx.ticketId} · ${ctx.collectionType}). ` +
+        `Wir haben uns deine Bilder und Infos angeschaut und würden dir gerne folgendes Angebot machen: `;
+      // Encode parentheses too so Discord's Markdown [label](url) never truncates the link
+      const encoded = encodeURIComponent(prefillText)
+        .replace(/\(/g, '%28')
+        .replace(/\)/g, '%29');
+      return `https://wa.me/${digits}?text=${encoded}`;
     }
   }
 
@@ -266,7 +279,11 @@ export async function POST(request: NextRequest) {
   const totalPhotoCount = Math.max(photos.length, declaredTotalPhotos);
   const ticketId = generateTicketId();
   const batchToken = await createBatchToken(ticketId);
-  const quickLink = buildQuickContactLink(contactChannel, contactValue);
+  const quickLink = buildQuickContactLink(contactChannel, contactValue, {
+    name,
+    ticketId,
+    collectionType,
+  });
   const contactDisplay = quickLink
     ? `${contactChannel}: **${contactValue}**\n[Direkt in WhatsApp öffnen](${quickLink})`
     : `${contactChannel}: **${contactValue}**`;
