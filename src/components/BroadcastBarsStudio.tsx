@@ -4,6 +4,8 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   BroadcastBarsSnapshot,
   BroadcastDesign,
+  DEFAULT_WHATNOT_HUD_SETTINGS,
+  HudWidgetConfig,
   OverlayQualityScale,
   OverlayResizeMode,
   RotatorAnimationPreset,
@@ -15,6 +17,7 @@ import {
   TickerBarSettings,
   TickerEntranceAnimation,
   TickerItem,
+  WhatnotHudSettings,
   createDefaultBroadcastBarsSnapshot,
   normalizeBroadcastBarsSnapshot,
 } from '../types/broadcastBars';
@@ -26,6 +29,8 @@ import {
 import { BroadcastRotator, BroadcastTicker } from './BroadcastBars';
 import { PromoShowcaseOverlay } from './PromoShowcaseOverlay';
 import { ShowcaseEditorPanel } from './ShowcaseEditorPanel';
+import { WhatnotHudEditorPanel } from './WhatnotHudEditorPanel';
+import { HudWidgetKey, WhatnotHudOverlay } from './WhatnotHudOverlay';
 import { BarSurfaceControls } from './BarSurfaceControls';
 import { TickerCycleStatus } from './useTickerCycle';
 import { PlatformBadge } from './WhatnotBars';
@@ -57,7 +62,7 @@ interface BroadcastBarsStudioProps {
   originUrl: string;
 }
 
-type EditorSubTab = 'rotator' | 'ticker' | 'showcase';
+type EditorSubTab = 'rotator' | 'ticker' | 'showcase' | 'hud';
 type PreviewStageMode = 'checker' | 'dark' | 'portrait';
 
 const PLATFORM_OPTIONS: { id: SocialPlatform; label: string }[] = [
@@ -137,6 +142,8 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
   });
   const [tickerPreviewAlwaysOn, setTickerPreviewAlwaysOn] = useState(false);
   const [showcasePreviewAlwaysOn, setShowcasePreviewAlwaysOn] = useState(true);
+  const [hudShowGhostUi, setHudShowGhostUi] = useState(true);
+  const [hudForceCallouts, setHudForceCallouts] = useState(true);
 
   const snapshotRef = useRef<BroadcastBarsSnapshot>(snapshot);
   const controllerRef = useRef<BroadcastBarsSyncController | null>(null);
@@ -432,6 +439,38 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
     }));
   }, [commitUpdate]);
 
+  const updateHudSettings = useCallback(
+    (patch: Partial<WhatnotHudSettings>) => {
+      commitUpdate((cur) => ({
+        hud: { ...cur.hud, ...patch },
+      }));
+    },
+    [commitUpdate]
+  );
+
+  const updateHudWidget = useCallback(
+    (key: HudWidgetKey, patch: Partial<HudWidgetConfig>) => {
+      commitUpdate((cur) => ({
+        hud: {
+          ...cur.hud,
+          [key]: { ...cur.hud[key], ...patch },
+        },
+      }));
+    },
+    [commitUpdate]
+  );
+
+  const resetHudDefaults = useCallback(() => {
+    commitUpdate(() => ({
+      hud: {
+        visible: DEFAULT_WHATNOT_HUD_SETTINGS.visible,
+        shop: { ...DEFAULT_WHATNOT_HUD_SETTINGS.shop },
+        giveaway: { ...DEFAULT_WHATNOT_HUD_SETTINGS.giveaway },
+        avatar: { ...DEFAULT_WHATNOT_HUD_SETTINGS.avatar },
+      },
+    }));
+  }, [commitUpdate]);
+
   const resetDefaults = useCallback(() => {
     sound.playClick(520);
     const defaults = createDefaultBroadcastBarsSnapshot(
@@ -453,6 +492,7 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
       rotator: `${base}/overlay/rotator${qs}`,
       ticker: `${base}/overlay/ticker${qs}`,
       showcase: `${base}/overlay/showcase${qs}`,
+      hud: `${base}/overlay/hud${qs}`,
       combined: `${base}/overlay/rotator${comboQs}`,
     };
   }, [originUrl, overlayKey]);
@@ -532,7 +572,7 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
          =================================================================== */}
       <section className="flex-1 min-w-0 min-h-0 overflow-y-auto studio-scroll p-4 sm:p-6 space-y-5">
         {/* OBS Browser-Source Quick Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5">
           {[
             {
               id: 'rotator',
@@ -554,6 +594,13 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
               sizeHint: `OBS: ${obsShowcaseW} × ${obsShowcaseH} px (${scQ}×)`,
               url: obsUrls.showcase,
               accent: 'border-[#FFE406]/45 bg-[#FFE406]/[0.07]',
+            },
+            {
+              id: 'hud',
+              title: 'Whatnot HUD',
+              sizeHint: 'OBS: 1080 × 1920 px (9:16)',
+              url: obsUrls.hud,
+              accent: 'border-teal-400/40 bg-teal-500/[0.07]',
             },
             {
               id: 'combined',
@@ -704,6 +751,29 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
               }`}
             >
               KGA / Showcase ({snapshot.showcases.length})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="bars-tab-hud"
+              aria-selected={subTab === 'hud'}
+              onClick={() => {
+                sound.playClick(640);
+                setSubTab('hud');
+              }}
+              className={`mc-studio-tab px-4 py-2 text-xs font-black uppercase tracking-[0.14em] transition-colors select-none ${
+                subTab === 'hud'
+                  ? 'text-teal-300 bg-teal-400/10'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              Whatnot HUD (
+              {[
+                snapshot.hud.shop.enabled,
+                snapshot.hud.giveaway.enabled,
+                snapshot.hud.avatar.enabled,
+              ].filter(Boolean).length}
+              /3)
             </button>
           </div>
 
@@ -1964,6 +2034,25 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
             onDeletePreset={deleteShowcasePreset}
           />
         </div>
+
+        {/* ===============================================================
+            PANEL 4: WHATNOT HUD HIGHLIGHTS (SHOP / GIVEAWAY / AVATAR)
+           =============================================================== */}
+        <div
+          role="tabpanel"
+          aria-labelledby="bars-tab-hud"
+          hidden={subTab !== 'hud'}
+        >
+          <WhatnotHudEditorPanel
+            settings={snapshot.hud}
+            hudBaseUrl={obsUrls.hud}
+            onUpdateSettings={updateHudSettings}
+            onUpdateWidget={updateHudWidget}
+            onResetAll={resetHudDefaults}
+            onCopyUrl={(id, url) => void handleCopyUrl(id, url)}
+            copiedKey={copiedKey}
+          />
+        </div>
       </section>
 
       {/* ===================================================================
@@ -2026,7 +2115,53 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
         )}
 
         {/* Preview Stage */}
-        {previewMode === 'portrait' ? (
+        {subTab === 'hud' ? (
+          <div className="space-y-2.5">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+              <span>Whatnot 9:16 Kalibrierung (/overlay/hud)</span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setHudShowGhostUi((v) => !v)}
+                  className={`px-2 py-0.5 border text-[9.5px] font-bold ${
+                    hudShowGhostUi
+                      ? 'bg-sky-400/20 border-sky-400/60 text-sky-200'
+                      : 'bg-black/50 border-white/15 text-slate-400'
+                  }`}
+                >
+                  Whatnot-UI: {hudShowGhostUi ? 'An' : 'Aus'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setHudForceCallouts((v) => !v)}
+                  className={`px-2 py-0.5 border text-[9.5px] font-bold ${
+                    hudForceCallouts
+                      ? 'bg-[#FFE406]/20 border-[#FFE406]/60 text-[#FFE406]'
+                      : 'bg-black/50 border-white/15 text-slate-400'
+                  }`}
+                >
+                  Pfeile: {hudForceCallouts ? 'Immer an' : 'Intervall'}
+                </button>
+              </div>
+            </div>
+
+            <div
+              className={`mx-auto w-[336px] relative border border-white/20 shadow-2xl overflow-hidden ${
+                previewMode === 'checker'
+                  ? 'obs-checkerboard'
+                  : 'bg-gradient-to-b from-[#0f1320] via-[#151520] to-[#08090e]'
+              }`}
+              style={{ height: Math.round((336 * 1920) / 1080) }}
+            >
+              <WhatnotHudOverlay
+                settings={snapshot.hud}
+                scale={336 / 1080}
+                forceCalloutVisible={hudForceCallouts}
+                showWhatnotGhostUi={hudShowGhostUi}
+              />
+            </div>
+          </div>
+        ) : previewMode === 'portrait' ? (
           <div className="mx-auto w-[300px] aspect-[9/16] relative border border-white/20 bg-gradient-to-b from-[#11121a] via-[#171320] to-[#0a0a0f] overflow-hidden flex flex-col justify-between shadow-2xl">
             {/* Simulated Top Whatnot Header Safe Zone */}
             <div className="px-3 py-2.5 flex items-center justify-between bg-black/45 border-b border-white/10 text-[10px] font-bold text-slate-400">

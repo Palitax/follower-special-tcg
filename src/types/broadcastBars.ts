@@ -35,6 +35,59 @@ export type BarBackgroundPattern =
   | 'grid'
   | 'none';
 
+/** WoW / High-Fantasy RPG elemental aura styles for Whatnot HUD highlights */
+export type HudElementalStyle =
+  | 'arcane-mana'
+  | 'storm-lightning'
+  | 'wind-tempest'
+  | 'fel-flame'
+  | 'void-arcane';
+
+export type HudAnimSpeed = 'slow' | 'normal' | 'fast';
+
+export interface HudWidgetConfig {
+  enabled: boolean;
+  style: HudElementalStyle;
+  /** Center X position in % of 1080x1920 canvas (0–100) */
+  xPct: number;
+  /** Center Y position in % of 1080x1920 canvas (0–100) */
+  yPct: number;
+  /** Width (or diameter for circles) in 1080w logical px */
+  widthPx: number;
+  /** Height in 1920h logical px (ignored for circles where height = width) */
+  heightPx: number;
+  /** Corner radius in logical px (for rounded-rect giveaway box) */
+  radiusPx: number;
+  /** Glow & stroke intensity (30–160%) */
+  intensityPct: number;
+  /** Stroke thickness multiplier (60–180%) */
+  thicknessPct: number;
+  animSpeed: HudAnimSpeed;
+  /** Optional animated pointing arrow + custom text callout */
+  calloutEnabled: boolean;
+  calloutText: string;
+  calloutSubtext: string;
+  /** Seconds the callout arrow+text stays visible (0 = always visible when calloutEnabled) */
+  calloutVisibleSec: number;
+  /** Seconds the callout hides between appearances when calloutVisibleSec > 0 */
+  calloutHiddenSec: number;
+  /** Callout pill offset from widget center in 1080x1920 logical px */
+  calloutOffsetX: number;
+  calloutOffsetY: number;
+  /** Callout text scaling percentage (70–160%) */
+  calloutScalePct: number;
+  /** Monotonic trigger nonce to immediately show & animate the callout */
+  calloutTriggerNonce: number;
+}
+
+export interface WhatnotHudSettings {
+  /** Master visibility toggle for the entire /overlay/hud source */
+  visible: boolean;
+  shop: HudWidgetConfig;
+  giveaway: HudWidgetConfig;
+  avatar: HudWidgetConfig;
+}
+
 /** 'together' scales text + icon along with height; 'background-only' resizes only the container */
 export type OverlayResizeMode = 'together' | 'background-only';
 
@@ -210,6 +263,7 @@ export interface BroadcastBarsSnapshot {
   tickerItems: TickerItem[];
   showcase: ShowcaseSettings;
   showcases: ShowcasePreset[];
+  hud: WhatnotHudSettings;
 }
 
 export const DEFAULT_BROADCAST_DESIGN: BroadcastDesign = 'whatnot';
@@ -298,6 +352,73 @@ export const DEFAULT_SHOWCASE_SETTINGS: ShowcaseSettings = {
   showSticker: true,
   qualityScale: 2,
   showGlow: true,
+};
+
+export const DEFAULT_WHATNOT_HUD_SETTINGS: WhatnotHudSettings = {
+  visible: true,
+  shop: {
+    enabled: true,
+    style: 'fel-flame',
+    xPct: 92.2,
+    yPct: 87.5,
+    widthPx: 142,
+    heightPx: 142,
+    radiusPx: 999,
+    intensityPct: 105,
+    thicknessPct: 100,
+    animSpeed: 'normal',
+    calloutEnabled: true,
+    calloutText: 'Sofortkauf? Check den Shop!',
+    calloutSubtext: 'Einzelkarten & Sealed direkt sichern',
+    calloutVisibleSec: 12,
+    calloutHiddenSec: 35,
+    calloutOffsetX: -275,
+    calloutOffsetY: -105,
+    calloutScalePct: 100,
+    calloutTriggerNonce: 0,
+  },
+  giveaway: {
+    enabled: true,
+    style: 'arcane-mana',
+    xPct: 86.4,
+    yPct: 23.5,
+    widthPx: 306,
+    heightPx: 174,
+    radiusPx: 38,
+    intensityPct: 105,
+    thicknessPct: 100,
+    animSpeed: 'normal',
+    calloutEnabled: true,
+    calloutText: 'Gratis Giveaway!',
+    calloutSubtext: 'Oben rechts kostenlos teilnehmen',
+    calloutVisibleSec: 12,
+    calloutHiddenSec: 40,
+    calloutOffsetX: -325,
+    calloutOffsetY: 16,
+    calloutScalePct: 100,
+    calloutTriggerNonce: 0,
+  },
+  avatar: {
+    enabled: true,
+    style: 'arcane-mana',
+    xPct: 7.8,
+    yPct: 9.3,
+    widthPx: 124,
+    heightPx: 124,
+    radiusPx: 999,
+    intensityPct: 100,
+    thicknessPct: 95,
+    animSpeed: 'slow',
+    calloutEnabled: false,
+    calloutText: '',
+    calloutSubtext: '',
+    calloutVisibleSec: 0,
+    calloutHiddenSec: 30,
+    calloutOffsetX: 210,
+    calloutOffsetY: 0,
+    calloutScalePct: 100,
+    calloutTriggerNonce: 0,
+  },
 };
 
 export const DEFAULT_ROTATOR_SLIDES: RotatorSlide[] = [
@@ -410,6 +531,12 @@ export function createDefaultBroadcastBarsSnapshot(senderId = 'init'): Broadcast
       ...p,
       images: p.images.map((im) => ({ ...im })),
     })),
+    hud: {
+      visible: DEFAULT_WHATNOT_HUD_SETTINGS.visible,
+      shop: { ...DEFAULT_WHATNOT_HUD_SETTINGS.shop },
+      giveaway: { ...DEFAULT_WHATNOT_HUD_SETTINGS.giveaway },
+      avatar: { ...DEFAULT_WHATNOT_HUD_SETTINGS.avatar },
+    },
   };
 }
 
@@ -524,6 +651,61 @@ export function normalizeBroadcastBarsSnapshot(
   const rawRot = raw.rotator && typeof raw.rotator === 'object' ? raw.rotator : undefined;
   const rawTick = raw.ticker && typeof raw.ticker === 'object' ? raw.ticker : undefined;
   const rawSc = raw.showcase && typeof raw.showcase === 'object' ? raw.showcase : undefined;
+  const rawHud = raw.hud && typeof raw.hud === 'object' ? raw.hud : undefined;
+
+  const validHudStyles: HudElementalStyle[] = [
+    'arcane-mana',
+    'storm-lightning',
+    'wind-tempest',
+    'fel-flame',
+    'void-arcane',
+  ];
+  const validHudSpeeds: HudAnimSpeed[] = ['slow', 'normal', 'fast'];
+  const normHudWidget = (
+    w: Partial<HudWidgetConfig> | undefined,
+    fallback: HudWidgetConfig
+  ): HudWidgetConfig => {
+    const clampNum = (val: unknown, lo: number, hi: number, fb: number) => {
+      if (val === 0) return Math.max(lo, Math.min(hi, 0));
+      const n = Number(val);
+      return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : fb;
+    };
+    return {
+      enabled: w?.enabled !== undefined ? Boolean(w.enabled) : fallback.enabled,
+      style:
+        typeof w?.style === 'string' && validHudStyles.includes(w.style as HudElementalStyle)
+          ? (w.style as HudElementalStyle)
+          : fallback.style,
+      xPct: clampNum(w?.xPct, 0, 100, fallback.xPct),
+      yPct: clampNum(w?.yPct, 0, 100, fallback.yPct),
+      widthPx: Math.round(clampNum(w?.widthPx, 50, 620, fallback.widthPx)),
+      heightPx: Math.round(clampNum(w?.heightPx, 50, 420, fallback.heightPx)),
+      radiusPx: Math.round(clampNum(w?.radiusPx, 0, 999, fallback.radiusPx)),
+      intensityPct: Math.round(clampNum(w?.intensityPct, 30, 160, fallback.intensityPct)),
+      thicknessPct: Math.round(clampNum(w?.thicknessPct, 60, 180, fallback.thicknessPct)),
+      animSpeed:
+        typeof w?.animSpeed === 'string' && validHudSpeeds.includes(w.animSpeed as HudAnimSpeed)
+          ? (w.animSpeed as HudAnimSpeed)
+          : fallback.animSpeed,
+      calloutEnabled:
+        w?.calloutEnabled !== undefined ? Boolean(w.calloutEnabled) : fallback.calloutEnabled,
+      calloutText: typeof w?.calloutText === 'string' ? w.calloutText : fallback.calloutText,
+      calloutSubtext:
+        typeof w?.calloutSubtext === 'string' ? w.calloutSubtext : fallback.calloutSubtext,
+      calloutVisibleSec: Math.round(
+        clampNum(w?.calloutVisibleSec, 0, 180, fallback.calloutVisibleSec)
+      ),
+      calloutHiddenSec: Math.round(
+        clampNum(w?.calloutHiddenSec, 5, 600, fallback.calloutHiddenSec)
+      ),
+      calloutOffsetX: Math.round(clampNum(w?.calloutOffsetX, -560, 560, fallback.calloutOffsetX)),
+      calloutOffsetY: Math.round(clampNum(w?.calloutOffsetY, -420, 420, fallback.calloutOffsetY)),
+      calloutScalePct: Math.round(
+        clampNum(w?.calloutScalePct, 70, 160, fallback.calloutScalePct)
+      ),
+      calloutTriggerNonce: Number(w?.calloutTriggerNonce ?? 0) || 0,
+    };
+  };
 
   const activePresetId =
     rawSc?.activePresetId && showcases.some((p) => p.id === rawSc.activePresetId)
@@ -671,5 +853,11 @@ export function normalizeBroadcastBarsSnapshot(
       showGlow: rawSc?.showGlow !== false,
     },
     showcases,
+    hud: {
+      visible: rawHud?.visible !== false,
+      shop: normHudWidget(rawHud?.shop, DEFAULT_WHATNOT_HUD_SETTINGS.shop),
+      giveaway: normHudWidget(rawHud?.giveaway, DEFAULT_WHATNOT_HUD_SETTINGS.giveaway),
+      avatar: normHudWidget(rawHud?.avatar, DEFAULT_WHATNOT_HUD_SETTINGS.avatar),
+    },
   };
 }

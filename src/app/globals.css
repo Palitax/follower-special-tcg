@@ -603,3 +603,136 @@ input:not([type="range"]):user-invalid {
   inset: auto 10px 0;
   border-block-end: 2.5px solid #38bdf8;
 }
+
+/* ============================================================
+   WHATNOT HUD — WOW / RPG ELEMENTAL AURA KEYFRAMES
+   GPU-friendly transform & stroke-dashoffset loops for OBS 60fps.
+   ============================================================ */
+@keyframes hudOrbitCw {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes hudOrbitCcw {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes hudStrokeFlow {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes hudStrokeFlowRev {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 100;
+  }
+}
+
+@keyframes hudLightningFlicker {
+  0%, 100% {
+    opacity: 0.95;
+  }
+  14% {
+    opacity: 0.35;
+  }
+  20% {
+    opacity: 1;
+  }
+  52% {
+    opacity: 0.72;
+  }
+  58% {
+    opacity: 0.25;
+  }
+  64% {
+    opacity: 1;
+  }
+}
+
+@keyframes hudAuraBreathe {
+  0%, 100% {
+    opacity: 0.72;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.03);
+  }
+}
+
+@keyframes hudArrowPulse {
+  from {
+    stroke-dashoffset: 48;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes hudArrowBob {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(var(--bob-x, 6px), var(--bob-y, 4px), 0);
+  }
+}
+
+.hud-orbit-cw {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hudOrbitCw var(--hud-dur, 10s) linear infinite;
+  will-change: transform;
+}
+
+.hud-orbit-ccw {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hudOrbitCcw var(--hud-dur, 14s) linear infinite;
+  will-change: transform;
+}
+
+.hud-flow {
+  animation: hudStrokeFlow var(--hud-dur, 4.2s) linear infinite;
+}
+
+.hud-flow-rev {
+  animation: hudStrokeFlowRev var(--hud-dur, 5.8s) linear infinite;
+}
+
+.hud-lightning-snap {
+  animation:
+    hudStrokeFlow var(--hud-dur, 1.8s) steps(14, end) infinite,
+    hudLightningFlicker var(--hud-flicker, 1.3s) linear infinite;
+}
+
+.hud-breathe {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hudAuraBreathe var(--hud-dur, 3.2s) ease-in-out infinite;
+}
+
+.hud-arrow-pulse {
+  animation: hudArrowPulse 1.6s linear infinite;
+}
+
+.hud-arrow-bob {
+  animation: hudArrowBob 1.8s ease-in-out infinite;
+  will-change: transform;
+}
