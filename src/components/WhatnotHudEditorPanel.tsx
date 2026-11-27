@@ -185,6 +185,86 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
           </div>
         </div>
 
+        {/* Global controls applied to ALL three elements at once */}
+        <div className="p-3 border border-[#FFE406]/35 bg-[#FFE406]/[0.05] space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="text-[11px] font-black uppercase tracking-[0.12em] text-[#FFE406]">
+              Für alle Elemente (Shop, Giveaway &amp; Logo)
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                sound.playClick(540);
+                onUpdateSettings({
+                  frameThicknessPct: DEFAULT_WHATNOT_HUD_SETTINGS.frameThicknessPct,
+                  frameGlowPct: DEFAULT_WHATNOT_HUD_SETTINGS.frameGlowPct,
+                });
+              }}
+              className="h-7 px-2 border border-white/15 bg-black/45 hover:bg-white/10 text-[10px] font-bold text-slate-300 flex items-center gap-1"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Standard</span>
+            </button>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-200">Rahmen-Dicke (alle)</span>
+                <span className="font-black text-[#FFE406]">{settings.frameThicknessPct}%</span>
+              </div>
+              <input
+                type="range"
+                min={50}
+                max={300}
+                step={5}
+                value={settings.frameThicknessPct}
+                onChange={(e) => onUpdateSettings({ frameThicknessPct: Number(e.target.value) })}
+                className="w-full cursor-pointer"
+              />
+              <div className="flex flex-wrap gap-1">
+                {[
+                  { v: 100, label: 'Fein' },
+                  { v: 140, label: 'Standard' },
+                  { v: 200, label: 'Kräftig' },
+                  { v: 260, label: 'Extra dick' },
+                ].map((p) => (
+                  <button
+                    key={p.v}
+                    type="button"
+                    onClick={() => onUpdateSettings({ frameThicknessPct: p.v })}
+                    className={`px-2 py-0.5 border text-[10px] font-bold ${
+                      settings.frameThicknessPct === p.v
+                        ? 'bg-[#FFE406]/20 border-[#FFE406]/65 text-[#FFE406]'
+                        : 'bg-black/45 border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-slate-200">Leuchtkraft (alle)</span>
+                <span className="font-black text-sky-300">{settings.frameGlowPct}%</span>
+              </div>
+              <input
+                type="range"
+                min={50}
+                max={200}
+                step={5}
+                value={settings.frameGlowPct}
+                onChange={(e) => onUpdateSettings({ frameGlowPct: Number(e.target.value) })}
+                className="w-full cursor-pointer"
+              />
+              <p className="text-[10px] text-slate-400 leading-snug">
+                Wirkt zusätzlich zu den Einzelwerten unten. Tipp: Wenn du eine Quelle in OBS stark
+                verkleinerst, die Dicke erhöhen – sonst wirkt der Rahmen dünn und dunkel.
+              </p>
+            </div>
+          </div>
+        </div>
+
         {/* 3 Independent Target Cards — each with its own OBS Browser Source URL & native resolution */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           {WIDGET_META.map((m) => {
@@ -384,7 +464,7 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
             <input
               type="range"
               min={60}
-              max={180}
+              max={250}
               step={5}
               value={widget.thicknessPct}
               onChange={(e) =>

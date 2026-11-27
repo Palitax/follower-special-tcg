@@ -16,6 +16,7 @@ import {
   STANDALONE_HUD_STAGES,
   StandaloneHudWidget,
   WhatnotHudOverlay,
+  resolveHudWidget,
 } from '../../../components/WhatnotHudOverlay';
 
 function HudOverlaySurface() {
@@ -108,7 +109,7 @@ function HudOverlaySurface() {
         ) : (
           <StandaloneHudWidget
             widgetKey={only}
-            config={snapshot.hud[only]}
+            config={resolveHudWidget(snapshot.hud, only)}
             masterVisible={snapshot.hud.visible}
             scale={fitScale}
           />

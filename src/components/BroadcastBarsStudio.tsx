@@ -34,6 +34,7 @@ import {
   HudWidgetKey,
   STANDALONE_HUD_STAGES,
   StandaloneHudWidget,
+  resolveHudWidget,
 } from './WhatnotHudOverlay';
 import { BarSurfaceControls } from './BarSurfaceControls';
 import { TickerCycleStatus } from './useTickerCycle';
@@ -2260,7 +2261,7 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                 >
                   <StandaloneHudWidget
                     widgetKey={selectedHudWidget}
-                    config={displayedHud[selectedHudWidget]}
+                    config={resolveHudWidget(displayedHud, selectedHudWidget)}
                     masterVisible={displayedHud.visible}
                     scale={hudScale}
                     forceCalloutVisible={hudForceCallouts}

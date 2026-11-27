@@ -7,6 +7,18 @@ import { HudCalloutPointer, WowElementalFrame } from './WowElementalFrames';
 
 export type HudWidgetKey = 'shop' | 'giveaway' | 'avatar';
 
+/** Merges global "für alle Elemente" thickness & glow multipliers into one widget's config */
+export function resolveHudWidget(settings: WhatnotHudSettings, key: HudWidgetKey): HudWidgetConfig {
+  const cfg = settings[key];
+  const tMul = (settings.frameThicknessPct ?? 100) / 100;
+  const gMul = (settings.frameGlowPct ?? 100) / 100;
+  return {
+    ...cfg,
+    thicknessPct: Math.round(cfg.thicknessPct * tMul),
+    intensityPct: Math.round(cfg.intensityPct * gMul),
+  };
+}
+
 const CANVAS_W = 1080;
 const CANVAS_H = 1920;
 
@@ -390,7 +402,7 @@ export const WhatnotHudOverlay: React.FC<WhatnotHudOverlayProps> = ({
             <SingleHudTarget
               widgetKey="avatar"
               shape="circle"
-              config={settings.avatar}
+              config={resolveHudWidget(settings, 'avatar')}
               canvasW={CANVAS_W}
               canvasH={CANVAS_H}
               centerX={Math.round((settings.avatar.xPct / 100) * CANVAS_W)}
@@ -400,7 +412,7 @@ export const WhatnotHudOverlay: React.FC<WhatnotHudOverlayProps> = ({
             <SingleHudTarget
               widgetKey="giveaway"
               shape="rect"
-              config={settings.giveaway}
+              config={resolveHudWidget(settings, 'giveaway')}
               canvasW={CANVAS_W}
               canvasH={CANVAS_H}
               centerX={Math.round((settings.giveaway.xPct / 100) * CANVAS_W)}
@@ -410,7 +422,7 @@ export const WhatnotHudOverlay: React.FC<WhatnotHudOverlayProps> = ({
             <SingleHudTarget
               widgetKey="shop"
               shape="circle"
-              config={settings.shop}
+              config={resolveHudWidget(settings, 'shop')}
               canvasW={CANVAS_W}
               canvasH={CANVAS_H}
               centerX={Math.round((settings.shop.xPct / 100) * CANVAS_W)}

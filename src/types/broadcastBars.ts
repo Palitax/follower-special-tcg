@@ -83,6 +83,10 @@ export interface HudWidgetConfig {
 export interface WhatnotHudSettings {
   /** Master visibility toggle for the entire /overlay/hud source */
   visible: boolean;
+  /** Global frame thickness multiplier applied to ALL elements (50–300%) */
+  frameThicknessPct: number;
+  /** Global glow / brightness multiplier applied to ALL elements (50–200%) */
+  frameGlowPct: number;
   shop: HudWidgetConfig;
   giveaway: HudWidgetConfig;
   avatar: HudWidgetConfig;
@@ -356,6 +360,8 @@ export const DEFAULT_SHOWCASE_SETTINGS: ShowcaseSettings = {
 
 export const DEFAULT_WHATNOT_HUD_SETTINGS: WhatnotHudSettings = {
   visible: true,
+  frameThicknessPct: 140,
+  frameGlowPct: 120,
   shop: {
     enabled: true,
     style: 'fel-flame',
@@ -533,6 +539,8 @@ export function createDefaultBroadcastBarsSnapshot(senderId = 'init'): Broadcast
     })),
     hud: {
       visible: DEFAULT_WHATNOT_HUD_SETTINGS.visible,
+      frameThicknessPct: DEFAULT_WHATNOT_HUD_SETTINGS.frameThicknessPct,
+      frameGlowPct: DEFAULT_WHATNOT_HUD_SETTINGS.frameGlowPct,
       shop: { ...DEFAULT_WHATNOT_HUD_SETTINGS.shop },
       giveaway: { ...DEFAULT_WHATNOT_HUD_SETTINGS.giveaway },
       avatar: { ...DEFAULT_WHATNOT_HUD_SETTINGS.avatar },
@@ -682,7 +690,7 @@ export function normalizeBroadcastBarsSnapshot(
       heightPx: Math.round(clampNum(w?.heightPx, 50, 420, fallback.heightPx)),
       radiusPx: Math.round(clampNum(w?.radiusPx, 0, 999, fallback.radiusPx)),
       intensityPct: Math.round(clampNum(w?.intensityPct, 30, 160, fallback.intensityPct)),
-      thicknessPct: Math.round(clampNum(w?.thicknessPct, 60, 180, fallback.thicknessPct)),
+      thicknessPct: Math.round(clampNum(w?.thicknessPct, 60, 250, fallback.thicknessPct)),
       animSpeed:
         typeof w?.animSpeed === 'string' && validHudSpeeds.includes(w.animSpeed as HudAnimSpeed)
           ? (w.animSpeed as HudAnimSpeed)
@@ -855,6 +863,26 @@ export function normalizeBroadcastBarsSnapshot(
     showcases,
     hud: {
       visible: rawHud?.visible !== false,
+      frameThicknessPct: Math.round(
+        Math.max(
+          50,
+          Math.min(
+            300,
+            Number(rawHud?.frameThicknessPct ?? DEFAULT_WHATNOT_HUD_SETTINGS.frameThicknessPct) ||
+              DEFAULT_WHATNOT_HUD_SETTINGS.frameThicknessPct
+          )
+        )
+      ),
+      frameGlowPct: Math.round(
+        Math.max(
+          50,
+          Math.min(
+            200,
+            Number(rawHud?.frameGlowPct ?? DEFAULT_WHATNOT_HUD_SETTINGS.frameGlowPct) ||
+              DEFAULT_WHATNOT_HUD_SETTINGS.frameGlowPct
+          )
+        )
+      ),
       shop: normHudWidget(rawHud?.shop, DEFAULT_WHATNOT_HUD_SETTINGS.shop),
       giveaway: normHudWidget(rawHud?.giveaway, DEFAULT_WHATNOT_HUD_SETTINGS.giveaway),
       avatar: normHudWidget(rawHud?.avatar, DEFAULT_WHATNOT_HUD_SETTINGS.avatar),

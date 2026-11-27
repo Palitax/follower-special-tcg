@@ -381,9 +381,9 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
   const uid = useId().replace(/:/g, '');
   const meta = HUD_ELEMENTAL_STYLES[style] ?? HUD_ELEMENTAL_STYLES['arcane-mana'];
   const sp = SPEED_MULT[animSpeed] ?? 1;
-  const thick = Math.max(0.6, Math.min(1.8, thicknessPct / 100));
-  const glow = Math.max(0.3, Math.min(1.6, intensityPct / 100));
-  const bs = 3.6 * thick;
+  const thick = Math.max(0.6, Math.min(3.2, thicknessPct / 100));
+  const glow = Math.max(0.3, Math.min(2.2, intensityPct / 100));
+  const bs = 4.2 * thick;
 
   // Generous transparent margin so flames, embers & outer rune bands never clip
   const pad = Math.round(58 * Math.max(0.85, thick));
@@ -444,7 +444,7 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
       fill="none"
       shapeRendering="geometricPrecision"
       className="pointer-events-none select-none overflow-visible"
-      style={{ opacity: Math.min(1, 0.6 + glow * 0.4) }}
+      style={{ opacity: 1 }}
       aria-hidden="true"
     >
       <defs>
@@ -466,17 +466,17 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
       </defs>
 
       {/* Atmospheric aura — stacked crisp vector halos (no blur filters) */}
-      <path d={geo.base} stroke={meta.primary} strokeWidth={bs * 6.2} strokeOpacity={0.055 * glow} />
+      <path d={geo.base} stroke={meta.primary} strokeWidth={bs * 6.2} strokeOpacity={Math.min(0.22, 0.075 * glow)} />
       <path
         d={geo.base}
         stroke={meta.primary}
         strokeWidth={bs * 3.4}
-        strokeOpacity={0.12 * glow}
+        strokeOpacity={Math.min(0.42, 0.17 * glow)}
         className="hud-halo"
         style={{ ['--hud-dur' as string]: dur(3.4) }}
       />
-      {/* Dark contrast rim so every style pops over bright or busy camera footage */}
-      <path d={geo.base} stroke="#05060a" strokeWidth={bs * 2.1} strokeOpacity={0.5} />
+      {/* Subtle contrast edge (kept light so frames never look dimmed) */}
+      <path d={geo.base} stroke="#05060a" strokeWidth={bs * 1.55} strokeOpacity={0.22} />
 
       {/* ================================================================
           1. LIQUID MANA — glass orb ring with flowing mana currents
