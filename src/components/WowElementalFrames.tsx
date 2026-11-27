@@ -18,7 +18,7 @@ export const HUD_ELEMENTAL_STYLES: Record<HudElementalStyle, HudStyleMeta> = {
   'arcane-mana': {
     id: 'arcane-mana',
     label: 'Liquid Mana',
-    subtitle: 'Fließendes arkanes Wasser',
+    subtitle: 'Gläserne Mana-Strömung',
     primary: '#38bdf8',
     secondary: '#1d4ed8',
     highlight: '#e0f2fe',
@@ -28,7 +28,7 @@ export const HUD_ELEMENTAL_STYLES: Record<HudElementalStyle, HudStyleMeta> = {
   'storm-lightning': {
     id: 'storm-lightning',
     label: 'Sturm-Blitz',
-    subtitle: 'Knisternde Blitz-Entladung',
+    subtitle: 'Einschlagende Kettenblitze',
     primary: '#7dd3fc',
     secondary: '#6366f1',
     highlight: '#ffffff',
@@ -38,7 +38,7 @@ export const HUD_ELEMENTAL_STYLES: Record<HudElementalStyle, HudStyleMeta> = {
   'wind-tempest': {
     id: 'wind-tempest',
     label: 'Wind-Wirbel',
-    subtitle: 'Luft-Strömung & Zephyr',
+    subtitle: 'Wirbelnde Zephyr-Ströme',
     primary: '#5eead4',
     secondary: '#0d9488',
     highlight: '#f0fdfa',
@@ -48,7 +48,7 @@ export const HUD_ELEMENTAL_STYLES: Record<HudElementalStyle, HudStyleMeta> = {
   'fel-flame': {
     id: 'fel-flame',
     label: 'Runen-Feuer',
-    subtitle: 'Legendäre Gold-Glut',
+    subtitle: 'Lodernde Runen-Glut',
     primary: '#FFE406',
     secondary: '#ea580c',
     highlight: '#fffbeb',
@@ -58,7 +58,7 @@ export const HUD_ELEMENTAL_STYLES: Record<HudElementalStyle, HudStyleMeta> = {
   'void-arcane': {
     id: 'void-arcane',
     label: 'Schatten-Arkan',
-    subtitle: 'Magier-Runenkreis Lila',
+    subtitle: 'Rotierender Portal-Runenkreis',
     primary: '#c084fc',
     secondary: '#6d28d9',
     highlight: '#fae8ff',
@@ -223,37 +223,127 @@ function buildLightningPath(
   );
 }
 
-/** Builds a smooth undulating organic liquid / flame wave closed path */
-function buildWavePath(
-  pts: { x: number; y: number; nx: number; ny: number }[],
-  amp: number,
-  freqA: number,
-  freqB: number,
-  phase: number
-): string {
-  const n = pts.length;
-  const shifted = pts.map((p, i) => {
-    const t = (i / n) * Math.PI * 2;
-    const off = Math.sin(t * freqA + phase) * amp + Math.cos(t * freqB - phase * 1.4) * (amp * 0.45);
-    return { x: p.x + p.nx * off, y: p.y + p.ny * off };
-  });
+type PerimeterPoint = { x: number; y: number; nx: number; ny: number };
 
-  // Smooth Catmull-Rom-like quadratic midpoint loop
-  const parts: string[] = [];
-  for (let i = 0; i < n; i++) {
-    const curr = shifted[i];
-    const next = shifted[(i + 1) % n];
-    const mx = (curr.x + next.x) / 2;
-    const my = (curr.y + next.y) / 2;
-    if (i === 0) {
-      const prev = shifted[n - 1];
-      parts.push(`M ${((prev.x + curr.x) / 2).toFixed(1)} ${((prev.y + curr.y) / 2).toFixed(1)}`);
-    }
-    parts.push(`Q ${curr.x.toFixed(1)} ${curr.y.toFixed(1)} ${mx.toFixed(1)} ${my.toFixed(1)}`);
-  }
-  parts.push('Z');
-  return parts.join(' ');
+/** Deterministic pseudo-random in [0, 1) so every render (Studio + OBS) is identical */
+function seeded(i: number, salt = 1): number {
+  const v = Math.sin(i * 12.9898 + salt * 78.233) * 43758.5453;
+  return v - Math.floor(v);
 }
+
+/** Closed clockwise path of the base shape, grown outward (+) or shrunk inward (−) */
+function offsetShapePath(
+  shape: 'circle' | 'rect',
+  cx: number,
+  cy: number,
+  pad: number,
+  w: number,
+  h: number,
+  r: number,
+  offset: number
+): string {
+  if (shape === 'circle') {
+    const rr = Math.max(2, w / 2 + offset);
+    return `M ${cx.toFixed(2)} ${(cy - rr).toFixed(2)} A ${rr.toFixed(2)} ${rr.toFixed(
+      2
+    )} 0 1 1 ${(cx - 0.01).toFixed(2)} ${(cy - rr).toFixed(2)} Z`;
+  }
+  return buildRoundedRectPath(
+    pad - offset,
+    pad - offset,
+    Math.max(8, w + offset * 2),
+    Math.max(8, h + offset * 2),
+    Math.max(2, r + offset)
+  );
+}
+
+interface CometTrailProps {
+  d: string;
+  color: string;
+  headColor: string;
+  width: number;
+  durSec: number;
+  /** Tail length in % of the perimeter */
+  tail?: number;
+  /** Phase offset 0..1 along the loop */
+  phase?: number;
+  reverse?: boolean;
+  glow?: number;
+}
+
+/**
+ * Tapered energy comet travelling along any closed path.
+ * Four stacked dash layers share the same leading edge (aligned via negative animation-delay),
+ * producing a soft fading tail out of pure crisp vector strokes — no blur filters, so it stays
+ * razor-sharp in OBS Browser Sources.
+ */
+const CometTrail: React.FC<CometTrailProps> = ({
+  d,
+  color,
+  headColor,
+  width,
+  durSec,
+  tail = 30,
+  phase = 0,
+  reverse = false,
+  glow = 1,
+}) => {
+  const layers = [
+    { len: tail, op: 0.14 * glow, w: width * 2.8, c: color },
+    { len: tail * 0.62, op: 0.34 * glow, w: width * 1.7, c: color },
+    { len: tail * 0.34, op: 0.8, w: width * 1.1, c: color },
+    { len: Math.max(1.4, tail * 0.1), op: 1, w: width * 0.9, c: headColor },
+  ];
+  return (
+    <>
+      {layers.map((l, idx) => {
+        const shift = reverse ? 0 : (tail - l.len) / 100;
+        const delay = -(((shift + phase) % 1) * durSec);
+        return (
+          <path
+            key={`comet_${idx}`}
+            d={d}
+            pathLength={100}
+            stroke={l.c}
+            strokeOpacity={Math.min(1, l.op)}
+            strokeWidth={l.w}
+            strokeLinecap="round"
+            strokeDasharray={`${l.len.toFixed(2)} ${(100 - l.len).toFixed(2)}`}
+            className={reverse ? 'hud-flow-rev' : 'hud-flow'}
+            style={{
+              ['--hud-dur' as string]: `${durSec.toFixed(2)}s`,
+              animationDelay: `${delay.toFixed(3)}s`,
+            }}
+          />
+        );
+      })}
+    </>
+  );
+};
+
+/** Crisp vector element gliding along a path via native SVG SMIL (GPU-cheap, sub-pixel smooth) */
+const MotionAlongPath: React.FC<{
+  path: string;
+  durSec: number;
+  phase: number;
+  rotateAuto?: boolean;
+  reverse?: boolean;
+  children: React.ReactNode;
+}> = ({ path, durSec, phase, rotateAuto = false, reverse = false, children }) => (
+  <g>
+    {children}
+    <animateMotion
+      path={path}
+      dur={`${durSec.toFixed(2)}s`}
+      begin={`${(-phase * durSec).toFixed(2)}s`}
+      repeatCount="indefinite"
+      calcMode="linear"
+      rotate={rotateAuto ? 'auto' : undefined}
+      keyPoints={reverse ? '1;0' : undefined}
+      keyTimes={reverse ? '0;1' : undefined}
+    />
+  </g>
+);
 
 interface WowElementalFrameProps {
   shape: 'circle' | 'rect';
@@ -267,9 +357,16 @@ interface WowElementalFrameProps {
 }
 
 /**
- * Handcrafted WoW / RPG-inspired hollow animated frame designed to wrap directly around
- * Whatnot's native circular Shop button, top-left Avatar logo, and top-right Giveaway box.
- * Interior stays 100% transparent; outer aura + elemental effects animate at 60fps in OBS.
+ * Hand-crafted WoW / high-fantasy elemental frames wrapping Whatnot's native Shop button,
+ * Avatar logo and Giveaway card. Every style has its own clear visual signature:
+ *
+ *  - Liquid Mana:     glass orb ring, twin mana currents, glossy reflection, orbiting mana beads
+ *  - Sturm-Blitz:     steel conduit ring, chain lightning that strikes in random bursts, spark nodes
+ *  - Wind-Wirbel:     airy vortex — three counter-rotating zephyr streams + gliding wind curls
+ *  - Runen-Feuer:     forged molten-gold ring, flickering flame tongues, rising embers, gold clasps
+ *  - Schatten-Arkan:  mage portal circle with rotating rune glyph band, sigils & void comets
+ *
+ * Interior stays 100% transparent. Zero SVG/CSS blur filters → razor-sharp in OBS & Whatnot.
  */
 export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
   shape,
@@ -285,9 +382,11 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
   const meta = HUD_ELEMENTAL_STYLES[style] ?? HUD_ELEMENTAL_STYLES['arcane-mana'];
   const sp = SPEED_MULT[animSpeed] ?? 1;
   const thick = Math.max(0.6, Math.min(1.8, thicknessPct / 100));
-  const glowScale = Math.max(0.3, Math.min(1.6, intensityPct / 100));
+  const glow = Math.max(0.3, Math.min(1.6, intensityPct / 100));
+  const bs = 3.6 * thick;
 
-  const pad = Math.round(34 * Math.max(0.85, thick));
+  // Generous transparent margin so flames, embers & outer rune bands never clip
+  const pad = Math.round(58 * Math.max(0.85, thick));
   const w = Math.max(40, width);
   const h = shape === 'circle' ? w : Math.max(40, height);
   const svgW = w + pad * 2;
@@ -296,71 +395,46 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
   const cy = svgH / 2;
   const r = shape === 'circle' ? w / 2 : Math.min(radius, w / 2, h / 2);
 
-  const basePath = useMemo(
-    () =>
-      shape === 'circle'
-        ? `M ${cx} ${cy - r} A ${r} ${r} 0 1 1 ${cx - 0.01} ${cy - r} Z`
-        : buildRoundedRectPath(pad, pad, w, h, r),
-    [shape, cx, cy, r, pad, w, h]
-  );
+  const geo = useMemo(() => {
+    const path = (off: number) => offsetShapePath(shape, cx, cy, pad, w, h, r, off);
+    const points = (off: number, count: number): PerimeterPoint[] =>
+      samplePerimeter(
+        shape,
+        cx,
+        cy,
+        w + off * 2,
+        h + off * 2,
+        Math.max(2, r + off),
+        Math.max(4, count)
+      );
+    const perim =
+      shape === 'circle' ? Math.PI * w : 2 * (w + h) - (8 - 2 * Math.PI) * Math.min(r, w / 2, h / 2);
 
-  const outerPath = useMemo(() => {
-    const expand = 8 * thick;
-    return shape === 'circle'
-      ? `M ${cx} ${cy - (r + expand)} A ${r + expand} ${r + expand} 0 1 1 ${cx - 0.01} ${
-          cy - (r + expand)
-        } Z`
-      : buildRoundedRectPath(pad - expand, pad - expand, w + expand * 2, h + expand * 2, r + expand);
-  }, [shape, cx, cy, r, pad, w, h, thick]);
-
-  const innerPath = useMemo(() => {
-    const shrink = 6 * thick;
-    const ir = Math.max(2, r - shrink);
-    return shape === 'circle'
-      ? `M ${cx} ${cy - ir} A ${ir} ${ir} 0 1 1 ${cx - 0.01} ${cy - ir} Z`
-      : buildRoundedRectPath(
-          pad + shrink,
-          pad + shrink,
-          Math.max(10, w - shrink * 2),
-          Math.max(10, h - shrink * 2),
-          ir
-        );
-  }, [shape, cx, cy, r, pad, w, h, thick]);
-
-  const { wavePathA, wavePathB, boltPathA, boltPathB, droplets, cardinals } = useMemo(() => {
-    const pts = samplePerimeter(shape, cx, cy, w, h, r, shape === 'circle' ? 56 : 72);
-    const waveA = buildWavePath(pts, 5.5 * thick, shape === 'circle' ? 6 : 8, 11, 0);
-    const waveB = buildWavePath(pts, 4.2 * thick, shape === 'circle' ? 5 : 7, 9, 1.9);
-    const boltA = buildLightningPath(pts, 8.5 * thick, 1.7);
-    const boltB = buildLightningPath(pts, 10.5 * thick, 4.3);
-
-    const dropIdxs = [0, 14, 28, 42].map((i) => i % pts.length);
-    const drops = dropIdxs.map((idx, k) => {
-      const p = pts[idx];
-      const off = (k % 2 === 0 ? 11 : -8) * thick;
-      return { x: p.x + p.nx * off, y: p.y + p.ny * off, size: (k % 2 === 0 ? 3.8 : 2.6) * thick };
-    });
-
-    const cards = [
-      { x: cx, y: pad, angle: 0 },
-      { x: pad + w, y: cy, angle: 90 },
-      { x: cx, y: pad + h, angle: 180 },
-      { x: pad, y: cy, angle: 270 },
-    ];
+    const boltPts = points(0, Math.max(48, Math.round(perim / 9)));
 
     return {
-      wavePathA: waveA,
-      wavePathB: waveB,
-      boltPathA: boltA,
-      boltPathB: boltB,
-      droplets: drops,
-      cardinals: cards,
+      base: path(0),
+      outer1: path(bs * 1.6),
+      outer2: path(bs * 2.9),
+      inner1: path(-bs * 1.35),
+      bolts: [1.7, 4.3, 7.9].map((seed, i) =>
+        buildLightningPath(boltPts, (6 + i * 1.2) * thick, seed)
+      ),
+      flamePts: points(bs * 0.45, Math.round(perim / (23 * thick))),
+      emberPts: points(bs * 0.9, shape === 'circle' ? 10 : 14),
+      glyphPts: points(bs * 1.45, Math.round(perim / (19 * thick))),
+      cardinals: [
+        { x: cx, y: pad, angle: -90 },
+        { x: pad + w, y: cy, angle: 0 },
+        { x: cx, y: pad + h, angle: 90 },
+        { x: pad, y: cy, angle: 180 },
+      ],
     };
-  }, [shape, cx, cy, w, h, r, pad, thick]);
+  }, [shape, cx, cy, pad, w, h, r, bs, thick]);
 
-  const gradId = `hud_grad_${uid}`;
-  const grad2Id = `hud_grad2_${uid}`;
-  const baseStroke = 3.8 * thick;
+  const ringGradId = `hud_ring_${uid}`;
+  const fireGradId = `hud_fire_${uid}`;
+  const dur = (sec: number) => `${(sec * sp).toFixed(2)}s`;
 
   return (
     <svg
@@ -370,355 +444,469 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
       fill="none"
       shapeRendering="geometricPrecision"
       className="pointer-events-none select-none overflow-visible"
-      style={{
-        opacity: Math.min(1, 0.55 + glowScale * 0.45),
-      }}
+      style={{ opacity: Math.min(1, 0.6 + glow * 0.4) }}
       aria-hidden="true"
     >
       <defs>
-        <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor={meta.highlight} />
-          <stop offset="32%" stopColor={meta.primary} />
-          <stop offset="68%" stopColor={meta.secondary} />
-          <stop offset="100%" stopColor={meta.highlight} />
+        <linearGradient id={ringGradId} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor={meta.secondary} />
+          <stop offset="30%" stopColor={meta.primary} />
+          <stop offset="52%" stopColor={meta.highlight} />
+          <stop offset="74%" stopColor={meta.primary} />
+          <stop offset="100%" stopColor={meta.secondary} />
         </linearGradient>
-        <linearGradient id={grad2Id} x1="100%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stopColor={meta.primary} />
-          <stop offset="50%" stopColor={meta.highlight} />
+        <linearGradient id={fireGradId} x1="0%" y1="100%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#9a3412" />
+          <stop offset="22%" stopColor={meta.secondary} />
+          <stop offset="48%" stopColor={meta.primary} />
+          <stop offset="60%" stopColor={meta.highlight} />
+          <stop offset="78%" stopColor={meta.primary} />
           <stop offset="100%" stopColor={meta.secondary} />
         </linearGradient>
       </defs>
 
-      {/* Pure multi-layered vector aura glow (zero feGaussianBlur -> razor-sharp in OBS & Whatnot!) */}
+      {/* Atmospheric aura — stacked crisp vector halos (no blur filters) */}
+      <path d={geo.base} stroke={meta.primary} strokeWidth={bs * 6.2} strokeOpacity={0.055 * glow} />
       <path
-        d={basePath}
+        d={geo.base}
         stroke={meta.primary}
-        strokeWidth={baseStroke * 4.4}
-        strokeOpacity={0.09 * glowScale}
-        className="hud-breathe"
-        style={{ ['--hud-dur' as string]: `${(3.2 * sp).toFixed(2)}s` }}
+        strokeWidth={bs * 3.4}
+        strokeOpacity={0.12 * glow}
+        className="hud-halo"
+        style={{ ['--hud-dur' as string]: dur(3.4) }}
       />
-      <path
-        d={basePath}
-        stroke={meta.primary}
-        strokeWidth={baseStroke * 2.5}
-        strokeOpacity={0.18 * glowScale}
-      />
-      {/* Crisp dark outer contrast rim so bright frames pop cleanly over any stream background */}
-      <path
-        d={basePath}
-        stroke="#06070c"
-        strokeWidth={baseStroke * 1.65}
-        strokeOpacity={0.48}
-      />
+      {/* Dark contrast rim so every style pops over bright or busy camera footage */}
+      <path d={geo.base} stroke="#05060a" strokeWidth={bs * 2.1} strokeOpacity={0.5} />
 
-      {/* ===================================================================
-          1. ARCANE MANA — Crisp liquid mana waves & glowing droplets
-         =================================================================== */}
+      {/* ================================================================
+          1. LIQUID MANA — glass orb ring with flowing mana currents
+         ================================================================ */}
       {style === 'arcane-mana' && (
         <>
-          <path
-            d={wavePathA}
-            pathLength={100}
-            stroke={meta.primary}
-            strokeWidth={baseStroke * 2.1}
-            strokeOpacity={0.22 * glowScale}
-            strokeLinecap="round"
-            strokeDasharray="34 14 22 30"
-            className="hud-flow"
-            style={{ ['--hud-dur' as string]: `${(4.2 * sp).toFixed(2)}s` }}
+          <path d={geo.outer1} stroke={meta.primary} strokeWidth={bs * 0.32} strokeOpacity={0.55} />
+          <path d={geo.base} stroke={`url(#${ringGradId})`} strokeWidth={bs * 1.15} />
+          <path d={geo.inner1} stroke={meta.secondary} strokeWidth={bs * 0.4} strokeOpacity={0.75} />
+
+          <CometTrail
+            d={geo.base}
+            color={meta.primary}
+            headColor={meta.highlight}
+            width={bs * 0.95}
+            durSec={5.6 * sp}
+            tail={34}
+            glow={glow}
           />
-          <path
-            d={wavePathA}
-            pathLength={100}
-            stroke={`url(#${gradId})`}
-            strokeWidth={baseStroke * 1.1}
-            strokeOpacity={0.96}
-            strokeLinecap="round"
-            strokeDasharray="34 14 22 30"
-            className="hud-flow"
-            style={{ ['--hud-dur' as string]: `${(4.2 * sp).toFixed(2)}s` }}
+          <CometTrail
+            d={geo.base}
+            color={meta.primary}
+            headColor={meta.highlight}
+            width={bs * 0.95}
+            durSec={5.6 * sp}
+            tail={34}
+            phase={0.5}
+            glow={glow}
           />
+
+          {/* Glossy glass reflection (upper-left) */}
           <path
-            d={wavePathB}
+            d={geo.base}
             pathLength={100}
             stroke={meta.highlight}
-            strokeWidth={baseStroke * 0.58}
-            strokeOpacity={0.95}
+            strokeOpacity={0.85}
+            strokeWidth={bs * 0.38}
             strokeLinecap="round"
-            strokeDasharray="16 26 10 48"
-            className="hud-flow-rev"
-            style={{ ['--hud-dur' as string]: `${(5.4 * sp).toFixed(2)}s` }}
+            strokeDasharray="11 89"
+            strokeDashoffset={20}
           />
-          <path
-            d={basePath}
-            stroke={`url(#${grad2Id})`}
-            strokeWidth={baseStroke * 0.78}
-            strokeOpacity={0.94}
-          />
-          <g
-            className={shape === 'circle' ? 'hud-orbit-cw' : 'hud-breathe'}
-            style={{ ['--hud-dur' as string]: `${(12 * sp).toFixed(2)}s` }}
-          >
-            {droplets.map((d, idx) => (
-              <g key={`drop_${idx}`}>
-                <circle
-                  cx={d.x}
-                  cy={d.y}
-                  r={d.size * 1.65}
-                  fill={meta.primary}
-                  fillOpacity={0.28 * glowScale}
-                />
-                <circle
-                  cx={d.x}
-                  cy={d.y}
-                  r={d.size}
-                  fill={idx % 2 === 0 ? meta.highlight : meta.primary}
-                  fillOpacity={0.98}
-                />
-              </g>
-            ))}
-          </g>
+
+          {/* Orbiting mana beads */}
+          {[0, 1 / 3, 2 / 3].map((ph) => (
+            <MotionAlongPath key={`bead_${ph}`} path={geo.outer1} durSec={10 * sp} phase={ph}>
+              <circle r={bs * 1.4} fill={meta.primary} fillOpacity={0.22 * glow} />
+              <circle r={bs * 0.62} fill={meta.highlight} />
+            </MotionAlongPath>
+          ))}
         </>
       )}
 
-      {/* ===================================================================
-          2. STORM LIGHTNING — Razor-sharp crackling Shaman electric arcs
-         =================================================================== */}
+      {/* ================================================================
+          2. STURM-BLITZ — chain lightning striking in random bursts
+         ================================================================ */}
       {style === 'storm-lightning' && (
         <>
-          <path
-            d={basePath}
-            stroke={meta.secondary}
-            strokeWidth={baseStroke * 1.05}
-            strokeOpacity={0.82}
-          />
-          <path
-            d={boltPathA}
-            pathLength={100}
-            stroke={meta.primary}
-            strokeWidth={baseStroke * 2.0}
-            strokeOpacity={0.25 * glowScale}
-            strokeLinejoin="miter"
-            strokeLinecap="round"
-            strokeDasharray="18 10 12 24 14 22"
-            className="hud-lightning-snap"
-            style={{
-              ['--hud-dur' as string]: `${(1.9 * sp).toFixed(2)}s`,
-              ['--hud-flicker' as string]: `${(1.25 * sp).toFixed(2)}s`,
-            }}
-          />
-          <path
-            d={boltPathA}
-            pathLength={100}
-            stroke={meta.primary}
-            strokeWidth={baseStroke * 0.9}
-            strokeLinejoin="miter"
-            strokeLinecap="round"
-            strokeDasharray="18 10 12 24 14 22"
-            className="hud-lightning-snap"
-            style={{
-              ['--hud-dur' as string]: `${(1.9 * sp).toFixed(2)}s`,
-              ['--hud-flicker' as string]: `${(1.25 * sp).toFixed(2)}s`,
-            }}
-          />
-          <path
-            d={boltPathB}
-            pathLength={100}
-            stroke={meta.highlight}
-            strokeWidth={baseStroke * 0.55}
-            strokeLinejoin="miter"
-            strokeLinecap="round"
-            strokeDasharray="10 22 7 29 9 23"
-            className="hud-lightning-snap"
-            style={{
-              ['--hud-dur' as string]: `${(1.45 * sp).toFixed(2)}s`,
-              ['--hud-flicker' as string]: `${(0.95 * sp).toFixed(2)}s`,
-            }}
-          />
-          <path
-            d={basePath}
-            pathLength={100}
-            stroke={meta.highlight}
-            strokeWidth={baseStroke * 0.42}
-            strokeOpacity={0.9}
-            strokeDasharray="6 44"
-            className="hud-flow-rev"
-            style={{ ['--hud-dur' as string]: `${(2.2 * sp).toFixed(2)}s` }}
-          />
-        </>
-      )}
+          <path d={geo.base} stroke={meta.secondary} strokeWidth={bs * 1.0} strokeOpacity={0.9} />
+          <path d={geo.base} stroke={meta.primary} strokeWidth={bs * 0.34} strokeOpacity={0.95} />
+          <path d={geo.inner1} stroke={meta.primary} strokeWidth={bs * 0.26} strokeOpacity={0.45} />
 
-      {/* ===================================================================
-          3. WIND TEMPEST — Crisp Windfury air ribbons & zephyr streamlines
-         =================================================================== */}
-      {style === 'wind-tempest' && (
-        <>
-          <path
-            d={outerPath}
-            pathLength={100}
-            stroke={meta.primary}
-            strokeWidth={baseStroke * 0.78}
-            strokeOpacity={0.78}
-            strokeLinecap="round"
-            strokeDasharray="24 26 14 36"
-            className="hud-flow"
-            style={{ ['--hud-dur' as string]: `${(3.1 * sp).toFixed(2)}s` }}
-          />
-          <path
-            d={basePath}
-            pathLength={100}
-            stroke={meta.primary}
-            strokeWidth={baseStroke * 2.1}
-            strokeOpacity={0.2 * glowScale}
-            strokeLinecap="round"
-            strokeDasharray="38 18 18 26"
-            className="hud-flow"
-            style={{ ['--hud-dur' as string]: `${(3.8 * sp).toFixed(2)}s` }}
-          />
-          <path
-            d={basePath}
-            pathLength={100}
-            stroke={`url(#${gradId})`}
-            strokeWidth={baseStroke * 1.05}
-            strokeOpacity={0.96}
-            strokeLinecap="round"
-            strokeDasharray="38 18 18 26"
-            className="hud-flow"
-            style={{ ['--hud-dur' as string]: `${(3.8 * sp).toFixed(2)}s` }}
-          />
-          <path
-            d={innerPath}
-            pathLength={100}
-            stroke={meta.highlight}
-            strokeWidth={baseStroke * 0.5}
-            strokeOpacity={0.92}
-            strokeLinecap="round"
-            strokeDasharray="20 32 10 38"
-            className="hud-flow-rev"
-            style={{ ['--hud-dur' as string]: `${(4.8 * sp).toFixed(2)}s` }}
-          />
-          <path
-            d={wavePathB}
-            pathLength={100}
-            stroke={meta.highlight}
-            strokeWidth={baseStroke * 0.38}
-            strokeOpacity={0.62}
-            strokeLinecap="round"
-            strokeDasharray="12 38"
-            className="hud-flow"
-            style={{ ['--hud-dur' as string]: `${(2.5 * sp).toFixed(2)}s` }}
-          />
-        </>
-      )}
-
-      {/* ===================================================================
-          4. FEL FLAME — Crisp Legendary Molten Gold & Forged Diamond Clasps
-         =================================================================== */}
-      {style === 'fel-flame' && (
-        <>
-          <path
-            d={wavePathA}
-            pathLength={100}
-            stroke={meta.secondary}
-            strokeWidth={baseStroke * 2.2}
-            strokeOpacity={0.28 * glowScale}
-            strokeLinecap="round"
-            strokeDasharray="28 12 20 14 14 12"
-            className="hud-flow"
-            style={{ ['--hud-dur' as string]: `${(3.6 * sp).toFixed(2)}s` }}
-          />
-          <path
-            d={wavePathA}
-            pathLength={100}
-            stroke={meta.secondary}
-            strokeWidth={baseStroke * 1.25}
-            strokeOpacity={0.9}
-            strokeLinecap="round"
-            strokeDasharray="28 12 20 14 14 12"
-            className="hud-flow"
-            style={{ ['--hud-dur' as string]: `${(3.6 * sp).toFixed(2)}s` }}
-          />
-          <path
-            d={basePath}
-            stroke={`url(#${gradId})`}
-            strokeWidth={baseStroke * 1.0}
-            strokeOpacity={0.98}
-          />
-          <path
-            d={basePath}
-            pathLength={100}
-            stroke={meta.highlight}
-            strokeWidth={baseStroke * 0.5}
-            strokeLinecap="round"
-            strokeDasharray="14 36"
-            className="hud-flow-rev"
-            style={{ ['--hud-dur' as string]: `${(4.4 * sp).toFixed(2)}s` }}
-          />
-          {cardinals.map((c, idx) => (
-            <polygon
-              key={`clasp_${idx}`}
-              points={`${c.x},${c.y - 7 * thick} ${c.x + 7 * thick},${c.y} ${c.x},${
-                c.y + 7 * thick
-              } ${c.x - 7 * thick},${c.y}`}
-              fill={meta.highlight}
-              stroke={meta.secondary}
-              strokeWidth={1.8 * thick}
-            />
-          ))}
-        </>
-      )}
-
-      {/* ===================================================================
-          5. VOID ARCANE — Crisp Royal Purple WoW Mage Rune Circle
-         =================================================================== */}
-      {style === 'void-arcane' && (
-        <>
-          <path
-            d={outerPath}
-            pathLength={100}
-            stroke={meta.primary}
-            strokeWidth={baseStroke * 0.6}
-            strokeOpacity={0.85}
-            strokeDasharray="2.2 2.4 5.5 2.4"
-            className="hud-flow"
-            style={{ ['--hud-dur' as string]: `${(9.5 * sp).toFixed(2)}s` }}
-          />
-          <path
-            d={basePath}
-            stroke={`url(#${gradId})`}
-            strokeWidth={baseStroke * 1.02}
-            strokeOpacity={0.98}
-          />
-          <path
-            d={basePath}
-            stroke={meta.highlight}
-            strokeWidth={baseStroke * 0.36}
-            strokeOpacity={0.72}
-          />
-          <path
-            d={innerPath}
-            pathLength={100}
-            stroke={meta.highlight}
-            strokeWidth={baseStroke * 0.48}
-            strokeOpacity={0.92}
-            strokeDasharray="1.5 3 4 3"
-            className="hud-flow-rev"
-            style={{ ['--hud-dur' as string]: `${(12 * sp).toFixed(2)}s` }}
-          />
-          {cardinals.map((c, idx) => (
-            <g key={`sigil_${idx}`}>
-              <polygon
-                points={`${c.x},${c.y - 8 * thick} ${c.x + 8 * thick},${c.y} ${c.x},${
-                  c.y + 8 * thick
-                } ${c.x - 8 * thick},${c.y}`}
-                fill="#180d2a"
-                stroke={meta.highlight}
-                strokeWidth={2 * thick}
+          {geo.bolts.map((bd, i) => (
+            <g
+              key={`bolt_${i}`}
+              className="hud-flash"
+              style={{
+                ['--hud-dur' as string]: dur(1.7 + i * 0.23),
+                animationDelay: `${(-i * 0.57 * sp).toFixed(2)}s`,
+              }}
+            >
+              <path
+                d={bd}
+                pathLength={100}
+                stroke={meta.primary}
+                strokeOpacity={0.32 * glow}
+                strokeWidth={bs * 1.9}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                strokeDasharray="36 64"
+                strokeDashoffset={-i * 33}
               />
-              <circle cx={c.x} cy={c.y} r={2.4 * thick} fill={meta.highlight} />
+              <path
+                d={bd}
+                pathLength={100}
+                stroke={meta.highlight}
+                strokeWidth={bs * 0.55}
+                strokeLinejoin="round"
+                strokeLinecap="round"
+                strokeDasharray="36 64"
+                strokeDashoffset={-i * 33}
+              />
             </g>
           ))}
+
+          <CometTrail
+            d={geo.base}
+            color={meta.primary}
+            headColor="#ffffff"
+            width={bs * 0.8}
+            durSec={2.6 * sp}
+            tail={22}
+            glow={glow}
+          />
+
+          {/* Crackling spark nodes */}
+          {geo.cardinals.map((c, i) => {
+            const s = 6.5 * thick;
+            const k = s * 0.22;
+            return (
+              <g
+                key={`spark_${i}`}
+                className="hud-flash"
+                style={{
+                  ['--hud-dur' as string]: dur(1.3 + i * 0.31),
+                  animationDelay: `${(-i * 0.41 * sp).toFixed(2)}s`,
+                }}
+              >
+                <circle cx={c.x} cy={c.y} r={s * 1.1} fill={meta.primary} fillOpacity={0.25 * glow} />
+                <polygon
+                  points={`${c.x},${c.y - s} ${c.x + k},${c.y - k} ${c.x + s},${c.y} ${c.x + k},${
+                    c.y + k
+                  } ${c.x},${c.y + s} ${c.x - k},${c.y + k} ${c.x - s},${c.y} ${c.x - k},${c.y - k}`}
+                  fill="#ffffff"
+                />
+              </g>
+            );
+          })}
+        </>
+      )}
+
+      {/* ================================================================
+          3. WIND-WIRBEL — airy vortex of counter-rotating zephyr streams
+         ================================================================ */}
+      {style === 'wind-tempest' && (
+        <>
+          <path d={geo.base} stroke={meta.secondary} strokeWidth={bs * 0.62} strokeOpacity={0.75} />
+          <path
+            d={geo.outer2}
+            pathLength={100}
+            stroke={meta.primary}
+            strokeWidth={bs * 0.3}
+            strokeOpacity={0.4}
+            strokeDasharray="0.6 3.4"
+            strokeLinecap="round"
+          />
+
+          <CometTrail
+            d={geo.outer2}
+            color={meta.primary}
+            headColor={meta.highlight}
+            width={bs * 0.55}
+            durSec={3.6 * sp}
+            tail={42}
+            glow={glow}
+          />
+          <CometTrail
+            d={geo.outer2}
+            color={meta.primary}
+            headColor={meta.highlight}
+            width={bs * 0.55}
+            durSec={3.6 * sp}
+            tail={42}
+            phase={0.5}
+            glow={glow}
+          />
+          <CometTrail
+            d={geo.base}
+            color={meta.primary}
+            headColor={meta.highlight}
+            width={bs * 0.85}
+            durSec={4.8 * sp}
+            tail={38}
+            phase={0.25}
+            glow={glow}
+          />
+          <CometTrail
+            d={geo.base}
+            color={meta.primary}
+            headColor={meta.highlight}
+            width={bs * 0.85}
+            durSec={4.8 * sp}
+            tail={38}
+            phase={0.75}
+            glow={glow}
+          />
+          <CometTrail
+            d={geo.inner1}
+            color={meta.highlight}
+            headColor="#ffffff"
+            width={bs * 0.42}
+            durSec={3.0 * sp}
+            tail={30}
+            reverse
+            glow={glow}
+          />
+
+          {/* Gliding wind curls */}
+          {[0.12, 0.45, 0.78].map((ph) => (
+            <MotionAlongPath
+              key={`curl_${ph}`}
+              path={geo.outer2}
+              durSec={3.6 * sp}
+              phase={ph}
+              rotateAuto
+            >
+              <g transform={`scale(${thick.toFixed(2)})`}>
+                <path
+                  d="M -9 2 Q -3 -7 5 -3 Q 9 0 5 3 Q 2 4 1 1"
+                  stroke={meta.highlight}
+                  strokeWidth={1.6}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </g>
+            </MotionAlongPath>
+          ))}
+        </>
+      )}
+
+      {/* ================================================================
+          4. RUNEN-FEUER — forged molten gold, flame tongues & embers
+         ================================================================ */}
+      {style === 'fel-flame' && (
+        <>
+          <path d={geo.outer1} stroke={meta.primary} strokeWidth={bs * 0.3} strokeOpacity={0.5} />
+
+          {/* Flickering flame tongues (bases tucked beneath the ring) */}
+          {geo.flamePts.map((p, i) => {
+            const tall = i % 2 === 0;
+            const fh = (tall ? 17 : 11) * thick * (0.85 + 0.3 * seeded(i, 3));
+            const bw = 9 * thick;
+            const curl = (i % 3 === 0 ? 1 : -1) * bw * 0.22;
+            const angle = (Math.atan2(p.ny, p.nx) * 180) / Math.PI;
+            // Classic teardrop flame: rounded belly near the base, tapering into a curled tip
+            const flamePath = (len: number, wid: number, tip: number) =>
+              `M 0 ${(-wid / 2).toFixed(2)} C ${(len * 0.3).toFixed(2)} ${(-wid * 0.9).toFixed(2)} ${(
+                len * 0.72
+              ).toFixed(2)} ${(-wid * 0.28 + tip * 0.4).toFixed(2)} ${len.toFixed(2)} ${tip.toFixed(
+                2
+              )} C ${(len * 0.66).toFixed(2)} ${(wid * 0.2 + tip * 0.4).toFixed(2)} ${(len * 0.3).toFixed(
+                2
+              )} ${(wid * 0.85).toFixed(2)} 0 ${(wid / 2).toFixed(2)} Z`;
+            const outer = flamePath(fh, bw, curl);
+            const core = flamePath(fh * 0.58, bw * 0.5, curl * 0.6);
+            return (
+              <g
+                key={`flame_${i}`}
+                transform={`translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${angle.toFixed(1)})`}
+              >
+                <g
+                  className="hud-flicker"
+                  style={{
+                    ['--hud-dur' as string]: dur(1.1 + seeded(i, 7) * 0.8),
+                    animationDelay: `${(-seeded(i, 11) * 1.6).toFixed(2)}s`,
+                  }}
+                >
+                  <path d={outer} fill={meta.secondary} fillOpacity={0.9} />
+                  <path d={core} fill={meta.primary} fillOpacity={0.95} />
+                </g>
+              </g>
+            );
+          })}
+
+          <path d={geo.base} stroke={`url(#${fireGradId})`} strokeWidth={bs * 1.25} />
+          <path d={geo.inner1} stroke="#7c2d12" strokeWidth={bs * 0.42} strokeOpacity={0.95} />
+
+          <CometTrail
+            d={geo.base}
+            color={meta.primary}
+            headColor={meta.highlight}
+            width={bs * 0.85}
+            durSec={4.6 * sp}
+            tail={26}
+            glow={glow}
+          />
+
+          {/* Rising embers */}
+          {geo.emberPts.map((p, i) => {
+            const s = 2.3 * thick;
+            const dist = 30 * thick;
+            return (
+              <g
+                key={`ember_${i}`}
+                className="hud-ember"
+                style={{
+                  ['--ex' as string]: `${(p.nx * dist).toFixed(1)}px`,
+                  ['--ey' as string]: `${(p.ny * dist - 9 * thick).toFixed(1)}px`,
+                  ['--hud-dur' as string]: dur(2.4 + seeded(i, 5) * 1.2),
+                  animationDelay: `${(-seeded(i, 9) * 3).toFixed(2)}s`,
+                }}
+              >
+                <polygon
+                  points={`${p.x},${p.y - s} ${p.x + s * 0.7},${p.y} ${p.x},${p.y + s} ${
+                    p.x - s * 0.7
+                  },${p.y}`}
+                  fill={i % 3 === 0 ? meta.highlight : '#fdba74'}
+                />
+              </g>
+            );
+          })}
+
+          {/* Forged gold clasps */}
+          {geo.cardinals.map((c, i) => {
+            const s = 7.5 * thick;
+            return (
+              <g key={`clasp_${i}`}>
+                <polygon
+                  points={`${c.x},${c.y - s} ${c.x + s},${c.y} ${c.x},${c.y + s} ${c.x - s},${c.y}`}
+                  fill="#7c2d12"
+                  stroke={meta.primary}
+                  strokeWidth={1.8 * thick}
+                />
+                <polygon
+                  points={`${c.x},${c.y - s * 0.45} ${c.x + s * 0.45},${c.y} ${c.x},${
+                    c.y + s * 0.45
+                  } ${c.x - s * 0.45},${c.y}`}
+                  fill={meta.highlight}
+                />
+              </g>
+            );
+          })}
+        </>
+      )}
+
+      {/* ================================================================
+          5. SCHATTEN-ARKAN — mage portal circle with rotating rune band
+         ================================================================ */}
+      {style === 'void-arcane' && (
+        <>
+          <path d={geo.outer2} stroke={meta.primary} strokeWidth={bs * 0.42} strokeOpacity={0.85} />
+
+          <g
+            className={shape === 'circle' ? 'hud-orbit-cw' : 'hud-halo'}
+            style={{ ['--hud-dur' as string]: dur(shape === 'circle' ? 36 : 4) }}
+          >
+            {geo.glyphPts.map((p, i) => {
+              const s = 3.6 * thick;
+              const angle = (Math.atan2(p.ny, p.nx) * 180) / Math.PI;
+              const kind = [0, 3, 2, 3, 1, 3, 4, 3][i % 8];
+              const sw = 1.3 * thick;
+              return (
+                <g
+                  key={`glyph_${i}`}
+                  transform={`translate(${p.x.toFixed(1)} ${p.y.toFixed(1)}) rotate(${angle.toFixed(1)})`}
+                >
+                  {kind === 0 && (
+                    <line x1={-s} y1={0} x2={s} y2={0} stroke={meta.highlight} strokeWidth={sw} strokeLinecap="round" />
+                  )}
+                  {kind === 1 && (
+                    <polygon
+                      points={`0,${-s * 0.75} ${s * 0.75},0 0,${s * 0.75} ${-s * 0.75},0`}
+                      fill={meta.highlight}
+                    />
+                  )}
+                  {kind === 2 && (
+                    <polyline
+                      points={`${-s * 0.6},${-s * 0.7} ${s * 0.6},0 ${-s * 0.6},${s * 0.7}`}
+                      stroke={meta.highlight}
+                      strokeWidth={sw}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  )}
+                  {kind === 3 && <circle r={s * 0.32} fill={meta.primary} />}
+                  {kind === 4 && (
+                    <>
+                      <line x1={-s * 0.8} y1={-s * 0.45} x2={s * 0.8} y2={-s * 0.45} stroke={meta.highlight} strokeWidth={sw} strokeLinecap="round" />
+                      <line x1={-s * 0.8} y1={s * 0.45} x2={s * 0.8} y2={s * 0.45} stroke={meta.highlight} strokeWidth={sw} strokeLinecap="round" />
+                    </>
+                  )}
+                </g>
+              );
+            })}
+          </g>
+
+          <path d={geo.base} stroke={`url(#${ringGradId})`} strokeWidth={bs * 1.0} />
+          <path
+            d={geo.inner1}
+            pathLength={100}
+            stroke={meta.highlight}
+            strokeWidth={bs * 0.3}
+            strokeOpacity={0.75}
+            strokeDasharray="0.8 1.7"
+            className="hud-flow-rev"
+            style={{ ['--hud-dur' as string]: dur(40) }}
+          />
+
+          <CometTrail
+            d={geo.base}
+            color={meta.primary}
+            headColor={meta.highlight}
+            width={bs * 0.8}
+            durSec={6.4 * sp}
+            tail={30}
+            glow={glow}
+          />
+          <CometTrail
+            d={geo.base}
+            color={meta.primary}
+            headColor={meta.highlight}
+            width={bs * 0.8}
+            durSec={6.4 * sp}
+            tail={30}
+            phase={0.5}
+            glow={glow}
+          />
+
+          {/* Portal sigils */}
+          {geo.cardinals.map((c, i) => {
+            const s = 8.5 * thick;
+            return (
+              <g
+                key={`sigil_${i}`}
+                className="hud-halo"
+                style={{
+                  ['--hud-dur' as string]: dur(2.8),
+                  animationDelay: `${(-i * 0.7 * sp).toFixed(2)}s`,
+                }}
+              >
+                <circle cx={c.x} cy={c.y} r={s * 1.25} fill={meta.primary} fillOpacity={0.18 * glow} />
+                <polygon
+                  points={`${c.x},${c.y - s} ${c.x + s},${c.y} ${c.x},${c.y + s} ${c.x - s},${c.y}`}
+                  fill="#1a0b2e"
+                  stroke={meta.highlight}
+                  strokeWidth={2 * thick}
+                />
+                <circle cx={c.x} cy={c.y} r={2.4 * thick} fill={meta.highlight} />
+              </g>
+            );
+          })}
         </>
       )}
     </svg>
