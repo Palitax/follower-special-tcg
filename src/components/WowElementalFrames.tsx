@@ -360,8 +360,7 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
 
   const gradId = `hud_grad_${uid}`;
   const grad2Id = `hud_grad2_${uid}`;
-  const glowFilterId = `hud_glow_${uid}`;
-  const baseStroke = 4.2 * thick;
+  const baseStroke = 3.8 * thick;
 
   return (
     <svg
@@ -369,12 +368,10 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
       height={svgH}
       viewBox={`0 0 ${svgW} ${svgH}`}
       fill="none"
+      shapeRendering="geometricPrecision"
       className="pointer-events-none select-none overflow-visible"
       style={{
-        opacity: Math.min(1, 0.45 + glowScale * 0.55),
-        filter: `drop-shadow(0 0 ${Math.round(10 * glowScale)}px rgba(${meta.glowRgb}, ${(
-          0.55 * Math.min(1.25, glowScale)
-        ).toFixed(2)}))`,
+        opacity: Math.min(1, 0.55 + glowScale * 0.45),
       }}
       aria-hidden="true"
     >
@@ -390,48 +387,64 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
           <stop offset="50%" stopColor={meta.highlight} />
           <stop offset="100%" stopColor={meta.secondary} />
         </linearGradient>
-        <filter id={glowFilterId} x="-35%" y="-35%" width="170%" height="170%">
-          <feGaussianBlur stdDeviation={Math.max(2, 4.5 * glowScale)} result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
       </defs>
 
-      {/* Soft ambient perimeter halo */}
+      {/* Pure multi-layered vector aura glow (zero feGaussianBlur -> razor-sharp in OBS & Whatnot!) */}
       <path
         d={basePath}
         stroke={meta.primary}
-        strokeWidth={baseStroke * 2.4}
-        strokeOpacity={0.22 * glowScale}
+        strokeWidth={baseStroke * 4.4}
+        strokeOpacity={0.09 * glowScale}
         className="hud-breathe"
         style={{ ['--hud-dur' as string]: `${(3.2 * sp).toFixed(2)}s` }}
       />
+      <path
+        d={basePath}
+        stroke={meta.primary}
+        strokeWidth={baseStroke * 2.5}
+        strokeOpacity={0.18 * glowScale}
+      />
+      {/* Crisp dark outer contrast rim so bright frames pop cleanly over any stream background */}
+      <path
+        d={basePath}
+        stroke="#06070c"
+        strokeWidth={baseStroke * 1.65}
+        strokeOpacity={0.48}
+      />
 
       {/* ===================================================================
-          1. ARCANE MANA — Liquid glowing mana fluid & undulating water ripples
+          1. ARCANE MANA — Crisp liquid mana waves & glowing droplets
          =================================================================== */}
       {style === 'arcane-mana' && (
         <>
           <path
             d={wavePathA}
             pathLength={100}
-            stroke={`url(#${gradId})`}
-            strokeWidth={baseStroke * 1.15}
-            strokeOpacity={0.78}
+            stroke={meta.primary}
+            strokeWidth={baseStroke * 2.1}
+            strokeOpacity={0.22 * glowScale}
             strokeLinecap="round"
             strokeDasharray="34 14 22 30"
             className="hud-flow"
             style={{ ['--hud-dur' as string]: `${(4.2 * sp).toFixed(2)}s` }}
-            filter={`url(#${glowFilterId})`}
+          />
+          <path
+            d={wavePathA}
+            pathLength={100}
+            stroke={`url(#${gradId})`}
+            strokeWidth={baseStroke * 1.1}
+            strokeOpacity={0.96}
+            strokeLinecap="round"
+            strokeDasharray="34 14 22 30"
+            className="hud-flow"
+            style={{ ['--hud-dur' as string]: `${(4.2 * sp).toFixed(2)}s` }}
           />
           <path
             d={wavePathB}
             pathLength={100}
             stroke={meta.highlight}
-            strokeWidth={baseStroke * 0.62}
-            strokeOpacity={0.9}
+            strokeWidth={baseStroke * 0.58}
+            strokeOpacity={0.95}
             strokeLinecap="round"
             strokeDasharray="16 26 10 48"
             className="hud-flow-rev"
@@ -440,43 +453,52 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
           <path
             d={basePath}
             stroke={`url(#${grad2Id})`}
-            strokeWidth={baseStroke * 0.72}
-            strokeOpacity={0.85}
+            strokeWidth={baseStroke * 0.78}
+            strokeOpacity={0.94}
           />
           <g
             className={shape === 'circle' ? 'hud-orbit-cw' : 'hud-breathe'}
             style={{ ['--hud-dur' as string]: `${(12 * sp).toFixed(2)}s` }}
           >
             {droplets.map((d, idx) => (
-              <circle
-                key={`drop_${idx}`}
-                cx={d.x}
-                cy={d.y}
-                r={d.size}
-                fill={idx % 2 === 0 ? meta.highlight : meta.primary}
-                fillOpacity={0.88}
-              />
+              <g key={`drop_${idx}`}>
+                <circle
+                  cx={d.x}
+                  cy={d.y}
+                  r={d.size * 1.65}
+                  fill={meta.primary}
+                  fillOpacity={0.28 * glowScale}
+                />
+                <circle
+                  cx={d.x}
+                  cy={d.y}
+                  r={d.size}
+                  fill={idx % 2 === 0 ? meta.highlight : meta.primary}
+                  fillOpacity={0.98}
+                />
+              </g>
             ))}
           </g>
         </>
       )}
 
       {/* ===================================================================
-          2. STORM LIGHTNING — Crackling Shaman electric arcs & plasma core
+          2. STORM LIGHTNING — Razor-sharp crackling Shaman electric arcs
          =================================================================== */}
       {style === 'storm-lightning' && (
         <>
           <path
             d={basePath}
             stroke={meta.secondary}
-            strokeWidth={baseStroke * 1.1}
-            strokeOpacity={0.65}
+            strokeWidth={baseStroke * 1.05}
+            strokeOpacity={0.82}
           />
           <path
             d={boltPathA}
             pathLength={100}
             stroke={meta.primary}
-            strokeWidth={baseStroke * 0.95}
+            strokeWidth={baseStroke * 2.0}
+            strokeOpacity={0.25 * glowScale}
             strokeLinejoin="miter"
             strokeLinecap="round"
             strokeDasharray="18 10 12 24 14 22"
@@ -485,13 +507,26 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
               ['--hud-dur' as string]: `${(1.9 * sp).toFixed(2)}s`,
               ['--hud-flicker' as string]: `${(1.25 * sp).toFixed(2)}s`,
             }}
-            filter={`url(#${glowFilterId})`}
+          />
+          <path
+            d={boltPathA}
+            pathLength={100}
+            stroke={meta.primary}
+            strokeWidth={baseStroke * 0.9}
+            strokeLinejoin="miter"
+            strokeLinecap="round"
+            strokeDasharray="18 10 12 24 14 22"
+            className="hud-lightning-snap"
+            style={{
+              ['--hud-dur' as string]: `${(1.9 * sp).toFixed(2)}s`,
+              ['--hud-flicker' as string]: `${(1.25 * sp).toFixed(2)}s`,
+            }}
           />
           <path
             d={boltPathB}
             pathLength={100}
             stroke={meta.highlight}
-            strokeWidth={baseStroke * 0.52}
+            strokeWidth={baseStroke * 0.55}
             strokeLinejoin="miter"
             strokeLinecap="round"
             strokeDasharray="10 22 7 29 9 23"
@@ -505,8 +540,8 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
             d={basePath}
             pathLength={100}
             stroke={meta.highlight}
-            strokeWidth={baseStroke * 0.35}
-            strokeOpacity={0.75}
+            strokeWidth={baseStroke * 0.42}
+            strokeOpacity={0.9}
             strokeDasharray="6 44"
             className="hud-flow-rev"
             style={{ ['--hud-dur' as string]: `${(2.2 * sp).toFixed(2)}s` }}
@@ -515,7 +550,7 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
       )}
 
       {/* ===================================================================
-          3. WIND TEMPEST — Swirling Windfury air ribbons & zephyr wisps
+          3. WIND TEMPEST — Crisp Windfury air ribbons & zephyr streamlines
          =================================================================== */}
       {style === 'wind-tempest' && (
         <>
@@ -523,8 +558,8 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
             d={outerPath}
             pathLength={100}
             stroke={meta.primary}
-            strokeWidth={baseStroke * 0.8}
-            strokeOpacity={0.62}
+            strokeWidth={baseStroke * 0.78}
+            strokeOpacity={0.78}
             strokeLinecap="round"
             strokeDasharray="24 26 14 36"
             className="hud-flow"
@@ -533,33 +568,42 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
           <path
             d={basePath}
             pathLength={100}
-            stroke={`url(#${gradId})`}
-            strokeWidth={baseStroke * 1.08}
-            strokeOpacity={0.92}
+            stroke={meta.primary}
+            strokeWidth={baseStroke * 2.1}
+            strokeOpacity={0.2 * glowScale}
             strokeLinecap="round"
             strokeDasharray="38 18 18 26"
             className="hud-flow"
             style={{ ['--hud-dur' as string]: `${(3.8 * sp).toFixed(2)}s` }}
-            filter={`url(#${glowFilterId})`}
+          />
+          <path
+            d={basePath}
+            pathLength={100}
+            stroke={`url(#${gradId})`}
+            strokeWidth={baseStroke * 1.05}
+            strokeOpacity={0.96}
+            strokeLinecap="round"
+            strokeDasharray="38 18 18 26"
+            className="hud-flow"
+            style={{ ['--hud-dur' as string]: `${(3.8 * sp).toFixed(2)}s` }}
           />
           <path
             d={innerPath}
             pathLength={100}
             stroke={meta.highlight}
-            strokeWidth={baseStroke * 0.48}
-            strokeOpacity={0.78}
+            strokeWidth={baseStroke * 0.5}
+            strokeOpacity={0.92}
             strokeLinecap="round"
             strokeDasharray="20 32 10 38"
             className="hud-flow-rev"
             style={{ ['--hud-dur' as string]: `${(4.8 * sp).toFixed(2)}s` }}
           />
-          {/* Sweeping outer wind swirl arcs */}
           <path
             d={wavePathB}
             pathLength={100}
             stroke={meta.highlight}
-            strokeWidth={baseStroke * 0.36}
-            strokeOpacity={0.45}
+            strokeWidth={baseStroke * 0.38}
+            strokeOpacity={0.62}
             strokeLinecap="round"
             strokeDasharray="12 38"
             className="hud-flow"
@@ -569,7 +613,7 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
       )}
 
       {/* ===================================================================
-          4. FEL FLAME — Legendary Molten Gold & Whatnot Forge Fire
+          4. FEL FLAME — Crisp Legendary Molten Gold & Forged Diamond Clasps
          =================================================================== */}
       {style === 'fel-flame' && (
         <>
@@ -577,19 +621,29 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
             d={wavePathA}
             pathLength={100}
             stroke={meta.secondary}
-            strokeWidth={baseStroke * 1.45}
-            strokeOpacity={0.74}
+            strokeWidth={baseStroke * 2.2}
+            strokeOpacity={0.28 * glowScale}
             strokeLinecap="round"
             strokeDasharray="28 12 20 14 14 12"
             className="hud-flow"
             style={{ ['--hud-dur' as string]: `${(3.6 * sp).toFixed(2)}s` }}
-            filter={`url(#${glowFilterId})`}
+          />
+          <path
+            d={wavePathA}
+            pathLength={100}
+            stroke={meta.secondary}
+            strokeWidth={baseStroke * 1.25}
+            strokeOpacity={0.9}
+            strokeLinecap="round"
+            strokeDasharray="28 12 20 14 14 12"
+            className="hud-flow"
+            style={{ ['--hud-dur' as string]: `${(3.6 * sp).toFixed(2)}s` }}
           />
           <path
             d={basePath}
             stroke={`url(#${gradId})`}
-            strokeWidth={baseStroke * 0.95}
-            strokeOpacity={0.96}
+            strokeWidth={baseStroke * 1.0}
+            strokeOpacity={0.98}
           />
           <path
             d={basePath}
@@ -601,23 +655,22 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
             className="hud-flow-rev"
             style={{ ['--hud-dur' as string]: `${(4.4 * sp).toFixed(2)}s` }}
           />
-          {/* Carved forged bronze-gold cardinal diamond clasps */}
           {cardinals.map((c, idx) => (
             <polygon
               key={`clasp_${idx}`}
-              points={`${c.x},${c.y - 6.5 * thick} ${c.x + 6.5 * thick},${c.y} ${c.x},${
-                c.y + 6.5 * thick
-              } ${c.x - 6.5 * thick},${c.y}`}
+              points={`${c.x},${c.y - 7 * thick} ${c.x + 7 * thick},${c.y} ${c.x},${
+                c.y + 7 * thick
+              } ${c.x - 7 * thick},${c.y}`}
               fill={meta.highlight}
               stroke={meta.secondary}
-              strokeWidth={1.6 * thick}
+              strokeWidth={1.8 * thick}
             />
           ))}
         </>
       )}
 
       {/* ===================================================================
-          5. VOID ARCANE — Royal Purple WoW Mage Rune Circle
+          5. VOID ARCANE — Crisp Royal Purple WoW Mage Rune Circle
          =================================================================== */}
       {style === 'void-arcane' && (
         <>
@@ -625,8 +678,8 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
             d={outerPath}
             pathLength={100}
             stroke={meta.primary}
-            strokeWidth={baseStroke * 0.55}
-            strokeOpacity={0.72}
+            strokeWidth={baseStroke * 0.6}
+            strokeOpacity={0.85}
             strokeDasharray="2.2 2.4 5.5 2.4"
             className="hud-flow"
             style={{ ['--hud-dur' as string]: `${(9.5 * sp).toFixed(2)}s` }}
@@ -634,16 +687,21 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
           <path
             d={basePath}
             stroke={`url(#${gradId})`}
-            strokeWidth={baseStroke * 0.95}
-            strokeOpacity={0.94}
-            filter={`url(#${glowFilterId})`}
+            strokeWidth={baseStroke * 1.02}
+            strokeOpacity={0.98}
+          />
+          <path
+            d={basePath}
+            stroke={meta.highlight}
+            strokeWidth={baseStroke * 0.36}
+            strokeOpacity={0.72}
           />
           <path
             d={innerPath}
             pathLength={100}
             stroke={meta.highlight}
-            strokeWidth={baseStroke * 0.45}
-            strokeOpacity={0.82}
+            strokeWidth={baseStroke * 0.48}
+            strokeOpacity={0.92}
             strokeDasharray="1.5 3 4 3"
             className="hud-flow-rev"
             style={{ ['--hud-dur' as string]: `${(12 * sp).toFixed(2)}s` }}
@@ -651,14 +709,14 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
           {cardinals.map((c, idx) => (
             <g key={`sigil_${idx}`}>
               <polygon
-                points={`${c.x},${c.y - 7.5 * thick} ${c.x + 7.5 * thick},${c.y} ${c.x},${
-                  c.y + 7.5 * thick
-                } ${c.x - 7.5 * thick},${c.y}`}
-                fill="#1b102d"
+                points={`${c.x},${c.y - 8 * thick} ${c.x + 8 * thick},${c.y} ${c.x},${
+                  c.y + 8 * thick
+                } ${c.x - 8 * thick},${c.y}`}
+                fill="#180d2a"
                 stroke={meta.highlight}
-                strokeWidth={1.8 * thick}
+                strokeWidth={2 * thick}
               />
-              <circle cx={c.x} cy={c.y} r={2.2 * thick} fill={meta.highlight} />
+              <circle cx={c.x} cy={c.y} r={2.4 * thick} fill={meta.highlight} />
             </g>
           ))}
         </>
@@ -832,17 +890,25 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
           style={{
             ['--bob-x' as string]: bobX,
             ['--bob-y' as string]: bobY,
-            filter: `drop-shadow(0 0 10px rgba(${meta.glowRgb}, 0.7)) drop-shadow(0 4px 10px rgba(0,0,0,0.65))`,
           }}
         >
-          {/* Soft ambient halo under shaft */}
+          {/* Crisp dark shadow stroke + pure vector aura halo (zero CSS filter raster blur!) */}
           <path
             d={`M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${ex.toFixed(
               1
             )} ${ey.toFixed(1)}`}
             stroke={meta.primary}
-            strokeWidth={11 * sc}
-            strokeOpacity={0.22}
+            strokeWidth={15 * sc}
+            strokeOpacity={0.14}
+            strokeLinecap="round"
+          />
+          <path
+            d={`M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${ex.toFixed(
+              1
+            )} ${ey.toFixed(1)}`}
+            stroke="#06070c"
+            strokeWidth={9.5 * sc}
+            strokeOpacity={0.55}
             strokeLinecap="round"
           />
           {/* Main glowing shaft */}
@@ -851,7 +917,7 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
               1
             )} ${ey.toFixed(1)}`}
             stroke={`url(#${shaftGradId})`}
-            strokeWidth={4.8 * sc}
+            strokeWidth={5 * sc}
             strokeLinecap="round"
           />
           {/* Animated energy dash racing toward the arrowhead */}
@@ -865,7 +931,17 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
             strokeDasharray="16 32"
             className="hud-arrow-pulse"
           />
-          {/* Sculpted chevron arrowhead */}
+          {/* Crisp dark outline under arrowhead + luminous chevron */}
+          <path
+            d={`M ${w1x.toFixed(1)} ${w1y.toFixed(1)} L ${ex.toFixed(1)} ${ey.toFixed(1)} L ${w2x.toFixed(
+              1
+            )} ${w2y.toFixed(1)}`}
+            stroke="#06070c"
+            strokeWidth={9.5 * sc}
+            strokeOpacity={0.55}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
           <path
             d={`M ${w1x.toFixed(1)} ${w1y.toFixed(1)} L ${ex.toFixed(1)} ${ey.toFixed(1)} L ${w2x.toFixed(
               1
