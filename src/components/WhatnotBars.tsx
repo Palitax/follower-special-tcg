@@ -925,7 +925,7 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
   if (scale !== 1) {
     return (
       <div
-        className="relative overflow-hidden"
+        className="relative overflow-visible"
         style={{
           width: barW ? `${Math.round(barW * scale)}px` : '100%',
           height: `${Math.round(H * scale)}px`,

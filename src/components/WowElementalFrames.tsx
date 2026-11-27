@@ -668,7 +668,10 @@ export const WowElementalFrame: React.FC<WowElementalFrameProps> = ({
 };
 
 interface HudCalloutPointerProps {
-  /** Center of the target widget in 1080x1920 canvas px */
+  /** Stage canvas width & height in logical px (e.g. 960x720 standalone or 1080x1920 full) */
+  canvasW?: number;
+  canvasH?: number;
+  /** Center of the target widget in canvas px */
   targetX: number;
   targetY: number;
   /** Target half-width & half-height so the arrow lands neatly at the outer aura edge */
@@ -681,13 +684,21 @@ interface HudCalloutPointerProps {
   subtext: string;
   style: HudElementalStyle;
   scalePct?: number;
+  /** Studio-only interactive drag handler to freely move the text pill & auto-aim arrow */
+  interactive?: boolean;
+  /** Current CSS scale of the preview stage (used to convert pointer deltas accurately) */
+  previewScale?: number;
+  onDragOffset?: (nextOffsetX: number, nextOffsetY: number) => void;
 }
 
 /**
  * Dynamic curved animated arrow + sleek ManaCards/Whatnot HUD pill that automatically
  * aims from the user's configured offset directly onto the Shop circle or Giveaway frame.
+ * Supports direct pointer dragging inside the Studio preview.
  */
 export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
+  canvasW = 1080,
+  canvasH = 1920,
   targetX,
   targetY,
   targetHalfW,
@@ -698,6 +709,9 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
   subtext,
   style,
   scalePct = 100,
+  interactive = false,
+  previewScale = 1,
+  onDragOffset,
 }) => {
   const uid = useId().replace(/:/g, '');
   const meta = HUD_ELEMENTAL_STYLES[style] ?? HUD_ELEMENTAL_STYLES['arcane-mana'];
@@ -751,13 +765,49 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
   const bobY = `${(tuy * 7).toFixed(1)}px`;
   const shaftGradId = `arrow_grad_${uid}`;
 
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!interactive || !onDragOffset) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const targetEl = e.currentTarget;
+    targetEl.setPointerCapture(e.pointerId);
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const startOx = offsetX;
+    const startOy = offsetY;
+    const invScale = 1 / Math.max(0.15, previewScale);
+
+    const onMove = (ev: PointerEvent) => {
+      const deltaX = (ev.clientX - startClientX) * invScale;
+      const deltaY = (ev.clientY - startClientY) * invScale;
+      const clampedX = Math.max(-520, Math.min(520, Math.round(startOx + deltaX)));
+      const clampedY = Math.max(-380, Math.min(380, Math.round(startOy + deltaY)));
+      onDragOffset(clampedX, clampedY);
+    };
+
+    const onUp = (ev: PointerEvent) => {
+      try {
+        targetEl.releasePointerCapture(ev.pointerId);
+      } catch {
+        // ignore
+      }
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+    window.addEventListener('pointercancel', onUp);
+  };
+
   return (
-    <div className="pointer-events-none absolute inset-0 select-none">
-      {/* Curved Animated Arrow SVG (full 1080x1920 overlay coordinates) */}
+    <div className="pointer-events-none absolute inset-0 select-none overflow-visible">
+      {/* Curved Animated Arrow SVG */}
       <svg
         width="100%"
         height="100%"
-        viewBox="0 0 1080 1920"
+        viewBox={`0 0 ${canvasW} ${canvasH}`}
         fill="none"
         className="absolute inset-0 overflow-visible"
         aria-hidden="true"
@@ -828,15 +878,22 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
         </g>
       </svg>
 
-      {/* Floating Broadcast HUD Callout Text Pill */}
+      {/* Floating Broadcast HUD Callout Text Pill (draggable inside Studio Preview) */}
       {(text.trim() || subtext.trim()) && (
         <div
-          className="absolute font-wn-sans mc-crisp-overlay"
+          onPointerDown={handlePointerDown}
+          title={interactive ? 'Ziehen zum Positionieren des Hinweis-Pfeils' : undefined}
+          className={`absolute font-wn-sans mc-crisp-overlay ${
+            interactive
+              ? 'pointer-events-auto cursor-grab active:cursor-grabbing ring-2 ring-transparent hover:ring-[#FFE406]/80 rounded-2xl transition-shadow'
+              : 'pointer-events-none'
+          }`}
           style={{
             left: pillX,
             top: pillY,
             transform: 'translate(-50%, -50%)',
-            maxWidth: Math.round(410 * sc),
+            maxWidth: Math.round(430 * sc),
+            touchAction: interactive ? 'none' : undefined,
           }}
         >
           <div

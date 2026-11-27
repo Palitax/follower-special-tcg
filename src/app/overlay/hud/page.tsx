@@ -11,7 +11,12 @@ import {
   BARS_STORAGE_KEY,
   BroadcastBarsSyncController,
 } from '../../../lib/barsLiveSync';
-import { HudWidgetKey, WhatnotHudOverlay } from '../../../components/WhatnotHudOverlay';
+import {
+  HudWidgetKey,
+  STANDALONE_HUD_STAGES,
+  StandaloneHudWidget,
+  WhatnotHudOverlay,
+} from '../../../components/WhatnotHudOverlay';
 
 function HudOverlaySurface() {
   const searchParams = useSearchParams();
@@ -26,7 +31,7 @@ function HudOverlaySurface() {
     createDefaultBroadcastBarsSnapshot('hud_overlay_init')
   );
   const [missingKeyHint, setMissingKeyHint] = useState(false);
-  const [viewport, setViewport] = useState<{ w: number; h: number }>({ w: 1080, h: 1920 });
+  const [viewport, setViewport] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const snapshotRef = useRef<BroadcastBarsSnapshot>(snapshot);
 
   useEffect(() => {
@@ -83,7 +88,36 @@ function HudOverlaySurface() {
     };
   }, [overlayKey]);
 
-  // Scale cleanly to any 9:16 OBS Browser Source size (recommended 1080 x 1920)
+  if (only) {
+    const stage = STANDALONE_HUD_STAGES[only];
+    const fitScale =
+      viewport.w > 0 && viewport.h > 0
+        ? Math.min(viewport.w / stage.width, viewport.h / stage.height)
+        : 1;
+
+    return (
+      <main
+        className="w-screen h-screen overflow-hidden flex items-center justify-center"
+        style={{ background: 'transparent', backgroundColor: 'rgba(0, 0, 0, 0)' }}
+      >
+        {missingKeyHint ? (
+          <div className="px-4 py-2.5 bg-zinc-950/95 border border-sky-400/50 text-xs font-bold text-sky-100 shadow-2xl text-center max-w-sm">
+            Bitte im Regie-Studio unter „Whatnot HUD“ die vollständige OBS-URL (inkl. ?key=…)
+            kopieren.
+          </div>
+        ) : (
+          <StandaloneHudWidget
+            widgetKey={only}
+            config={snapshot.hud[only]}
+            masterVisible={snapshot.hud.visible}
+            scale={fitScale}
+          />
+        )}
+      </main>
+    );
+  }
+
+  // Fallback combined 9:16 1080x1920 mode
   const fitScale =
     viewport.w > 0 && viewport.h > 0
       ? Math.min(viewport.w / 1080, viewport.h / 1920)
@@ -100,7 +134,7 @@ function HudOverlaySurface() {
           (inkl. ?key=…) kopieren.
         </div>
       ) : (
-        <WhatnotHudOverlay settings={snapshot.hud} only={only} scale={fitScale} />
+        <WhatnotHudOverlay settings={snapshot.hud} scale={fitScale} />
       )}
     </main>
   );

@@ -91,8 +91,9 @@ function TickerOverlaySurface() {
     alignParam && alignParam in ALIGN_CLASSES ? alignParam : 'center';
 
   const q = snapshot.ticker.qualityScale ?? 2;
-  const renderedH = Math.round((snapshot.ticker.heightPx + 18) * q);
-  const renderedW = snapshot.ticker.fullWidth ? 0 : Math.round(snapshot.ticker.widthPx * q);
+  // Generous vertical headroom (+84px logical) so swipe-up, zoom & drop-shadow never clip in OBS
+  const renderedH = Math.round((snapshot.ticker.heightPx + 84) * q);
+  const renderedW = snapshot.ticker.fullWidth ? 0 : Math.round((snapshot.ticker.widthPx + 40) * q);
 
   const safeFitScale =
     viewport.w > 0 && viewport.h > 0

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import {
   DEFAULT_WHATNOT_HUD_SETTINGS,
   HudAnimSpeed,
@@ -8,16 +8,23 @@ import {
   WhatnotHudSettings,
 } from '../types/broadcastBars';
 import { HUD_ELEMENTAL_STYLES, HUD_STYLE_LIST } from './WowElementalFrames';
-import { HudWidgetKey } from './WhatnotHudOverlay';
+import { HudWidgetKey, STANDALONE_HUD_STAGES } from './WhatnotHudOverlay';
 import { sound } from '../utils/sound';
 import { Check, Copy, Eye, EyeOff, RotateCcw, Zap } from 'lucide-react';
 
 interface WhatnotHudEditorPanelProps {
   settings: WhatnotHudSettings;
+  selectedKey: HudWidgetKey;
+  onSelectWidget: (key: HudWidgetKey) => void;
   hudBaseUrl: string;
+  hasUnsavedDraft: boolean;
+  autoApplyLive: boolean;
+  onToggleAutoApply: () => void;
+  onConfirmDraft: () => void;
+  onDiscardDraft: () => void;
   onUpdateSettings: (patch: Partial<WhatnotHudSettings>) => void;
   onUpdateWidget: (key: HudWidgetKey, patch: Partial<HudWidgetConfig>) => void;
-  onResetAll: () => void;
+  onResetWidget: (key: HudWidgetKey) => void;
   onCopyUrl: (id: string, url: string) => void;
   copiedKey: string | null;
 }
@@ -32,7 +39,7 @@ const WIDGET_META: {
   {
     key: 'shop',
     title: 'Shop-Button',
-    location: 'Unten Rechts (Kreis)',
+    location: 'Eigene OBS-Quelle · Kreis (Unten Rechts)',
     shapeLabel: 'Kreis-Durchmesser',
     defaultPresets: [
       { label: 'Oben-Links', ox: -275, oy: -105 },
@@ -43,7 +50,7 @@ const WIDGET_META: {
   {
     key: 'giveaway',
     title: 'Giveaway-Box',
-    location: 'Oben Rechts (Rahmen)',
+    location: 'Eigene OBS-Quelle · Rahmen (Oben Rechts)',
     shapeLabel: 'Rahmen-Breite',
     defaultPresets: [
       { label: 'Links daneben', ox: -325, oy: 16 },
@@ -54,7 +61,7 @@ const WIDGET_META: {
   {
     key: 'avatar',
     title: 'Avatar / Logo',
-    location: 'Oben Links (Kreis)',
+    location: 'Eigene OBS-Quelle · Kreis (Oben Links)',
     shapeLabel: 'Kreis-Durchmesser',
     defaultPresets: [
       { label: 'Rechts daneben', ox: 255, oy: 28 },
@@ -65,14 +72,20 @@ const WIDGET_META: {
 
 export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
   settings,
+  selectedKey,
+  onSelectWidget,
   hudBaseUrl,
+  hasUnsavedDraft,
+  autoApplyLive,
+  onToggleAutoApply,
+  onConfirmDraft,
+  onDiscardDraft,
   onUpdateSettings,
   onUpdateWidget,
-  onResetAll,
+  onResetWidget,
   onCopyUrl,
   copiedKey,
 }) => {
-  const [selectedKey, setSelectedKey] = useState<HudWidgetKey>('shop');
   const activeMeta = WIDGET_META.find((m) => m.key === selectedKey) ?? WIDGET_META[0];
   const widget = settings[selectedKey];
   const activeStyle = HUD_ELEMENTAL_STYLES[widget.style] ?? HUD_ELEMENTAL_STYLES['arcane-mana'];
@@ -85,27 +98,73 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
 
   return (
     <div className="space-y-4">
-      {/* Master Header + OBS URL Quick Copy */}
+      {/* Unsaved Draft Confirmation Banner */}
+      {hasUnsavedDraft && (
+        <div className="p-3.5 border-2 border-[#FFE406]/80 bg-[#FFE406]/12 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.12em] text-[#FFE406]">
+              Entwurf in der Vorschau — noch nicht live in OBS
+            </div>
+            <p className="text-[11px] text-slate-200 mt-0.5">
+              Ziehe den Hinweis-Pfeil rechts in der Vorschau zurecht und klicke auf Bestätigen,
+              um das Update in den Stream zu senden.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={onDiscardDraft}
+              className="h-9 px-3 border border-white/20 bg-black/60 hover:bg-white/10 text-xs font-bold text-slate-200"
+            >
+              Verwerfen
+            </button>
+            <button
+              type="button"
+              onClick={onConfirmDraft}
+              className="h-9 px-4 bg-[#FFE406] hover:bg-[#f5dc00] text-[#1a1718] text-xs font-black uppercase tracking-[0.1em] flex items-center gap-1.5"
+            >
+              <Check className="w-4 h-4 stroke-[3]" />
+              <span>Bestätigen &amp; Live senden</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Master Header + 3 Completely Independent Widget Cards */}
       <div className="p-4 border border-sky-400/30 bg-zinc-950/80 space-y-3.5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h3 className="text-xs font-black uppercase tracking-[0.16em] text-white">
-              Whatnot HUD Highlights (WoW / RPG Elementar-Auren)
+              Whatnot HUD Highlights (3 völlig unabhängige OBS-Quellen)
             </h3>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              Animierte Leucht-Rahmen &amp; Pfeil-Hinweise exakt für deinen 9:16 Whatnot-Screen
-              (Shop, Giveaway &amp; Logo-Avatar).
+              Shop, Giveaway und Logo sind komplett entkoppelt: Jedes Element hat seine eigene
+              OBS-URL mit großzügigem Rand (kein Abschneiden!) und lässt sich einzeln in OBS
+              platzieren.
             </p>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
+              onClick={onToggleAutoApply}
+              className={`h-8 px-2.5 border text-[10.5px] font-bold transition-colors ${
+                autoApplyLive
+                  ? 'bg-sky-400/15 border-sky-400/50 text-sky-200'
+                  : 'bg-[#FFE406]/15 border-[#FFE406]/55 text-[#FFE406]'
+              }`}
+              title="Umschalten zwischen Entwurf-Bestätigung und Sofort-Live"
+            >
+              {autoApplyLive ? 'Modus: Sofort live' : 'Modus: Erst bestätigen'}
+            </button>
+
+            <button
+              type="button"
               onClick={() => {
                 sound.playClick(640);
                 onUpdateSettings({ visible: !settings.visible });
               }}
-              className={`h-9 px-3 border text-xs font-black uppercase tracking-[0.08em] flex items-center gap-1.5 ${
+              className={`h-8 px-3 border text-[11px] font-black uppercase tracking-[0.08em] flex items-center gap-1.5 ${
                 settings.visible
                   ? 'bg-emerald-500/15 border-emerald-400/50 text-emerald-200'
                   : 'bg-rose-500/15 border-rose-400/50 text-rose-200'
@@ -119,118 +178,94 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
               ) : (
                 <>
                   <EyeOff className="w-3.5 h-3.5" />
-                  <span>Ausgeblendet</span>
+                  <span>Aus</span>
                 </>
               )}
             </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                sound.playClick(520);
-                onResetAll();
-              }}
-              className="h-9 px-2.5 border border-white/15 bg-white/5 hover:bg-white/10 text-[11px] font-bold text-slate-300 hover:text-white flex items-center gap-1.5"
-              title="Alle 3 Whatnot-Standardpositionen wiederherstellen"
-            >
-              <RotateCcw className="w-3.5 h-3.5" />
-              <span>Whatnot-Reset</span>
-            </button>
           </div>
         </div>
 
-        {/* Full 9:16 + Individual OBS Source URLs */}
-        <div className="p-2.5 border border-white/10 bg-black/45 flex flex-wrap items-center justify-between gap-2">
-          <div className="text-[11px] text-slate-300">
-            <strong className="text-white">OBS Browser-Quelle:</strong>{' '}
-            <code className="text-sky-300">1080 × 1920 px</code> (oder einzelne Widgets separat in OBS ziehen)
-          </div>
-          <div className="flex flex-wrap items-center gap-1.5">
-            {[
-              { id: 'hud_all', label: 'Gesamt-HUD (Alle 3)', url: hudBaseUrl, primary: true },
-              { id: 'hud_shop', label: 'Nur Shop', url: makeSingleUrl('shop'), primary: false },
-              {
-                id: 'hud_giveaway',
-                label: 'Nur Giveaway',
-                url: makeSingleUrl('giveaway'),
-                primary: false,
-              },
-              {
-                id: 'hud_avatar',
-                label: 'Nur Avatar',
-                url: makeSingleUrl('avatar'),
-                primary: false,
-              },
-            ].map((btn) => {
-              const copied = copiedKey === btn.id;
-              return (
-                <button
-                  key={btn.id}
-                  type="button"
-                  onClick={() => onCopyUrl(btn.id, btn.url)}
-                  className={`h-8 px-2.5 text-[10.5px] font-black uppercase tracking-[0.08em] flex items-center gap-1 transition-colors ${
-                    copied
-                      ? 'bg-emerald-400 text-black'
-                      : btn.primary
-                      ? 'bg-sky-400 hover:bg-sky-300 text-black'
-                      : 'bg-white/5 hover:bg-white/15 text-slate-200 border border-white/15'
-                  }`}
-                >
-                  {copied ? <Check className="w-3 h-3 stroke-[3]" /> : <Copy className="w-3 h-3" />}
-                  <span>{copied ? 'Kopiert' : btn.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Target Switcher Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {/* 3 Independent Target Cards — each with its own OBS Browser Source URL & native resolution */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
           {WIDGET_META.map((m) => {
             const cfg = settings[m.key];
             const st = HUD_ELEMENTAL_STYLES[cfg.style] ?? HUD_ELEMENTAL_STYLES['arcane-mana'];
+            const stage = STANDALONE_HUD_STAGES[m.key];
             const isSelected = selectedKey === m.key;
+            const urlId = `hud_${m.key}`;
+            const isCopied = copiedKey === urlId;
+
             return (
-              <button
+              <div
                 key={m.key}
-                type="button"
-                onClick={() => {
-                  sound.playClick(660);
-                  setSelectedKey(m.key);
-                }}
-                className={`p-3 border text-left transition-colors relative overflow-hidden ${
+                className={`p-3 border transition-colors flex flex-col justify-between gap-2.5 ${
                   isSelected
-                    ? 'bg-sky-400/12 border-sky-400/70 text-white'
+                    ? 'bg-sky-400/12 border-sky-400/75 text-white'
                     : 'bg-black/45 border-white/10 text-slate-300 hover:border-white/25'
                 }`}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-xs font-black">{m.title}</span>
-                  <span
-                    className={`px-1.5 py-0.5 text-[9.5px] font-black uppercase ${
-                      cfg.enabled
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
-                        : 'bg-white/5 text-slate-500 border border-white/10'
-                    }`}
-                  >
-                    {cfg.enabled ? 'Aktiv' : 'Aus'}
-                  </span>
-                </div>
-                <div className="text-[10.5px] text-slate-400 mt-0.5">{m.location}</div>
-                <div className="flex items-center gap-1.5 mt-2">
-                  <span
-                    className="w-2.5 h-2.5 rounded-full shrink-0"
-                    style={{
-                      backgroundColor: st.primary,
-                      boxShadow: `0 0 8px ${st.primary}`,
-                    }}
-                  />
-                  <span className="text-[10.5px] font-bold text-slate-200 truncate">
-                    {st.label}
-                    {cfg.calloutEnabled ? ' · + Pfeil' : ''}
-                  </span>
-                </div>
-              </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    sound.playClick(660);
+                    onSelectWidget(m.key);
+                  }}
+                  className="text-left w-full space-y-1"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-black text-white">{m.title}</span>
+                    <span
+                      className={`px-1.5 py-0.5 text-[9.5px] font-black uppercase ${
+                        cfg.enabled
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
+                          : 'bg-white/5 text-slate-500 border border-white/10'
+                      }`}
+                    >
+                      {cfg.enabled ? 'Aktiv' : 'Aus'}
+                    </span>
+                  </div>
+                  <div className="text-[10.5px] text-slate-400">
+                    OBS: <code className="text-sky-300">{stage.width} × {stage.height} px</code>
+                  </div>
+                  <div className="flex items-center gap-1.5 pt-0.5">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full shrink-0"
+                      style={{
+                        backgroundColor: st.primary,
+                        boxShadow: `0 0 8px ${st.primary}`,
+                      }}
+                    />
+                    <span className="text-[10.5px] font-bold text-slate-200 truncate">
+                      {st.label}
+                      {cfg.calloutEnabled ? ' · + Pfeil' : ''}
+                    </span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => onCopyUrl(urlId, makeSingleUrl(m.key))}
+                  className={`w-full h-8 px-2 text-[10.5px] font-black uppercase tracking-[0.08em] flex items-center justify-center gap-1 transition-colors ${
+                    isCopied
+                      ? 'bg-emerald-400 text-black'
+                      : isSelected
+                      ? 'bg-sky-400 hover:bg-sky-300 text-black'
+                      : 'bg-white/10 hover:bg-white/20 text-white border border-white/15'
+                  }`}
+                >
+                  {isCopied ? (
+                    <>
+                      <Check className="w-3 h-3 stroke-[3]" />
+                      <span>URL kopiert</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="w-3 h-3" />
+                      <span>OBS-URL ({m.title.split('-')[0]})</span>
+                    </>
+                  )}
+                </button>
+              </div>
             );
           })}
         </div>
@@ -274,18 +309,12 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
               type="button"
               onClick={() => {
                 sound.playClick(540);
-                const def = DEFAULT_WHATNOT_HUD_SETTINGS[selectedKey];
-                onUpdateWidget(selectedKey, {
-                  xPct: def.xPct,
-                  yPct: def.yPct,
-                  widthPx: def.widthPx,
-                  heightPx: def.heightPx,
-                  radiusPx: def.radiusPx,
-                });
+                onResetWidget(selectedKey);
               }}
-              className="h-8 px-2.5 border border-white/15 bg-black/45 hover:bg-white/10 text-[10.5px] font-bold text-slate-300"
+              className="h-8 px-2.5 border border-white/15 bg-black/45 hover:bg-white/10 text-[10.5px] font-bold text-slate-300 flex items-center gap-1"
             >
-              Position Reset
+              <RotateCcw className="w-3 h-3" />
+              <span>Standard</span>
             </button>
           </div>
         </div>
@@ -327,7 +356,7 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
           </div>
         </div>
 
-        {/* Aura Intensity, Thickness & Speed */}
+        {/* Aura Intensity, Thickness, Size & Speed */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="space-y-1.5">
             <div className="flex items-center justify-between text-xs">
@@ -392,44 +421,17 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
           </div>
         </div>
 
-        {/* Fine-Tuning Calibration Sliders (X, Y, Size) */}
+        {/* Independent Frame Dimensions */}
         <div className="p-3 border border-white/10 bg-black/35 space-y-3">
-          <span className="block text-[10.5px] font-black uppercase tracking-[0.12em] text-slate-300">
-            Position &amp; Größe feinjustieren (9:16 Screen)
-          </span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="block text-[10.5px] font-black uppercase tracking-[0.12em] text-slate-300">
+              Rahmen-Größe (unabhängig von anderen Elementen)
+            </span>
+            <span className="text-[10px] text-slate-400">
+              Position auf dem Screen schiebst du frei in OBS
+            </span>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-300">Links / Rechts (X)</span>
-                <span className="font-black text-sky-300">{widget.xPct.toFixed(1)}%</span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={0.2}
-                value={widget.xPct}
-                onChange={(e) => onUpdateWidget(selectedKey, { xPct: Number(e.target.value) })}
-                className="w-full cursor-pointer"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-300">Hoch / Runter (Y)</span>
-                <span className="font-black text-sky-300">{widget.yPct.toFixed(1)}%</span>
-              </div>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={0.2}
-                value={widget.yPct}
-                onChange={(e) => onUpdateWidget(selectedKey, { yPct: Number(e.target.value) })}
-                className="w-full cursor-pointer"
-              />
-            </div>
-
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs">
                 <span className="font-bold text-slate-300">{activeMeta.shapeLabel}</span>
@@ -438,7 +440,7 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
               <input
                 type="range"
                 min={60}
-                max={isRect ? 560 : 320}
+                max={isRect ? 540 : 320}
                 step={2}
                 value={widget.widthPx}
                 onChange={(e) =>
@@ -461,7 +463,7 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
                   <input
                     type="range"
                     min={60}
-                    max={360}
+                    max={340}
                     step={2}
                     value={widget.heightPx}
                     onChange={(e) =>
@@ -501,8 +503,8 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
                 Animierter Hinweis-Pfeil &amp; freier Text ({activeMeta.title})
               </span>
               <span className="block text-[11px] text-slate-400">
-                Blendet ab und zu (oder dauerhaft) einen gebogenen Pfeil + Textbox ein, die auf
-                das Element zeigt.
+                Du kannst die Text-Box direkt rechts in der Vorschau mit der Maus greifen und frei
+                verschieben!
               </span>
             </div>
 
@@ -534,7 +536,7 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
                 className="h-8 px-3 bg-[#FFE406] hover:bg-[#f5dc00] text-[#1a1718] font-black text-[11px] uppercase tracking-[0.08em] flex items-center gap-1"
               >
                 <Zap className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Jetzt zeigen</span>
+                <span>Animation testen</span>
               </button>
             </div>
           </div>
@@ -665,8 +667,8 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
                   </div>
                   <input
                     type="range"
-                    min={-520}
-                    max={520}
+                    min={-480}
+                    max={480}
                     step={5}
                     value={widget.calloutOffsetX}
                     onChange={(e) =>
@@ -683,8 +685,8 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
                   </div>
                   <input
                     type="range"
-                    min={-380}
-                    max={380}
+                    min={-340}
+                    max={340}
                     step={5}
                     value={widget.calloutOffsetY}
                     onChange={(e) =>
@@ -716,7 +718,7 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
               {/* Quick Arrow Position Chips */}
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">
-                  Pfeil-Position:
+                  Schnell-Position:
                 </span>
                 {activeMeta.defaultPresets.map((pos) => (
                   <button
@@ -742,3 +744,5 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
     </div>
   );
 };
+
+export { DEFAULT_WHATNOT_HUD_SETTINGS };

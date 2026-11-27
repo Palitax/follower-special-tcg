@@ -318,7 +318,7 @@ export const LiveTickerBar: React.FC<LiveTickerBarProps> = ({
   if (scale !== 1) {
     return (
       <div
-        className="relative overflow-hidden"
+        className="relative overflow-visible"
         style={{
           width: settings.fullWidth ? '100%' : `${Math.round(width * scale)}px`,
           height: `${Math.round(totalH * scale)}px`,

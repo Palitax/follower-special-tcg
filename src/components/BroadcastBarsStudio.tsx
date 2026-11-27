@@ -30,7 +30,11 @@ import { BroadcastRotator, BroadcastTicker } from './BroadcastBars';
 import { PromoShowcaseOverlay } from './PromoShowcaseOverlay';
 import { ShowcaseEditorPanel } from './ShowcaseEditorPanel';
 import { WhatnotHudEditorPanel } from './WhatnotHudEditorPanel';
-import { HudWidgetKey, WhatnotHudOverlay } from './WhatnotHudOverlay';
+import {
+  HudWidgetKey,
+  STANDALONE_HUD_STAGES,
+  StandaloneHudWidget,
+} from './WhatnotHudOverlay';
 import { BarSurfaceControls } from './BarSurfaceControls';
 import { TickerCycleStatus } from './useTickerCycle';
 import { PlatformBadge } from './WhatnotBars';
@@ -144,6 +148,9 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
   const [showcasePreviewAlwaysOn, setShowcasePreviewAlwaysOn] = useState(true);
   const [hudShowGhostUi, setHudShowGhostUi] = useState(true);
   const [hudForceCallouts, setHudForceCallouts] = useState(true);
+  const [selectedHudWidget, setSelectedHudWidget] = useState<HudWidgetKey>('shop');
+  const [hudDraft, setHudDraft] = useState<WhatnotHudSettings | null>(null);
+  const [hudAutoApplyLive, setHudAutoApplyLive] = useState(false);
 
   const snapshotRef = useRef<BroadcastBarsSnapshot>(snapshot);
   const controllerRef = useRef<BroadcastBarsSyncController | null>(null);
@@ -439,37 +446,78 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
     }));
   }, [commitUpdate]);
 
+  const displayedHud = hudDraft ?? snapshot.hud;
+
   const updateHudSettings = useCallback(
     (patch: Partial<WhatnotHudSettings>) => {
-      commitUpdate((cur) => ({
-        hud: { ...cur.hud, ...patch },
-      }));
+      if (hudAutoApplyLive) {
+        setHudDraft(null);
+        commitUpdate((cur) => ({
+          hud: { ...cur.hud, ...patch },
+        }));
+      } else {
+        setHudDraft((prev) => ({
+          ...(prev ?? snapshotRef.current.hud),
+          ...patch,
+        }));
+      }
     },
-    [commitUpdate]
+    [commitUpdate, hudAutoApplyLive]
   );
 
   const updateHudWidget = useCallback(
     (key: HudWidgetKey, patch: Partial<HudWidgetConfig>) => {
-      commitUpdate((cur) => ({
-        hud: {
-          ...cur.hud,
-          [key]: { ...cur.hud[key], ...patch },
-        },
-      }));
+      if (hudAutoApplyLive) {
+        setHudDraft(null);
+        commitUpdate((cur) => ({
+          hud: {
+            ...cur.hud,
+            [key]: { ...cur.hud[key], ...patch },
+          },
+        }));
+      } else {
+        setHudDraft((prev) => {
+          const base = prev ?? snapshotRef.current.hud;
+          return {
+            ...base,
+            [key]: { ...base[key], ...patch },
+          };
+        });
+      }
     },
-    [commitUpdate]
+    [commitUpdate, hudAutoApplyLive]
   );
 
-  const resetHudDefaults = useCallback(() => {
-    commitUpdate(() => ({
-      hud: {
-        visible: DEFAULT_WHATNOT_HUD_SETTINGS.visible,
-        shop: { ...DEFAULT_WHATNOT_HUD_SETTINGS.shop },
-        giveaway: { ...DEFAULT_WHATNOT_HUD_SETTINGS.giveaway },
-        avatar: { ...DEFAULT_WHATNOT_HUD_SETTINGS.avatar },
-      },
-    }));
-  }, [commitUpdate]);
+  const resetHudWidget = useCallback(
+    (key: HudWidgetKey) => {
+      const def = { ...DEFAULT_WHATNOT_HUD_SETTINGS[key] };
+      if (hudAutoApplyLive) {
+        setHudDraft(null);
+        commitUpdate((cur) => ({
+          hud: { ...cur.hud, [key]: def },
+        }));
+      } else {
+        setHudDraft((prev) => {
+          const base = prev ?? snapshotRef.current.hud;
+          return { ...base, [key]: def };
+        });
+      }
+    },
+    [commitUpdate, hudAutoApplyLive]
+  );
+
+  const confirmHudDraft = useCallback(() => {
+    if (!hudDraft) return;
+    sound.playClick(780);
+    const toCommit = hudDraft;
+    setHudDraft(null);
+    commitUpdate(() => ({ hud: toCommit }));
+  }, [commitUpdate, hudDraft]);
+
+  const discardHudDraft = useCallback(() => {
+    sound.playClick(460);
+    setHudDraft(null);
+  }, []);
 
   const resetDefaults = useCallback(() => {
     sound.playClick(520);
@@ -598,8 +646,8 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
             {
               id: 'hud',
               title: 'Whatnot HUD',
-              sizeHint: 'OBS: 1080 × 1920 px (9:16)',
-              url: obsUrls.hud,
+              sizeHint: '3 Einzel-Quellen (Shop/GA/Logo)',
+              url: `${obsUrls.hud}${obsUrls.hud.includes('?') ? '&' : '?'}only=shop`,
               accent: 'border-teal-400/40 bg-teal-500/[0.07]',
             },
             {
@@ -2044,11 +2092,29 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
           hidden={subTab !== 'hud'}
         >
           <WhatnotHudEditorPanel
-            settings={snapshot.hud}
+            settings={displayedHud}
+            selectedKey={selectedHudWidget}
+            onSelectWidget={setSelectedHudWidget}
             hudBaseUrl={obsUrls.hud}
+            hasUnsavedDraft={hudDraft !== null}
+            autoApplyLive={hudAutoApplyLive}
+            onToggleAutoApply={() => {
+              sound.playClick(640);
+              setHudAutoApplyLive((v) => {
+                const next = !v;
+                if (next && hudDraft) {
+                  const toCommit = hudDraft;
+                  setHudDraft(null);
+                  commitUpdate(() => ({ hud: toCommit }));
+                }
+                return next;
+              });
+            }}
+            onConfirmDraft={confirmHudDraft}
+            onDiscardDraft={discardHudDraft}
             onUpdateSettings={updateHudSettings}
             onUpdateWidget={updateHudWidget}
-            onResetAll={resetHudDefaults}
+            onResetWidget={resetHudWidget}
             onCopyUrl={(id, url) => void handleCopyUrl(id, url)}
             copiedKey={copiedKey}
           />
@@ -2116,51 +2182,137 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
 
         {/* Preview Stage */}
         {subTab === 'hud' ? (
-          <div className="space-y-2.5">
-            <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
-              <span>Whatnot 9:16 Kalibrierung (/overlay/hud)</span>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setHudShowGhostUi((v) => !v)}
-                  className={`px-2 py-0.5 border text-[9.5px] font-bold ${
-                    hudShowGhostUi
-                      ? 'bg-sky-400/20 border-sky-400/60 text-sky-200'
-                      : 'bg-black/50 border-white/15 text-slate-400'
-                  }`}
-                >
-                  Whatnot-UI: {hudShowGhostUi ? 'An' : 'Aus'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setHudForceCallouts((v) => !v)}
-                  className={`px-2 py-0.5 border text-[9.5px] font-bold ${
-                    hudForceCallouts
-                      ? 'bg-[#FFE406]/20 border-[#FFE406]/60 text-[#FFE406]'
-                      : 'bg-black/50 border-white/15 text-slate-400'
-                  }`}
-                >
-                  Pfeile: {hudForceCallouts ? 'Immer an' : 'Intervall'}
-                </button>
-              </div>
-            </div>
+          (() => {
+            const stage = STANDALONE_HUD_STAGES[selectedHudWidget];
+            const previewW = 438;
+            const hudScale = Math.min(1, previewW / stage.width);
+            const previewH = Math.round(stage.height * hudScale);
+            const labelMap: Record<HudWidgetKey, string> = {
+              shop: 'Shop-Button (?only=shop)',
+              giveaway: 'Giveaway-Box (?only=giveaway)',
+              avatar: 'Avatar / Logo (?only=avatar)',
+            };
+            return (
+              <div className="space-y-3">
+                {/* Quick Widget Switcher directly on Monitor */}
+                <div className="grid grid-cols-3 gap-1 border border-white/15 bg-black/55 p-1 text-[10.5px] font-extrabold">
+                  {(
+                    [
+                      { key: 'shop', label: 'Shop' },
+                      { key: 'giveaway', label: 'Giveaway' },
+                      { key: 'avatar', label: 'Avatar / Logo' },
+                    ] as { key: HudWidgetKey; label: string }[]
+                  ).map((item) => (
+                    <button
+                      key={item.key}
+                      type="button"
+                      onClick={() => {
+                        sound.playClick(640);
+                        setSelectedHudWidget(item.key);
+                      }}
+                      className={`py-1.5 transition-colors ${
+                        selectedHudWidget === item.key
+                          ? 'bg-sky-400 text-black'
+                          : 'text-slate-300 hover:text-white hover:bg-white/5'
+                      }`}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
 
-            <div
-              className={`mx-auto w-[336px] relative border border-white/20 shadow-2xl overflow-hidden ${
-                previewMode === 'checker'
-                  ? 'obs-checkerboard'
-                  : 'bg-gradient-to-b from-[#0f1320] via-[#151520] to-[#08090e]'
-              }`}
-              style={{ height: Math.round((336 * 1920) / 1080) }}
-            >
-              <WhatnotHudOverlay
-                settings={snapshot.hud}
-                scale={336 / 1080}
-                forceCalloutVisible={hudForceCallouts}
-                showWhatnotGhostUi={hudShowGhostUi}
-              />
-            </div>
-          </div>
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.12em] text-slate-400">
+                  <span>{labelMap[selectedHudWidget]}</span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setHudShowGhostUi((v) => !v)}
+                      className={`px-2 py-0.5 border text-[9.5px] font-bold ${
+                        hudShowGhostUi
+                          ? 'bg-sky-400/20 border-sky-400/60 text-sky-200'
+                          : 'bg-black/50 border-white/15 text-slate-400'
+                      }`}
+                    >
+                      Dummy-Icon: {hudShowGhostUi ? 'An' : 'Aus'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setHudForceCallouts((v) => !v)}
+                      className={`px-2 py-0.5 border text-[9.5px] font-bold ${
+                        hudForceCallouts
+                          ? 'bg-[#FFE406]/20 border-[#FFE406]/60 text-[#FFE406]'
+                          : 'bg-black/50 border-white/15 text-slate-400'
+                      }`}
+                    >
+                      Pfeil: {hudForceCallouts ? 'Immer an' : 'Intervall'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* High-Res Interactive Standalone Preview Stage (Drag Text Pill Directly!) */}
+                <div
+                  className={`mx-auto relative border border-white/20 shadow-2xl overflow-hidden flex items-center justify-center ${
+                    previewMode === 'checker'
+                      ? 'obs-checkerboard'
+                      : 'bg-gradient-to-b from-[#0f1320] via-[#151520] to-[#08090e]'
+                  }`}
+                  style={{ width: previewW, height: previewH }}
+                >
+                  <StandaloneHudWidget
+                    widgetKey={selectedHudWidget}
+                    config={displayedHud[selectedHudWidget]}
+                    masterVisible={displayedHud.visible}
+                    scale={hudScale}
+                    forceCalloutVisible={hudForceCallouts}
+                    showGhostTarget={hudShowGhostUi}
+                    interactive={true}
+                    onDragCallout={(nextOx, nextOy) =>
+                      updateHudWidget(selectedHudWidget, {
+                        calloutOffsetX: nextOx,
+                        calloutOffsetY: nextOy,
+                      })
+                    }
+                  />
+
+                  <div className="pointer-events-none absolute bottom-2 inset-x-2 flex justify-center">
+                    <span className="px-2.5 py-1 bg-black/75 border border-white/15 text-[10px] font-bold text-slate-200">
+                      Text-Box mit Maus greifen &amp; schieben · OBS: {stage.width} × {stage.height} px
+                    </span>
+                  </div>
+                </div>
+
+                {/* Confirm / Discard Bar right underneath the Interactive Preview */}
+                {hudDraft !== null ? (
+                  <div className="p-2.5 border border-[#FFE406]/70 bg-[#FFE406]/12 flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-black text-[#FFE406]">
+                      Entwurf bereit zum Senden
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={discardHudDraft}
+                        className="h-8 px-2.5 border border-white/20 bg-black/60 text-[11px] font-bold text-slate-200 hover:bg-white/10"
+                      >
+                        Verwerfen
+                      </button>
+                      <button
+                        type="button"
+                        onClick={confirmHudDraft}
+                        className="h-8 px-3 bg-[#FFE406] hover:bg-[#f5dc00] text-[#1a1718] text-[11px] font-black uppercase tracking-[0.08em] flex items-center gap-1"
+                      >
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>Bestätigen</span>
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center text-[10.5px] font-semibold text-emerald-300/90">
+                    Synchron mit OBS Live-Overlay
+                  </div>
+                )}
+              </div>
+            );
+          })()
         ) : previewMode === 'portrait' ? (
           <div className="mx-auto w-[300px] aspect-[9/16] relative border border-white/20 bg-gradient-to-b from-[#11121a] via-[#171320] to-[#0a0a0f] overflow-hidden flex flex-col justify-between shadow-2xl">
             {/* Simulated Top Whatnot Header Safe Zone */}
@@ -2282,7 +2434,7 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                   </span>
                 </div>
               </div>
-              <div className="relative min-h-[96px] flex items-center justify-center overflow-hidden">
+              <div className="relative min-h-[104px] py-2 flex items-center justify-center overflow-visible">
                 {snapshot.rotator.visible ? (
                   <>
                     <BroadcastRotator
@@ -2345,7 +2497,7 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                   </span>
                 </div>
               </div>
-              <div className="relative min-h-[56px] flex items-center justify-center overflow-hidden">
+              <div className="relative min-h-[72px] py-3 flex items-center justify-center overflow-visible">
                 {snapshot.ticker.visible ? (
                   <>
                     <BroadcastTicker
