@@ -2,7 +2,11 @@
 
 import React, { useId, useMemo } from 'react';
 import { motion, type Variants } from 'framer-motion';
-import { HudAnimSpeed, HudElementalStyle } from '../types/broadcastBars';
+import {
+  HudAnimSpeed,
+  HudCalloutDisplayMode,
+  HudElementalStyle,
+} from '../types/broadcastBars';
 
 export interface HudStyleMeta {
   id: HudElementalStyle;
@@ -931,7 +935,9 @@ interface HudCalloutPointerProps {
   subtext: string;
   style: HudElementalStyle;
   scalePct?: number;
-  /** Studio-only interactive drag handler to freely move the text pill & auto-aim arrow */
+  /** Decoupled display mode: text + arrow, text only, or arrow only */
+  displayMode?: HudCalloutDisplayMode;
+  /** Studio-only interactive drag handler to freely move the text pill / arrow tail */
   interactive?: boolean;
   /** Current CSS scale of the preview stage (used to convert pointer deltas accurately) */
   previewScale?: number;
@@ -941,7 +947,7 @@ interface HudCalloutPointerProps {
 /**
  * Dynamic curved animated arrow + sleek ManaCards/Whatnot HUD pill that automatically
  * aims from the user's configured offset directly onto the Shop circle or Giveaway frame.
- * Supports direct pointer dragging inside the Studio preview.
+ * Arrow and text pill are independently toggleable ('both' | 'text-only' | 'arrow-only').
  */
 export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
   canvasW = 1080,
@@ -956,6 +962,7 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
   subtext,
   style,
   scalePct = 100,
+  displayMode = 'both',
   interactive = false,
   previewScale = 1,
   onDragOffset,
@@ -963,6 +970,9 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
   const uid = useId().replace(/:/g, '');
   const meta = HUD_ELEMENTAL_STYLES[style] ?? HUD_ELEMENTAL_STYLES['arcane-mana'];
   const sc = Math.max(0.7, Math.min(1.6, scalePct / 100));
+  const showArrow = displayMode !== 'text-only';
+  const showText =
+    displayMode !== 'arrow-only' && (text.trim().length > 0 || subtext.trim().length > 0);
 
   const pillX = targetX + offsetX;
   const pillY = targetY + offsetY;
@@ -974,8 +984,8 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
   const ux = dx / dist;
   const uy = dy / dist;
 
-  // Arrow starts cleanly near the edge of the pill and ends right outside the target aura
-  const startPull = Math.min(dist * 0.36, 92 * sc);
+  // In arrow-only mode, start right at the handle point; with text pill, start cleanly at the pill edge
+  const startPull = showText ? Math.min(dist * 0.36, 92 * sc) : 0;
   const endStop = Math.hypot(ux * (targetHalfW + 22), uy * (targetHalfH + 22));
   const sx = pillX + ux * startPull;
   const sy = pillY + uy * startPull;
@@ -1031,7 +1041,7 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
       opacity: 0,
       scale: 0.76,
       y: Math.round(-12 * sc),
-      transition: { delay: 0.16, duration: 0.28, ease: [0.55, 0, 0.85, 0.35] },
+      transition: { delay: showArrow ? 0.16 : 0, duration: 0.28, ease: [0.55, 0, 0.85, 0.35] },
     },
   };
   const shaftV: Variants = {
@@ -1099,95 +1109,116 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none overflow-visible">
-      {/* Curved Animated Arrow SVG */}
-      <svg
-        width="100%"
-        height="100%"
-        viewBox={`0 0 ${canvasW} ${canvasH}`}
-        fill="none"
-        className="absolute inset-0 overflow-visible"
-        aria-hidden="true"
-      >
-        <defs>
-          <linearGradient
-            id={shaftGradId}
-            gradientUnits="userSpaceOnUse"
-            x1={sx}
-            y1={sy}
-            x2={ex}
-            y2={ey}
-          >
-            <stop offset="0%" stopColor={meta.secondary} stopOpacity="0.45" />
-            <stop offset="55%" stopColor={meta.primary} stopOpacity="1" />
-            <stop offset="100%" stopColor={meta.highlight} stopOpacity="1" />
-          </linearGradient>
-        </defs>
+      {/* Curved Animated Arrow SVG (hidden in 'text-only' mode) */}
+      {showArrow && (
+        <svg
+          width="100%"
+          height="100%"
+          viewBox={`0 0 ${canvasW} ${canvasH}`}
+          fill="none"
+          className="absolute inset-0 overflow-visible"
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient
+              id={shaftGradId}
+              gradientUnits="userSpaceOnUse"
+              x1={sx}
+              y1={sy}
+              x2={ex}
+              y2={ey}
+            >
+              <stop offset="0%" stopColor={meta.secondary} stopOpacity="0.45" />
+              <stop offset="55%" stopColor={meta.primary} stopOpacity="1" />
+              <stop offset="100%" stopColor={meta.highlight} stopOpacity="1" />
+            </linearGradient>
+          </defs>
 
-        <g
-          className="hud-arrow-bob"
+          <g
+            className="hud-arrow-bob"
+            style={{
+              ['--bob-x' as string]: bobX,
+              ['--bob-y' as string]: bobY,
+            }}
+          >
+            {/* Crisp dark shadow stroke + pure vector aura halo (draws out on enter, retracts cleanly on exit!) */}
+            <motion.path
+              d={curveD}
+              variants={shaftV}
+              stroke={meta.primary}
+              strokeWidth={15 * sc}
+              strokeOpacity={0.14}
+              strokeLinecap="round"
+            />
+            <motion.path
+              d={curveD}
+              variants={shaftV}
+              stroke="#06070c"
+              strokeWidth={9.5 * sc}
+              strokeOpacity={0.55}
+              strokeLinecap="round"
+            />
+            {/* Main glowing shaft */}
+            <motion.path
+              d={curveD}
+              variants={shaftV}
+              stroke={`url(#${shaftGradId})`}
+              strokeWidth={5 * sc}
+              strokeLinecap="round"
+            />
+            {/* Animated energy dash racing toward the arrowhead */}
+            <motion.path
+              d={curveD}
+              variants={headV}
+              stroke={meta.highlight}
+              strokeWidth={2.8 * sc}
+              strokeLinecap="round"
+              strokeDasharray="16 32"
+              className="hud-arrow-pulse"
+            />
+            {/* Crisp dark outline under arrowhead + luminous chevron */}
+            <motion.path
+              d={headD}
+              variants={headV}
+              stroke="#06070c"
+              strokeWidth={9.5 * sc}
+              strokeOpacity={0.55}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <motion.path
+              d={headD}
+              variants={headV}
+              stroke={meta.highlight}
+              strokeWidth={5.2 * sc}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </g>
+        </svg>
+      )}
+
+      {/* Studio-only drag handle at arrow start when in 'arrow-only' mode */}
+      {!showText && showArrow && interactive && (
+        <div
+          onPointerDown={handlePointerDown}
+          title="Ziehen zum Positionieren des Pfeil-Starts"
+          className="pointer-events-auto cursor-grab active:cursor-grabbing absolute rounded-full border-2 border-[#FFE406] bg-black/70 flex items-center justify-center shadow-lg"
           style={{
-            ['--bob-x' as string]: bobX,
-            ['--bob-y' as string]: bobY,
+            left: pillX,
+            top: pillY,
+            width: 34,
+            height: 34,
+            transform: 'translate(-50%, -50%)',
+            touchAction: 'none',
           }}
         >
-          {/* Crisp dark shadow stroke + pure vector aura halo (draws out on enter, retracts cleanly on exit!) */}
-          <motion.path
-            d={curveD}
-            variants={shaftV}
-            stroke={meta.primary}
-            strokeWidth={15 * sc}
-            strokeOpacity={0.14}
-            strokeLinecap="round"
-          />
-          <motion.path
-            d={curveD}
-            variants={shaftV}
-            stroke="#06070c"
-            strokeWidth={9.5 * sc}
-            strokeOpacity={0.55}
-            strokeLinecap="round"
-          />
-          {/* Main glowing shaft */}
-          <motion.path
-            d={curveD}
-            variants={shaftV}
-            stroke={`url(#${shaftGradId})`}
-            strokeWidth={5 * sc}
-            strokeLinecap="round"
-          />
-          {/* Animated energy dash racing toward the arrowhead */}
-          <motion.path
-            d={curveD}
-            variants={headV}
-            stroke={meta.highlight}
-            strokeWidth={2.8 * sc}
-            strokeLinecap="round"
-            strokeDasharray="16 32"
-            className="hud-arrow-pulse"
-          />
-          {/* Crisp dark outline under arrowhead + luminous chevron */}
-          <motion.path
-            d={headD}
-            variants={headV}
-            stroke="#06070c"
-            strokeWidth={9.5 * sc}
-            strokeOpacity={0.55}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-          <motion.path
-            d={headD}
-            variants={headV}
-            stroke={meta.highlight}
-            strokeWidth={5.2 * sc}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </g>
-      </svg>
+          <span className="w-2.5 h-2.5 rounded-full bg-[#FFE406]" />
+        </div>
+      )}
 
-      {/* Floating Broadcast HUD Callout Text Pill (draggable inside Studio Preview) */}
-      {(text.trim() || subtext.trim()) && (
+      {/* Floating Broadcast HUD Callout Text Pill (hidden in 'arrow-only' mode) */}
+      {showText && (
         <div
           onPointerDown={handlePointerDown}
           title={interactive ? 'Ziehen zum Positionieren des Hinweis-Pfeils' : undefined}

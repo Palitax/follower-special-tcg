@@ -134,9 +134,13 @@ const SingleHudTarget: React.FC<SingleHudTargetProps> = ({
 
   const w = config.widthPx;
   const h = shape === 'circle' ? config.widthPx : config.heightPx;
+  const displayMode = config.calloutDisplayMode ?? 'both';
+  const hasCalloutText =
+    config.calloutText.trim().length > 0 || config.calloutSubtext.trim().length > 0;
+  const hasCalloutContent = displayMode === 'arrow-only' ? true : hasCalloutText;
   const showCallout =
     config.calloutEnabled &&
-    (config.calloutText.trim().length > 0 || config.calloutSubtext.trim().length > 0) &&
+    hasCalloutContent &&
     (forceCalloutVisible || !cycleOn || calloutPhase === 'showing');
 
   return (
@@ -215,6 +219,7 @@ const SingleHudTarget: React.FC<SingleHudTargetProps> = ({
               subtext={config.calloutSubtext}
               style={config.style}
               scalePct={config.calloutScalePct}
+              displayMode={displayMode}
               interactive={interactive}
               previewScale={previewScale}
               onDragOffset={onDragCallout}

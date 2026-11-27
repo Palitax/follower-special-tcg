@@ -46,6 +46,9 @@ export type HudElementalStyle =
 
 export type HudAnimSpeed = 'slow' | 'normal' | 'fast';
 
+/** Controls whether the HUD callout shows text + curved arrow, text pill only, or arrow only */
+export type HudCalloutDisplayMode = 'both' | 'text-only' | 'arrow-only';
+
 export interface HudWidgetConfig {
   enabled: boolean;
   style: HudElementalStyle;
@@ -66,6 +69,8 @@ export interface HudWidgetConfig {
   animSpeed: HudAnimSpeed;
   /** Optional animated pointing arrow + custom text callout */
   calloutEnabled: boolean;
+  /** Decouples text pill & curved arrow: 'both' | 'text-only' | 'arrow-only' */
+  calloutDisplayMode: HudCalloutDisplayMode;
   calloutText: string;
   calloutSubtext: string;
   /** Seconds the callout arrow+text stays visible (0 = always visible when calloutEnabled) */
@@ -375,6 +380,7 @@ export const DEFAULT_WHATNOT_HUD_SETTINGS: WhatnotHudSettings = {
     thicknessPct: 100,
     animSpeed: 'normal',
     calloutEnabled: true,
+    calloutDisplayMode: 'both',
     calloutText: 'Sofortkauf? Check den Shop!',
     calloutSubtext: 'Einzelkarten & Sealed direkt sichern',
     calloutVisibleSec: 12,
@@ -396,6 +402,7 @@ export const DEFAULT_WHATNOT_HUD_SETTINGS: WhatnotHudSettings = {
     thicknessPct: 100,
     animSpeed: 'normal',
     calloutEnabled: true,
+    calloutDisplayMode: 'text-only',
     calloutText: 'Gratis Giveaway!',
     calloutSubtext: 'Oben rechts kostenlos teilnehmen',
     calloutVisibleSec: 12,
@@ -417,6 +424,7 @@ export const DEFAULT_WHATNOT_HUD_SETTINGS: WhatnotHudSettings = {
     thicknessPct: 95,
     animSpeed: 'slow',
     calloutEnabled: false,
+    calloutDisplayMode: 'both',
     calloutText: '',
     calloutSubtext: '',
     calloutVisibleSec: 0,
@@ -671,6 +679,7 @@ export function normalizeBroadcastBarsSnapshot(
     'void-arcane',
   ];
   const validHudSpeeds: HudAnimSpeed[] = ['slow', 'normal', 'fast'];
+  const validCalloutModes: HudCalloutDisplayMode[] = ['both', 'text-only', 'arrow-only'];
   const normHudWidget = (
     w: Partial<HudWidgetConfig> | undefined,
     fallback: HudWidgetConfig
@@ -699,6 +708,11 @@ export function normalizeBroadcastBarsSnapshot(
           : fallback.animSpeed,
       calloutEnabled:
         w?.calloutEnabled !== undefined ? Boolean(w.calloutEnabled) : fallback.calloutEnabled,
+      calloutDisplayMode:
+        typeof w?.calloutDisplayMode === 'string' &&
+        validCalloutModes.includes(w.calloutDisplayMode as HudCalloutDisplayMode)
+          ? (w.calloutDisplayMode as HudCalloutDisplayMode)
+          : fallback.calloutDisplayMode,
       calloutText: typeof w?.calloutText === 'string' ? w.calloutText : fallback.calloutText,
       calloutSubtext:
         typeof w?.calloutSubtext === 'string' ? w.calloutSubtext : fallback.calloutSubtext,

@@ -4,6 +4,7 @@ import React from 'react';
 import {
   DEFAULT_WHATNOT_HUD_SETTINGS,
   HudAnimSpeed,
+  HudCalloutDisplayMode,
   HudWidgetConfig,
   WhatnotHudSettings,
 } from '../types/broadcastBars';
@@ -412,9 +413,9 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
           </span>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
             {[
-              { id: 'both', label: 'Rahmen + Pfeil', frame: true, arrow: true },
+              { id: 'both', label: 'Rahmen + Hinweis', frame: true, arrow: true },
               { id: 'frame', label: 'Nur Rahmen', frame: true, arrow: false },
-              { id: 'arrow', label: 'Nur Hinweis-Pfeil', frame: false, arrow: true },
+              { id: 'arrow', label: 'Nur Hinweis / Pfeil', frame: false, arrow: true },
               { id: 'off', label: 'Nichts (Aus)', frame: false, arrow: false },
             ].map((m) => {
               const active = widget.enabled === m.frame && widget.calloutEnabled === m.arrow;
@@ -620,16 +621,16 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
           </div>
         </div>
 
-        {/* Animated Callout Arrow + Free Custom Text */}
+        {/* Animated Callout Arrow + Free Custom Text (decoupled: both / text-only / arrow-only) */}
         <div className="p-3.5 border border-[#FFE406]/30 bg-[#FFE406]/[0.04] space-y-3.5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div>
               <span className="block text-xs font-extrabold text-white">
-                Animierter Hinweis-Pfeil &amp; freier Text ({activeMeta.title})
+                Hinweis-Text &amp; Pfeil ({activeMeta.title})
               </span>
               <span className="block text-[11px] text-slate-400">
-                Du kannst die Text-Box direkt rechts in der Vorschau mit der Maus greifen und frei
-                verschieben!
+                Pfeil und Hinweis-Text sind entkoppelt: wähle Hinweis + Pfeil, nur Hinweis oder nur
+                Pfeil — direkt rechts in der Vorschau verschiebbar!
               </span>
             </div>
 
@@ -646,7 +647,7 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
                     : 'bg-white/5 border-white/15 text-slate-400'
                 }`}
               >
-                {widget.calloutEnabled ? 'Pfeil: An' : 'Pfeil: Aus'}
+                {widget.calloutEnabled ? 'Hinweis: An' : 'Hinweis: Aus'}
               </button>
               <button
                 type="button"
@@ -667,7 +668,48 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
 
           {widget.calloutEnabled && (
             <div className="space-y-3">
-              {/* Free Text Inputs */}
+              {/* Decoupled Mode: Hinweis + Pfeil / Nur Hinweis / Nur Pfeil */}
+              <div className="space-y-1.5">
+                <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                  Hinweis-Stil (Pfeil &amp; Text getrennt steuern)
+                </span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {(
+                    [
+                      { id: 'both', label: 'Hinweis + Pfeil', desc: 'Text-Box mit Pfeil' },
+                      { id: 'text-only', label: 'Nur Hinweis', desc: 'Nur Text, ohne Pfeil' },
+                      { id: 'arrow-only', label: 'Nur Pfeil', desc: 'Nur Pfeil, ohne Text' },
+                    ] as { id: HudCalloutDisplayMode; label: string; desc: string }[]
+                  ).map((opt) => {
+                    const active = (widget.calloutDisplayMode ?? 'both') === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => {
+                          sound.playClick(660);
+                          onUpdateWidget(selectedKey, {
+                            calloutDisplayMode: opt.id,
+                            calloutTriggerNonce: Date.now(),
+                          });
+                        }}
+                        className={`p-2 border text-left transition-colors ${
+                          active
+                            ? 'bg-[#FFE406]/20 border-[#FFE406]/70 text-white'
+                            : 'bg-black/45 border-white/10 text-slate-300 hover:border-white/25'
+                        }`}
+                      >
+                        <div className="text-[11px] font-extrabold">{opt.label}</div>
+                        <div className="text-[9.5px] text-slate-400">{opt.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Free Text Inputs (only when text is shown) */}
+              {(widget.calloutDisplayMode ?? 'both') !== 'arrow-only' && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
                 <label className="space-y-1">
                   <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
@@ -703,12 +745,13 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
                   />
                 </label>
               </div>
+              )}
 
               {/* Callout Interval Sliders */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-300">Pfeil anzeigen für</span>
+                    <span className="font-bold text-slate-300">Hinweis anzeigen für</span>
                     <span className="font-black text-[#FFE406]">
                       {widget.calloutVisibleSec === 0
                         ? 'Dauerhaft an'
