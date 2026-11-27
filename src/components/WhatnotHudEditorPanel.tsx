@@ -71,6 +71,42 @@ const WIDGET_META: {
   },
 ];
 
+function getHudParts(cfg: HudWidgetConfig) {
+  const mode = cfg.calloutDisplayMode ?? 'both';
+  const frame = Boolean(cfg.enabled);
+  const text = Boolean(cfg.calloutEnabled) && mode !== 'arrow-only';
+  const arrow = Boolean(cfg.calloutEnabled) && mode !== 'text-only';
+  return { frame, text, arrow };
+}
+
+function buildHudPartsPatch(
+  frame: boolean,
+  text: boolean,
+  arrow: boolean
+): Partial<HudWidgetConfig> {
+  const calloutEnabled = text || arrow;
+  const calloutDisplayMode: HudCalloutDisplayMode =
+    text && arrow ? 'both' : text ? 'text-only' : 'arrow-only';
+  return {
+    enabled: frame,
+    calloutEnabled,
+    calloutDisplayMode,
+    ...(calloutEnabled ? { calloutTriggerNonce: Date.now() } : {}),
+  };
+}
+
+function describeHudParts(cfg: HudWidgetConfig): string {
+  const { frame, text, arrow } = getHudParts(cfg);
+  const parts: string[] = [];
+  if (frame) parts.push('Rahmen');
+  if (text) parts.push('Hinweis');
+  if (arrow) parts.push('Pfeil');
+  if (parts.length === 0) return 'Aus';
+  if (parts.length === 1) return `Nur ${parts[0]}`;
+  if (parts.length === 3) return 'Alles an';
+  return parts.join(' + ');
+}
+
 export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
   settings,
   selectedKey,
@@ -89,6 +125,7 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
 }) => {
   const activeMeta = WIDGET_META.find((m) => m.key === selectedKey) ?? WIDGET_META[0];
   const widget = settings[selectedKey];
+  const activeParts = getHudParts(widget);
   const activeStyle = HUD_ELEMENTAL_STYLES[widget.style] ?? HUD_ELEMENTAL_STYLES['arcane-mana'];
   const isRect = selectedKey === 'giveaway';
 
@@ -302,13 +339,7 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
                           : 'bg-white/5 text-slate-500 border border-white/10'
                       }`}
                     >
-                      {cfg.enabled && cfg.calloutEnabled
-                        ? 'Rahmen + Pfeil'
-                        : cfg.enabled
-                        ? 'Nur Rahmen'
-                        : cfg.calloutEnabled
-                        ? 'Nur Pfeil'
-                        : 'Aus'}
+                      {describeHudParts(cfg)}
                     </span>
                   </div>
                   <div className="text-[10.5px] text-slate-400">
@@ -324,7 +355,6 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
                     />
                     <span className="text-[10.5px] font-bold text-slate-200 truncate">
                       {st.label}
-                      {cfg.calloutEnabled ? ' · + Pfeil' : ''}
                     </span>
                   </div>
                 </button>
@@ -406,39 +436,120 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
           </div>
         </div>
 
-        {/* Display mode: frame and hint arrow are completely independent */}
-        <div className="space-y-1.5">
-          <span className="block text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-400">
-            Was soll angezeigt werden?
-          </span>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+        {/* 3 Completely Independent Part Toggles (Rahmen / Hinweis-Text / Pfeil) + 1-Click Presets */}
+        <div className="p-3 border border-white/12 bg-black/40 space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="block text-[10.5px] font-black uppercase tracking-[0.12em] text-slate-300">
+              Was soll angezeigt werden? (alle 3 völlig unabhängig)
+            </span>
+            <span className="text-[10.5px] font-black text-[#FFE406]">
+              Aktiv: {describeHudParts(widget)}
+            </span>
+          </div>
+
+          {/* 3 Independent Switches */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            {(
+              [
+                {
+                  id: 'frame',
+                  label: 'Rahmen (Aura)',
+                  desc: 'Leuchtende Umrandung',
+                  on: activeParts.frame,
+                  toggle: () =>
+                    onUpdateWidget(
+                      selectedKey,
+                      buildHudPartsPatch(!activeParts.frame, activeParts.text, activeParts.arrow)
+                    ),
+                },
+                {
+                  id: 'text',
+                  label: 'Hinweis-Text',
+                  desc: 'Text-Box ohne/mit Pfeil',
+                  on: activeParts.text,
+                  toggle: () =>
+                    onUpdateWidget(
+                      selectedKey,
+                      buildHudPartsPatch(activeParts.frame, !activeParts.text, activeParts.arrow)
+                    ),
+                },
+                {
+                  id: 'arrow',
+                  label: 'Pfeil',
+                  desc: 'Gebogener Zeiger',
+                  on: activeParts.arrow,
+                  toggle: () =>
+                    onUpdateWidget(
+                      selectedKey,
+                      buildHudPartsPatch(activeParts.frame, activeParts.text, !activeParts.arrow)
+                    ),
+                },
+              ] as const
+            ).map((sw) => (
+              <button
+                key={sw.id}
+                type="button"
+                aria-pressed={sw.on}
+                onClick={() => {
+                  sound.playClick(sw.on ? 520 : 700);
+                  sw.toggle();
+                }}
+                className={`min-h-[46px] p-2.5 border text-left flex items-center justify-between gap-2 transition-colors ${
+                  sw.on
+                    ? 'bg-emerald-500/15 border-emerald-400/65 text-white'
+                    : 'bg-black/50 border-white/10 text-slate-400 hover:border-white/25'
+                }`}
+              >
+                <div>
+                  <div className="text-xs font-extrabold leading-tight">{sw.label}</div>
+                  <div className="text-[9.5px] text-slate-400 mt-0.5">{sw.desc}</div>
+                </div>
+                <span
+                  className={`px-2 py-0.5 text-[10px] font-black uppercase shrink-0 ${
+                    sw.on
+                      ? 'bg-emerald-400 text-black'
+                      : 'bg-white/10 text-slate-400'
+                  }`}
+                >
+                  {sw.on ? 'An' : 'Aus'}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* 1-Click Quick Combinations */}
+          <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-white/10">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mr-1">
+              Schnellwahl:
+            </span>
             {[
-              { id: 'both', label: 'Rahmen + Hinweis', frame: true, arrow: true },
-              { id: 'frame', label: 'Nur Rahmen', frame: true, arrow: false },
-              { id: 'arrow', label: 'Nur Hinweis / Pfeil', frame: false, arrow: true },
-              { id: 'off', label: 'Nichts (Aus)', frame: false, arrow: false },
-            ].map((m) => {
-              const active = widget.enabled === m.frame && widget.calloutEnabled === m.arrow;
+              { id: 'text-only', label: 'Nur Hinweis', f: false, t: true, a: false },
+              { id: 'text-arrow', label: 'Hinweis + Pfeil', f: false, t: true, a: true },
+              { id: 'arrow-only', label: 'Nur Pfeil', f: false, t: false, a: true },
+              { id: 'frame-only', label: 'Nur Rahmen', f: true, t: false, a: false },
+              { id: 'frame-text', label: 'Rahmen + Hinweis', f: true, t: true, a: false },
+              { id: 'all', label: 'Alles an', f: true, t: true, a: true },
+              { id: 'off', label: 'Aus', f: false, t: false, a: false },
+            ].map((pr) => {
+              const active =
+                activeParts.frame === pr.f &&
+                activeParts.text === pr.t &&
+                activeParts.arrow === pr.a;
               return (
                 <button
-                  key={m.id}
+                  key={pr.id}
                   type="button"
-                  aria-pressed={active}
                   onClick={() => {
                     sound.playClick(660);
-                    onUpdateWidget(selectedKey, {
-                      enabled: m.frame,
-                      calloutEnabled: m.arrow,
-                      ...(m.arrow ? { calloutTriggerNonce: Date.now() } : {}),
-                    });
+                    onUpdateWidget(selectedKey, buildHudPartsPatch(pr.f, pr.t, pr.a));
                   }}
-                  className={`min-h-[40px] px-2 border text-[11px] font-extrabold transition-colors ${
+                  className={`px-2.5 py-1 border text-[10.5px] font-extrabold transition-colors ${
                     active
-                      ? 'bg-sky-400/15 border-sky-400/70 text-white'
+                      ? 'bg-[#FFE406]/20 border-[#FFE406]/70 text-[#FFE406]'
                       : 'bg-black/45 border-white/10 text-slate-300 hover:border-white/25'
                   }`}
                 >
-                  {m.label}
+                  {pr.label}
                 </button>
               );
             })}
