@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { AnimatePresence, motion, useReducedMotion, type Variants } from 'framer-motion';
 import {
   ShowcasePreset,
   ShowcaseSettings,
@@ -21,6 +21,16 @@ interface PromoShowcaseOverlayProps {
 }
 
 const EASE_OUT = [0.22, 1, 0.36, 1] as const;
+const EASE_IN = [0.55, 0, 0.85, 0.35] as const;
+
+interface ShowcaseCardCustom {
+  idx: number;
+  count: number;
+  tx: number;
+  ty: number;
+  angle: number;
+  offset: number;
+}
 
 export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
   preset,
@@ -183,24 +193,367 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
   const showSticker = settings.showSticker !== false;
 
   const anim = settings.animation;
-  const animKey = `${preset?.id ?? 'none'}_${playNonce}`;
+  const animKey = `${preset?.id ?? 'none'}_${anim}_${playNonce}`;
 
-  const getItemInitial = (idx: number, fanOffset = 0) => {
-    if (reduce) return { opacity: 0 };
-    if (anim === 'float-in') {
-      return { opacity: 0, y: Math.round(42 * unit), scale: 0.92 };
-    }
-    if (anim === 'spotlight') {
-      return { opacity: 0, scale: 0.52, y: Math.round(14 * unit) };
-    }
-    return {
-      opacity: 0,
-      scale: 0.68,
-      y: Math.round(32 * unit),
-      x: Math.round(-fanOffset * 28 * unit),
-      rotate: 0,
+  // Choreographed parent -> children IN + OUT variants so every exit mirrors the entrance in reverse
+  const showcaseVariants = useMemo(() => {
+    const root: Variants = {
+      hidden: { opacity: 1 },
+      show: { opacity: 1 },
+      exit: { opacity: 0, transition: { when: 'afterChildren', duration: 0.08 } },
     };
-  };
+
+    if (reduce) {
+      const simple: Variants = {
+        hidden: { opacity: 0 },
+        show: { opacity: 1, transition: { duration: 0.25 } },
+        exit: { opacity: 0, transition: { duration: 0.22 } },
+      };
+      const fanSimple: Variants = {
+        hidden: ({ tx, ty, angle }: ShowcaseCardCustom) => ({ opacity: 0, x: tx, y: ty, rotate: angle }),
+        show: ({ tx, ty, angle }: ShowcaseCardCustom) => ({
+          opacity: 1,
+          x: tx,
+          y: ty,
+          rotate: angle,
+          transition: { duration: 0.25 },
+        }),
+        exit: ({ tx, ty, angle }: ShowcaseCardCustom) => ({
+          opacity: 0,
+          x: tx,
+          y: ty,
+          rotate: angle,
+          transition: { duration: 0.22 },
+        }),
+      };
+      return { root, glow: simple, titleCard: simple, sticker: simple, hero: simple, fanCard: fanSimple, rowCard: simple };
+    }
+
+    const glow: Variants =
+      anim === 'spotlight'
+        ? {
+            hidden: { opacity: 0, scale: 0.2 },
+            show: { opacity: 1, scale: 1, transition: { duration: 0.55, ease: EASE_OUT } },
+            exit: { opacity: 0, scale: 0.16, transition: { delay: 0.24, duration: 0.36, ease: EASE_IN } },
+          }
+        : anim === 'float-in'
+        ? {
+            hidden: { opacity: 0, scale: 0.6 },
+            show: { opacity: 1, scale: 1, transition: { duration: 0.65, ease: EASE_OUT } },
+            exit: { opacity: 0, scale: 0.55, transition: { delay: 0.2, duration: 0.4, ease: EASE_IN } },
+          }
+        : {
+            hidden: { opacity: 0, scale: 0.45 },
+            show: { opacity: 1, scale: 1, transition: { duration: 0.52, ease: EASE_OUT } },
+            exit: { opacity: 0, scale: 0.35, transition: { delay: 0.22, duration: 0.36, ease: EASE_IN } },
+          };
+
+    const closedClip = `inset(0% 50% 0% 50% round ${headerRadius}px)`;
+    const openClip = `inset(0% 0% 0% 0% round ${headerRadius}px)`;
+
+    const titleCard: Variants =
+      anim === 'spotlight'
+        ? {
+            hidden: { opacity: 0, clipPath: closedClip, scale: 0.94 },
+            show: {
+              opacity: 1,
+              clipPath: openClip,
+              scale: 1,
+              transition: { delay: 0.06, duration: 0.48, ease: EASE_OUT },
+              transitionEnd: { clipPath: 'none' },
+            },
+            exit: {
+              opacity: [1, 0],
+              clipPath: [openClip, closedClip],
+              scale: [1, 0.92],
+              transition: { delay: 0.08, duration: 0.38, ease: EASE_IN },
+            },
+          }
+        : anim === 'float-in'
+        ? {
+            hidden: { opacity: 0, y: Math.round(24 * unit), scale: 0.95 },
+            show: {
+              opacity: 1,
+              y: 0,
+              scale: 1,
+              transition: { delay: 0.05, duration: 0.48, ease: EASE_OUT },
+            },
+            exit: {
+              opacity: 0,
+              y: Math.round(-28 * unit),
+              scale: 0.94,
+              transition: { delay: 0.08, duration: 0.38, ease: EASE_IN },
+            },
+          }
+        : {
+            hidden: { opacity: 0, scale: 0.82, y: Math.round(18 * unit) },
+            show: {
+              opacity: 1,
+              scale: 1,
+              y: 0,
+              transition: { type: 'spring', stiffness: 360, damping: 24, delay: 0.04 },
+            },
+            exit: {
+              opacity: 0,
+              scale: 0.82,
+              y: Math.round(-20 * unit),
+              transition: { delay: 0.08, duration: 0.34, ease: EASE_IN },
+            },
+          };
+
+    const sticker: Variants =
+      anim === 'float-in'
+        ? {
+            hidden: { opacity: 0, y: Math.round(-14 * unit), rotate: -6 },
+            show: {
+              opacity: 1,
+              y: 0,
+              rotate: -2,
+              transition: { delay: 0.16, duration: 0.4, ease: EASE_OUT },
+            },
+            exit: {
+              opacity: 0,
+              y: Math.round(-20 * unit),
+              rotate: 4,
+              transition: { delay: 0, duration: 0.28, ease: EASE_IN },
+            },
+          }
+        : {
+            hidden: { opacity: 0, scale: 0.4, rotate: -14, y: Math.round(8 * unit) },
+            show: {
+              opacity: 1,
+              scale: 1,
+              rotate: -2,
+              y: 0,
+              transition: { type: 'spring', stiffness: 460, damping: 22, delay: 0.14 },
+            },
+            exit: {
+              opacity: 0,
+              scale: 0.35,
+              rotate: -14,
+              y: Math.round(-14 * unit),
+              transition: { delay: 0, duration: 0.24, ease: EASE_IN },
+            },
+          };
+
+    const hero: Variants =
+      anim === 'float-in'
+        ? {
+            hidden: { opacity: 0, y: Math.round(54 * unit), scale: 0.9 },
+            show: {
+              opacity: 1,
+              y: 0,
+              scale: 1,
+              transition: { delay: 0.1, duration: 0.54, ease: EASE_OUT },
+            },
+            exit: {
+              opacity: 0,
+              y: Math.round(-54 * unit),
+              scale: 0.9,
+              transition: { delay: 0.06, duration: 0.44, ease: EASE_IN },
+            },
+          }
+        : anim === 'spotlight'
+        ? {
+            hidden: { opacity: 0, scale: 0.36, y: Math.round(16 * unit), rotate: -6 },
+            show: {
+              opacity: 1,
+              scale: 1,
+              y: 0,
+              rotate: 0,
+              transition: { type: 'spring', stiffness: 250, damping: 21, delay: 0.1 },
+            },
+            exit: {
+              opacity: 0,
+              scale: 0.32,
+              y: Math.round(-14 * unit),
+              rotate: 6,
+              transition: { delay: 0.06, duration: 0.38, ease: EASE_IN },
+            },
+          }
+        : {
+            hidden: { opacity: 0, scale: 0.56, y: Math.round(42 * unit), rotate: -4 },
+            show: {
+              opacity: 1,
+              scale: 1,
+              y: 0,
+              rotate: 0,
+              transition: { type: 'spring', stiffness: 260, damping: 21, delay: 0.1 },
+            },
+            exit: {
+              opacity: 0,
+              scale: 0.52,
+              y: Math.round(44 * unit),
+              rotate: 5,
+              transition: { delay: 0.06, duration: 0.38, ease: EASE_IN },
+            },
+          };
+
+    const fanCard: Variants =
+      anim === 'float-in'
+        ? {
+            hidden: ({ tx, ty, angle }: ShowcaseCardCustom) => ({
+              opacity: 0,
+              x: tx,
+              y: ty + Math.round(52 * unit),
+              scale: 0.9,
+              rotate: angle,
+            }),
+            show: ({ tx, ty, angle, idx }: ShowcaseCardCustom) => ({
+              opacity: 1,
+              x: tx,
+              y: ty,
+              scale: 1,
+              rotate: angle,
+              transition: { delay: 0.08 + idx * 0.08, duration: 0.52, ease: EASE_OUT },
+            }),
+            exit: ({ tx, ty, angle, idx, count }: ShowcaseCardCustom) => ({
+              opacity: 0,
+              x: tx,
+              y: ty - Math.round(54 * unit),
+              scale: 0.9,
+              rotate: angle,
+              transition: {
+                delay: 0.04 + Math.max(0, count - 1 - idx) * 0.065,
+                duration: 0.42,
+                ease: EASE_IN,
+              },
+            }),
+          }
+        : anim === 'spotlight'
+        ? {
+            hidden: ({ offset }: ShowcaseCardCustom) => ({
+              opacity: 0,
+              x: Math.round(-offset * 18 * unit),
+              y: Math.round(16 * unit),
+              scale: 0.36,
+              rotate: 0,
+            }),
+            show: ({ tx, ty, angle, idx }: ShowcaseCardCustom) => ({
+              opacity: 1,
+              x: tx,
+              y: ty,
+              scale: 1,
+              rotate: angle,
+              transition: {
+                type: 'spring',
+                stiffness: 250,
+                damping: 22,
+                delay: 0.1 + idx * 0.075,
+              },
+            }),
+            exit: ({ offset, idx, count }: ShowcaseCardCustom) => ({
+              opacity: 0,
+              x: Math.round(-offset * 16 * unit),
+              y: Math.round(-12 * unit),
+              scale: 0.32,
+              rotate: 0,
+              transition: {
+                delay: 0.05 + Math.max(0, count - 1 - idx) * 0.06,
+                duration: 0.38,
+                ease: EASE_IN,
+              },
+            }),
+          }
+        : {
+            // 'pop' — fans smoothly open from center deck & folds cleanly back into deck in reverse stagger!
+            hidden: ({ offset }: ShowcaseCardCustom) => ({
+              opacity: 0,
+              scale: 0.58,
+              x: Math.round(-offset * 28 * unit),
+              y: Math.round(38 * unit),
+              rotate: 0,
+            }),
+            show: ({ tx, ty, angle, idx }: ShowcaseCardCustom) => ({
+              opacity: 1,
+              scale: 1,
+              x: tx,
+              y: ty,
+              rotate: angle,
+              transition: {
+                type: 'spring',
+                stiffness: 250,
+                damping: 22,
+                delay: 0.1 + idx * 0.08,
+              },
+            }),
+            exit: ({ offset, idx, count }: ShowcaseCardCustom) => ({
+              opacity: 0,
+              scale: 0.52,
+              x: Math.round(-offset * 22 * unit),
+              y: Math.round(44 * unit),
+              rotate: 0,
+              transition: {
+                delay: 0.05 + Math.max(0, count - 1 - idx) * 0.065,
+                duration: 0.38,
+                ease: EASE_IN,
+              },
+            }),
+          };
+
+    const rowCard: Variants =
+      anim === 'float-in'
+        ? {
+            hidden: { opacity: 0, y: Math.round(44 * unit), scale: 0.9 },
+            show: ({ idx }: ShowcaseCardCustom) => ({
+              opacity: 1,
+              y: 0,
+              scale: 1,
+              transition: { delay: 0.08 + idx * 0.065, duration: 0.46, ease: EASE_OUT },
+            }),
+            exit: ({ idx, count }: ShowcaseCardCustom) => ({
+              opacity: 0,
+              y: Math.round(-46 * unit),
+              scale: 0.9,
+              transition: {
+                delay: 0.04 + Math.max(0, count - 1 - idx) * 0.055,
+                duration: 0.38,
+                ease: EASE_IN,
+              },
+            }),
+          }
+        : anim === 'spotlight'
+        ? {
+            hidden: { opacity: 0, scale: 0.42, y: Math.round(14 * unit) },
+            show: ({ idx }: ShowcaseCardCustom) => ({
+              opacity: 1,
+              scale: 1,
+              y: 0,
+              transition: { type: 'spring', stiffness: 270, damping: 22, delay: 0.08 + idx * 0.065 },
+            }),
+            exit: ({ idx, count }: ShowcaseCardCustom) => ({
+              opacity: 0,
+              scale: 0.36,
+              y: Math.round(-12 * unit),
+              transition: {
+                delay: 0.05 + Math.max(0, count - 1 - idx) * 0.055,
+                duration: 0.34,
+                ease: EASE_IN,
+              },
+            }),
+          }
+        : {
+            hidden: { opacity: 0, scale: 0.6, y: Math.round(32 * unit) },
+            show: ({ idx }: ShowcaseCardCustom) => ({
+              opacity: 1,
+              scale: 1,
+              y: 0,
+              transition: { type: 'spring', stiffness: 280, damping: 22, delay: 0.08 + idx * 0.065 },
+            }),
+            exit: ({ idx, count }: ShowcaseCardCustom) => ({
+              opacity: 0,
+              scale: 0.52,
+              y: Math.round(36 * unit),
+              transition: {
+                delay: 0.05 + Math.max(0, count - 1 - idx) * 0.055,
+                duration: 0.34,
+                ease: EASE_IN,
+              },
+            }),
+          };
+
+    return { root, glow, titleCard, sticker, hero, fanCard, rowCard };
+  }, [anim, reduce, unit, headerRadius]);
 
   const hasTitleText = Boolean(
     preset &&
@@ -224,14 +577,13 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
       {titleBgStyle === 'none' ? (
         /* PURE FLOATING TEXT MODE (No card background) */
         <motion.div
-          initial={{ opacity: 0, y: reduce ? 0 : Math.round(12 * unit) }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.36, ease: EASE_OUT }}
+          variants={showcaseVariants.titleCard}
           className="flex flex-col items-center text-center"
           style={{ maxWidth: Math.round(canvasW * 0.94), gap: Math.round(6 * textUnit) }}
         >
           {showSticker && preset.eyebrow.trim() && (
-            <div
+            <motion.div
+              variants={showcaseVariants.sticker}
               className="uppercase font-extrabold whitespace-nowrap"
               style={{
                 height: headerTagH,
@@ -242,12 +594,11 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
                 color: WN.yellowInk,
                 fontSize: headerTagFont,
                 letterSpacing: '0.07em',
-                transform: 'rotate(-2deg)',
                 boxShadow: `0 ${Math.round(5 * q)}px ${Math.round(14 * q)}px rgba(0, 0, 0, 0.5)`,
               }}
             >
               {preset.eyebrow}
-            </div>
+            </motion.div>
           )}
 
           {preset.headline.trim() && (
@@ -281,9 +632,7 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
           style={{ paddingTop: showSticker && preset.eyebrow.trim() ? Math.round(headerTagH * 0.48) : 0 }}
         >
           <motion.div
-            initial={{ opacity: 0, scale: reduce ? 1 : 0.92 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: 'spring', stiffness: 360, damping: 26 }}
+            variants={showcaseVariants.titleCard}
             className="relative overflow-hidden text-center"
             style={{
               maxWidth: Math.round(canvasW * 0.92),
@@ -342,9 +691,7 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
 
           {showSticker && preset.eyebrow.trim() && (
             <motion.div
-              initial={{ opacity: 0, scale: reduce ? 1 : 0.65, rotate: -7 }}
-              animate={{ opacity: 1, scale: 1, rotate: -2 }}
-              transition={{ type: 'spring', stiffness: 460, damping: 24, delay: 0.08 }}
+              variants={showcaseVariants.sticker}
               className="absolute top-0 uppercase font-extrabold whitespace-nowrap"
               style={{
                 height: headerTagH,
@@ -381,9 +728,7 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
       {settings.showGlow && (
         <motion.div
           aria-hidden="true"
-          initial={{ opacity: 0, scale: 0.7 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.65, ease: EASE_OUT }}
+          variants={showcaseVariants.glow}
           className="pointer-events-none absolute"
           style={{
             width: Math.round((resolvedLayout === 'hero' ? 330 : 540) * imgUnit),
@@ -397,9 +742,7 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
 
       {resolvedLayout === 'hero' && (
         <motion.div
-          initial={getItemInitial(0)}
-          animate={{ opacity: 1, scale: 1, y: 0, x: 0, rotate: 0 }}
-          transition={{ type: 'spring', stiffness: 260, damping: 22, delay: 0.1 }}
+          variants={showcaseVariants.hero}
           className="relative z-10 flex items-center justify-center"
         >
           <div
@@ -455,23 +798,20 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
             const tx = Math.round(offset * stepX);
             const ty = Math.round(offset * offset * 8 * imgUnit);
 
+            const cardCustom: ShowcaseCardCustom = {
+              idx,
+              count,
+              tx,
+              ty,
+              angle,
+              offset,
+            };
+
             return (
               <motion.div
                 key={img.id}
-                initial={getItemInitial(idx, offset)}
-                animate={{
-                  opacity: 1,
-                  scale: 1,
-                  x: tx,
-                  y: ty,
-                  rotate: angle,
-                }}
-                transition={{
-                  type: 'spring',
-                  stiffness: 250,
-                  damping: 22,
-                  delay: 0.1 + idx * 0.08,
-                }}
+                variants={showcaseVariants.fanCard}
+                custom={cardCustom}
                 className="absolute flex items-center justify-center"
                 style={{
                   zIndex: 10 + idx,
@@ -517,14 +857,15 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
           {validImages.map((img, idx) => (
             <motion.div
               key={img.id}
-              initial={getItemInitial(idx)}
-              animate={{ opacity: 1, scale: 1, y: 0, x: 0, rotate: 0 }}
-              transition={{
-                type: 'spring',
-                stiffness: 280,
-                damping: 22,
-                delay: 0.08 + idx * 0.065,
-              }}
+              variants={showcaseVariants.rowCard}
+              custom={{
+                idx,
+                count: validImages.length,
+                tx: 0,
+                ty: 0,
+                angle: 0,
+                offset: 0,
+              } satisfies ShowcaseCardCustom}
               className="flex items-center justify-center"
               style={{ width: rowCardW, height: rowCardH }}
             >
@@ -577,12 +918,12 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
           {isActuallyShowing && preset && (
             <motion.div
               key={animKey}
+              variants={showcaseVariants.root}
+              initial="hidden"
+              animate="show"
+              exit="exit"
               className="relative w-full h-full flex flex-col items-center justify-center font-wn-sans"
               style={{ gap: Math.round(22 * unit) }}
-              initial={{ opacity: 0, y: reduce ? 0 : Math.round(18 * unit) }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: reduce ? 0 : Math.round(-16 * unit), scale: reduce ? 1 : 0.96 }}
-              transition={{ duration: 0.42, ease: EASE_OUT }}
             >
               {titleAnchor === 'top' && (
                 <>

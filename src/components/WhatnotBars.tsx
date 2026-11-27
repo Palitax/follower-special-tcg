@@ -577,10 +577,22 @@ export const WhatnotLowerThird: React.FC<WhatnotLowerThirdProps> = ({
               key="whatnot-lower-third"
               className="absolute left-0 top-0 font-wn-sans"
               style={{ width: W, height: totalH, transformOrigin: 'left center' }}
-              initial={{ opacity: 0, y: reduce ? 0 : Math.round(12 * q) }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: reduce ? 0 : Math.round(8 * q) }}
-              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+              initial={
+                reduce || mode === 'fade'
+                  ? { opacity: 0 }
+                  : mode === 'slide'
+                  ? { opacity: 0, x: -Math.round(56 * q) }
+                  : { opacity: 0, y: Math.round(18 * q), scale: 0.88 }
+              }
+              animate={{ opacity: 1, x: 0, y: 0, scale: 1 }}
+              exit={
+                reduce || mode === 'fade'
+                  ? { opacity: 0, transition: { duration: 0.28, ease: EASE_OUT } }
+                  : mode === 'slide'
+                  ? { opacity: 0, x: -Math.round(56 * q), transition: { duration: 0.34, ease: [0.55, 0, 0.85, 0.35] } }
+                  : { opacity: 0, y: Math.round(18 * q), scale: 0.86, transition: { duration: 0.32, ease: [0.55, 0, 0.85, 0.35] } }
+              }
+              transition={{ type: 'spring', stiffness: 380, damping: 28 }}
             >
               {/* Charcoal HUD card — independent width, height, background opacity & pattern */}
               <motion.div

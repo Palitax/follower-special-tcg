@@ -146,10 +146,17 @@ const SingleHudTarget: React.FC<SingleHudTargetProps> = ({
       {config.enabled && (
       <motion.div
         key={`frame_${widgetKey}_${config.style}`}
-        initial={{ opacity: 0, scale: reduce ? 1 : 0.88 }}
-        animate={{ opacity: 1, scale: 1 }}
-        exit={{ opacity: 0, scale: reduce ? 1 : 0.9 }}
-        transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        initial={{ opacity: 0, scale: reduce ? 1 : 0.76 }}
+        animate={{
+          opacity: 1,
+          scale: 1,
+          transition: { type: 'spring', stiffness: 320, damping: 24 },
+        }}
+        exit={{
+          opacity: 0,
+          scale: reduce ? 1 : 0.78,
+          transition: { duration: 0.36, ease: [0.55, 0, 0.85, 0.35] },
+        }}
         className="pointer-events-none absolute flex items-center justify-center overflow-visible"
         style={{
           left: centerX,
@@ -172,15 +179,27 @@ const SingleHudTarget: React.FC<SingleHudTargetProps> = ({
       )}
       </AnimatePresence>
 
-      {/* Animated Pointing Arrow + Custom Text Callout */}
+      {/* Animated Pointing Arrow + Custom Text Callout (choreographed draw-in & retract-out) */}
       <AnimatePresence mode="wait">
         {showCallout && (
           <motion.div
             key={`callout_${widgetKey}_${playNonce}`}
-            initial={{ opacity: 0, scale: reduce ? 1 : 0.86 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: reduce ? 1 : 0.9 }}
-            transition={{ type: 'spring', stiffness: 360, damping: 26 }}
+            variants={
+              reduce
+                ? {
+                    hidden: { opacity: 0 },
+                    show: { opacity: 1, transition: { duration: 0.22 } },
+                    exit: { opacity: 0, transition: { duration: 0.2 } },
+                  }
+                : {
+                    hidden: { opacity: 1 },
+                    show: { opacity: 1 },
+                    exit: { opacity: 0, transition: { when: 'afterChildren', duration: 0.08 } },
+                  }
+            }
+            initial="hidden"
+            animate="show"
+            exit="exit"
             className="pointer-events-none absolute inset-0 overflow-visible"
           >
             <HudCalloutPointer

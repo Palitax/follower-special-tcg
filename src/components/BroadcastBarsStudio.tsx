@@ -373,6 +373,7 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
   );
 
   const hideShowcase = useCallback(() => {
+    setShowcasePreviewAlwaysOn(false);
     commitUpdate((cur) => ({
       showcase: { ...cur.showcase, visible: false },
     }));

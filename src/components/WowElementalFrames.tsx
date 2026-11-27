@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useId, useMemo } from 'react';
+import { motion, type Variants } from 'framer-motion';
 import { HudAnimSpeed, HudElementalStyle } from '../types/broadcastBars';
 
 export interface HudStyleMeta {
@@ -1010,6 +1011,55 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
   const bobX = `${(tux * 7).toFixed(1)}px`;
   const bobY = `${(tuy * 7).toFixed(1)}px`;
   const shaftGradId = `arrow_grad_${uid}`;
+  const curveD = `M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${ex.toFixed(
+    1
+  )} ${ey.toFixed(1)}`;
+  const headD = `M ${w1x.toFixed(1)} ${w1y.toFixed(1)} L ${ex.toFixed(1)} ${ey.toFixed(1)} L ${w2x.toFixed(
+    1
+  )} ${w2y.toFixed(1)}`;
+
+  // Choreographed IN (pill pops -> arrow draws out -> head pops) & reverse OUT (head -> arrow retracts -> pill)
+  const pillV: Variants = {
+    hidden: { opacity: 0, scale: 0.74, y: Math.round(14 * sc) },
+    show: {
+      opacity: 1,
+      scale: 1,
+      y: 0,
+      transition: { type: 'spring', stiffness: 360, damping: 24 },
+    },
+    exit: {
+      opacity: 0,
+      scale: 0.76,
+      y: Math.round(-12 * sc),
+      transition: { delay: 0.16, duration: 0.28, ease: [0.55, 0, 0.85, 0.35] },
+    },
+  };
+  const shaftV: Variants = {
+    hidden: { pathLength: 0, opacity: 0 },
+    show: {
+      pathLength: 1,
+      opacity: 1,
+      transition: { delay: 0.08, duration: 0.44, ease: [0.22, 1, 0.36, 1] },
+    },
+    exit: {
+      pathLength: 0,
+      opacity: 0,
+      transition: { delay: 0.04, duration: 0.3, ease: [0.55, 0, 0.85, 0.35] },
+    },
+  };
+  const headV: Variants = {
+    hidden: { opacity: 0, pathLength: 0 },
+    show: {
+      opacity: 1,
+      pathLength: 1,
+      transition: { delay: 0.34, duration: 0.22, ease: [0.22, 1, 0.36, 1] },
+    },
+    exit: {
+      opacity: 0,
+      pathLength: 0,
+      transition: { delay: 0, duration: 0.16, ease: [0.55, 0, 0.85, 0.35] },
+    },
+  };
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!interactive || !onDragOffset) return;
@@ -1080,39 +1130,35 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
             ['--bob-y' as string]: bobY,
           }}
         >
-          {/* Crisp dark shadow stroke + pure vector aura halo (zero CSS filter raster blur!) */}
-          <path
-            d={`M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${ex.toFixed(
-              1
-            )} ${ey.toFixed(1)}`}
+          {/* Crisp dark shadow stroke + pure vector aura halo (draws out on enter, retracts cleanly on exit!) */}
+          <motion.path
+            d={curveD}
+            variants={shaftV}
             stroke={meta.primary}
             strokeWidth={15 * sc}
             strokeOpacity={0.14}
             strokeLinecap="round"
           />
-          <path
-            d={`M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${ex.toFixed(
-              1
-            )} ${ey.toFixed(1)}`}
+          <motion.path
+            d={curveD}
+            variants={shaftV}
             stroke="#06070c"
             strokeWidth={9.5 * sc}
             strokeOpacity={0.55}
             strokeLinecap="round"
           />
           {/* Main glowing shaft */}
-          <path
-            d={`M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${ex.toFixed(
-              1
-            )} ${ey.toFixed(1)}`}
+          <motion.path
+            d={curveD}
+            variants={shaftV}
             stroke={`url(#${shaftGradId})`}
             strokeWidth={5 * sc}
             strokeLinecap="round"
           />
           {/* Animated energy dash racing toward the arrowhead */}
-          <path
-            d={`M ${sx.toFixed(1)} ${sy.toFixed(1)} Q ${cx.toFixed(1)} ${cy.toFixed(1)} ${ex.toFixed(
-              1
-            )} ${ey.toFixed(1)}`}
+          <motion.path
+            d={curveD}
+            variants={headV}
             stroke={meta.highlight}
             strokeWidth={2.8 * sc}
             strokeLinecap="round"
@@ -1120,20 +1166,18 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
             className="hud-arrow-pulse"
           />
           {/* Crisp dark outline under arrowhead + luminous chevron */}
-          <path
-            d={`M ${w1x.toFixed(1)} ${w1y.toFixed(1)} L ${ex.toFixed(1)} ${ey.toFixed(1)} L ${w2x.toFixed(
-              1
-            )} ${w2y.toFixed(1)}`}
+          <motion.path
+            d={headD}
+            variants={headV}
             stroke="#06070c"
             strokeWidth={9.5 * sc}
             strokeOpacity={0.55}
             strokeLinecap="round"
             strokeLinejoin="round"
           />
-          <path
-            d={`M ${w1x.toFixed(1)} ${w1y.toFixed(1)} L ${ex.toFixed(1)} ${ey.toFixed(1)} L ${w2x.toFixed(
-              1
-            )} ${w2y.toFixed(1)}`}
+          <motion.path
+            d={headD}
+            variants={headV}
             stroke={meta.highlight}
             strokeWidth={5.2 * sc}
             strokeLinecap="round"
@@ -1160,7 +1204,8 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
             touchAction: interactive ? 'none' : undefined,
           }}
         >
-          <div
+          <motion.div
+            variants={pillV}
             className="relative overflow-hidden text-center"
             style={{
               padding: `${Math.round(13 * sc)}px ${Math.round(22 * sc)}px`,
@@ -1205,7 +1250,7 @@ export const HudCalloutPointer: React.FC<HudCalloutPointerProps> = ({
                 {subtext}
               </div>
             )}
-          </div>
+          </motion.div>
         </div>
       )}
     </div>
