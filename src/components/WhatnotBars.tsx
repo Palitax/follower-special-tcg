@@ -275,6 +275,76 @@ export function resolveCharcoalCardSurface(bgOpacityPct: number, borderPx: numbe
 }
 
 /** Shared entrance/exit motion variants for the horizontal Ticker (Zoom, Swipe, Wipe, Fade) */
+/** Timeline (seconds) for the choreographed "Stufen-Aufbau" ticker entrance */
+const CASCADE_T = { pattern: 0.45, text: 0.95, icons: 1.5 };
+
+/**
+ * Choreographed build-up: background unfolds from the center → pattern sweeps in →
+ * brand chip & texts fade up one after another → icons pop in last.
+ * Exit runs in reverse (icons → text → pattern → background) before the bar unmounts.
+ */
+function buildTickerCascadeVariants(radiusPx: number, q: number) {
+  const closed = `inset(0% 50% 0% 50% round ${radiusPx}px)`;
+  const open = `inset(0% 0% 0% 0% round ${radiusPx}px)`;
+  const root: Variants = {
+    hidden: { opacity: 1 },
+    show: { opacity: 1 },
+    exit: { opacity: 0, transition: { when: 'afterChildren', duration: 0.12 } },
+  };
+  const bg: Variants = {
+    hidden: { clipPath: closed, opacity: 0 },
+    show: {
+      clipPath: open,
+      opacity: 1,
+      transition: { duration: 0.6, ease: EASE_OUT },
+      transitionEnd: { clipPath: 'none' },
+    },
+    exit: {
+      clipPath: [open, closed],
+      opacity: [1, 0],
+      transition: { delay: 0.55, duration: 0.42, ease: [0.55, 0, 0.85, 0.35] },
+    },
+  };
+  const pattern: Variants = {
+    hidden: { opacity: 0, clipPath: 'inset(0% 100% 0% 0%)' },
+    show: {
+      opacity: 1,
+      clipPath: 'inset(0% 0% 0% 0%)',
+      transition: { delay: CASCADE_T.pattern, duration: 0.85, ease: EASE_OUT },
+    },
+    exit: {
+      opacity: 0,
+      clipPath: 'inset(0% 0% 0% 100%)',
+      transition: { delay: 0.32, duration: 0.3, ease: EASE_OUT },
+    },
+  };
+  const text: Variants = {
+    hidden: { opacity: 0, y: Math.round(8 * q) },
+    show: (i: number = 0) => ({
+      opacity: 1,
+      y: 0,
+      transition: { delay: CASCADE_T.text + Math.min(i, 10) * 0.07, duration: 0.5, ease: EASE_OUT },
+    }),
+    exit: { opacity: 0, y: -Math.round(6 * q), transition: { delay: 0.14, duration: 0.22 } },
+  };
+  const icon: Variants = {
+    hidden: { opacity: 0, scale: 0.3, rotate: -30 },
+    show: (i: number = 0) => ({
+      opacity: 1,
+      scale: 1,
+      rotate: 0,
+      transition: {
+        type: 'spring',
+        stiffness: 420,
+        damping: 18,
+        delay: CASCADE_T.icons + Math.min(i, 10) * 0.08,
+      },
+    }),
+    exit: { opacity: 0, scale: 0.4, transition: { duration: 0.18 } },
+  };
+  return { root, bg, pattern, text, icon };
+}
+
 export function resolveTickerEntranceVariants(
   animation: TickerEntranceAnimation,
   reduce: boolean,
@@ -788,6 +858,10 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
     () => resolveTickerEntranceVariants(settings.entranceAnimation ?? 'swipe-up', reduce, q),
     [settings.entranceAnimation, reduce, q]
   );
+  const isCascade = !reduce && (settings.entranceAnimation ?? 'cascade') === 'cascade';
+  const cascade = useMemo(() => buildTickerCascadeVariants(outerRadius, q), [outerRadius, q]);
+  const textV = isCascade ? cascade.text : undefined;
+  const iconV = isCascade ? cascade.icon : undefined;
 
   const shouldRender = isShowing && enabledItems.length > 0;
   const speedPxPerSec = settings.speedPxPerSec ?? 52;
@@ -807,13 +881,17 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
               padding: `0 ${Math.round(18 * Math.sqrt(innerScale) * q)}px`,
             }}
           >
-            <PlatformBadge
-              platform={item.platform}
-              size={badgeSize}
-              radius={Math.round(badgeSize * 0.28)}
-            />
+            <motion.span variants={iconV} custom={idx} className="inline-flex shrink-0">
+              <PlatformBadge
+                platform={item.platform}
+                size={badgeSize}
+                radius={Math.round(badgeSize * 0.28)}
+              />
+            </motion.span>
             {item.label.trim() && (
-              <span
+              <motion.span
+                variants={textV}
+                custom={idx + 1}
                 className="relative z-10 font-extrabold uppercase"
                 style={{
                   fontSize: labelPx,
@@ -823,10 +901,12 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
                 }}
               >
                 {item.label}
-              </span>
+              </motion.span>
             )}
             {item.highlight.trim() && (
-              <span
+              <motion.span
+                variants={textV}
+                custom={idx + 1.5}
                 className="relative z-10 font-semibold"
                 style={{
                   fontSize: textPx,
@@ -836,10 +916,12 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
                 }}
               >
                 {item.highlight}
-              </span>
+              </motion.span>
             )}
           </div>
-          <span
+          <motion.span
+            variants={textV}
+            custom={idx + 2}
             aria-hidden="true"
             className="shrink-0 rounded-full"
             style={{
@@ -858,65 +940,88 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
       {shouldRender && (
         <motion.div
           key={`wn_ticker_${settings.entranceAnimation}_${playNonce}`}
-          variants={entranceV}
+          variants={isCascade ? cascade.root : entranceV}
           initial="hidden"
           animate="show"
           exit="exit"
-          className={`relative flex items-center overflow-hidden select-none font-wn-sans mc-crisp-overlay ${
+          className={`relative select-none font-wn-sans mc-crisp-overlay ${
             settings.fullWidth ? 'w-full' : ''
           } ${className}`}
           style={{
             width: barW ? `${barW}px` : undefined,
             height: `${H}px`,
             borderRadius: outerRadius,
-            background: cardSurface.background,
-            border: cardSurface.border,
-            boxShadow: cardSurface.boxShadow,
             transformOrigin: 'center center',
           }}
         >
-          {/* Static GPU-cached decorative pattern layer (independent opacity, zero scroll repaint) */}
-          <BarBackgroundPatternLayer
-            pattern={settings.bgPattern ?? 'logos'}
-            opacityPct={settings.patternOpacityPct ?? 60}
-            qualityScale={q}
-            barHeightPx={H}
-            tickerPlatforms={uniquePlatforms}
-            surface="charcoal"
+          {/* 1. Background card (unfolds from the center in Stufen-Aufbau) */}
+          <motion.div
+            aria-hidden="true"
+            variants={isCascade ? cascade.bg : undefined}
+            className="pointer-events-none absolute inset-0"
+            style={{
+              borderRadius: outerRadius,
+              background: cardSurface.background,
+              border: cardSurface.border,
+              boxShadow: cardSurface.boxShadow,
+            }}
           />
 
-          {showAnchor && (
-            <div
-              className="relative z-10 shrink-0 flex items-center"
-              style={{
-                height: chipH,
-                marginLeft: inset,
-                marginRight: Math.round(6 * q),
-                padding: `0 ${Math.round(13 * Math.sqrt(innerScale) * q)}px`,
-                borderRadius: Math.round(Math.min(12, (chipH / q) * 0.3) * q),
-                background: `linear-gradient(150deg, #FFEE55 0%, ${WN.yellow} 45%, ${WN.yellowDeep} 100%)`,
-                boxShadow: `inset 0 ${borderPx}px 0 rgba(255,255,255,0.45), inset 0 -${Math.max(
-                  1,
-                  Math.round(1.5 * q)
-                )}px 0 rgba(0,0,0,0.14)`,
-              }}
+          <div
+            className="absolute inset-0 flex items-center overflow-hidden"
+            style={{ borderRadius: outerRadius }}
+          >
+            {/* 2. Decorative pattern (sweeps in left → right) */}
+            <motion.div
+              variants={isCascade ? cascade.pattern : undefined}
+              className="pointer-events-none absolute inset-0"
             >
-              <span
-                className="font-extrabold uppercase whitespace-nowrap"
-                style={{ fontSize: chipFontPx, letterSpacing: '0.04em', color: WN.yellowInk }}
-              >
-                {anchorText}
-              </span>
-            </div>
-          )}
+              <BarBackgroundPatternLayer
+                pattern={settings.bgPattern ?? 'logos'}
+                opacityPct={settings.patternOpacityPct ?? 60}
+                qualityScale={q}
+                barHeightPx={H}
+                tickerPlatforms={uniquePlatforms}
+                surface="charcoal"
+              />
+            </motion.div>
 
-          <SmoothMarqueeTrack
-            speedPxPerSec={speedPxPerSec}
-            qualityScale={q}
-            paused={settings.paused}
-            renderSegment={renderSegment}
-            measureKey={measureKey}
-          />
+            {/* 3. Brand chip + texts, 4. icons (staggered inside the marquee) */}
+            {showAnchor && (
+              <motion.div
+                variants={textV}
+                custom={0}
+                className="relative z-10 shrink-0 flex items-center"
+                style={{
+                  height: chipH,
+                  marginLeft: inset,
+                  marginRight: Math.round(6 * q),
+                  padding: `0 ${Math.round(13 * Math.sqrt(innerScale) * q)}px`,
+                  borderRadius: Math.round(Math.min(12, (chipH / q) * 0.3) * q),
+                  background: `linear-gradient(150deg, #FFEE55 0%, ${WN.yellow} 45%, ${WN.yellowDeep} 100%)`,
+                  boxShadow: `inset 0 ${borderPx}px 0 rgba(255,255,255,0.45), inset 0 -${Math.max(
+                    1,
+                    Math.round(1.5 * q)
+                  )}px 0 rgba(0,0,0,0.14)`,
+                }}
+              >
+                <span
+                  className="font-extrabold uppercase whitespace-nowrap"
+                  style={{ fontSize: chipFontPx, letterSpacing: '0.04em', color: WN.yellowInk }}
+                >
+                  {anchorText}
+                </span>
+              </motion.div>
+            )}
+
+            <SmoothMarqueeTrack
+              speedPxPerSec={speedPxPerSec}
+              qualityScale={q}
+              paused={settings.paused}
+              renderSegment={renderSegment}
+              measureKey={measureKey}
+            />
+          </div>
         </motion.div>
       )}
     </AnimatePresence>

@@ -117,7 +117,7 @@ const SingleHudTarget: React.FC<SingleHudTargetProps> = ({
 
   // Callout show <-> hide timer
   useEffect(() => {
-    if (forceCalloutVisible || !config.enabled || !cycleOn) return;
+    if (forceCalloutVisible || !cycleOn) return;
     const ms = (calloutPhase === 'showing' ? showSec : hideSec) * 1000;
     const id = setTimeout(() => {
       setCalloutPhase((cur) => {
@@ -127,9 +127,10 @@ const SingleHudTarget: React.FC<SingleHudTargetProps> = ({
       });
     }, ms);
     return () => clearTimeout(id);
-  }, [forceCalloutVisible, config.enabled, cycleOn, calloutPhase, showSec, hideSec, playNonce]);
+  }, [forceCalloutVisible, cycleOn, calloutPhase, showSec, hideSec, playNonce]);
 
-  if (!config.enabled) return null;
+  // Frame and hint arrow are fully independent: either one can be shown alone
+  if (!config.enabled && !config.calloutEnabled) return null;
 
   const w = config.widthPx;
   const h = shape === 'circle' ? config.widthPx : config.heightPx;
@@ -140,7 +141,9 @@ const SingleHudTarget: React.FC<SingleHudTargetProps> = ({
 
   return (
     <>
-      {/* Glowing WoW Elemental Aura Frame */}
+      {/* Glowing WoW Elemental Aura Frame (optional) */}
+      <AnimatePresence>
+      {config.enabled && (
       <motion.div
         key={`frame_${widgetKey}_${config.style}`}
         initial={{ opacity: 0, scale: reduce ? 1 : 0.88 }}
@@ -151,7 +154,8 @@ const SingleHudTarget: React.FC<SingleHudTargetProps> = ({
         style={{
           left: centerX,
           top: centerY,
-          transform: 'translate(-50%, -50%)',
+          x: '-50%',
+          y: '-50%',
         }}
       >
         <WowElementalFrame
@@ -165,6 +169,8 @@ const SingleHudTarget: React.FC<SingleHudTargetProps> = ({
           animSpeed={config.animSpeed}
         />
       </motion.div>
+      )}
+      </AnimatePresence>
 
       {/* Animated Pointing Arrow + Custom Text Callout */}
       <AnimatePresence mode="wait">

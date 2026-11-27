@@ -106,6 +106,7 @@ const TICKER_ENTRANCE_OPTIONS: {
   label: string;
   desc: string;
 }[] = [
+  { id: 'cascade', label: 'Stufen-Aufbau', desc: 'Hintergrund → Muster → Text → Icons' },
   { id: 'swipe-up', label: 'Swipe Unten', desc: 'Gleitet sanft von unten rein' },
   { id: 'swipe-left', label: 'Swipe Links', desc: 'Fährt von links ins Bild' },
   { id: 'swipe-right', label: 'Swipe Rechts', desc: 'Fährt von rechts ins Bild' },

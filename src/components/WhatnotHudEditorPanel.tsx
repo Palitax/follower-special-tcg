@@ -296,12 +296,18 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
                     <span className="text-xs font-black text-white">{m.title}</span>
                     <span
                       className={`px-1.5 py-0.5 text-[9.5px] font-black uppercase ${
-                        cfg.enabled
+                        cfg.enabled || cfg.calloutEnabled
                           ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40'
                           : 'bg-white/5 text-slate-500 border border-white/10'
                       }`}
                     >
-                      {cfg.enabled ? 'Aktiv' : 'Aus'}
+                      {cfg.enabled && cfg.calloutEnabled
+                        ? 'Rahmen + Pfeil'
+                        : cfg.enabled
+                        ? 'Nur Rahmen'
+                        : cfg.calloutEnabled
+                        ? 'Nur Pfeil'
+                        : 'Aus'}
                     </span>
                   </div>
                   <div className="text-[10.5px] text-slate-400">
@@ -396,6 +402,45 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
               <RotateCcw className="w-3 h-3" />
               <span>Standard</span>
             </button>
+          </div>
+        </div>
+
+        {/* Display mode: frame and hint arrow are completely independent */}
+        <div className="space-y-1.5">
+          <span className="block text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-400">
+            Was soll angezeigt werden?
+          </span>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            {[
+              { id: 'both', label: 'Rahmen + Pfeil', frame: true, arrow: true },
+              { id: 'frame', label: 'Nur Rahmen', frame: true, arrow: false },
+              { id: 'arrow', label: 'Nur Hinweis-Pfeil', frame: false, arrow: true },
+              { id: 'off', label: 'Nichts (Aus)', frame: false, arrow: false },
+            ].map((m) => {
+              const active = widget.enabled === m.frame && widget.calloutEnabled === m.arrow;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => {
+                    sound.playClick(660);
+                    onUpdateWidget(selectedKey, {
+                      enabled: m.frame,
+                      calloutEnabled: m.arrow,
+                      ...(m.arrow ? { calloutTriggerNonce: Date.now() } : {}),
+                    });
+                  }}
+                  className={`min-h-[40px] px-2 border text-[11px] font-extrabold transition-colors ${
+                    active
+                      ? 'bg-sky-400/15 border-sky-400/70 text-white'
+                      : 'bg-black/45 border-white/10 text-slate-300 hover:border-white/25'
+                  }`}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -608,7 +653,6 @@ export const WhatnotHudEditorPanel: React.FC<WhatnotHudEditorPanelProps> = ({
                 onClick={() => {
                   sound.playClick(760);
                   onUpdateWidget(selectedKey, {
-                    enabled: true,
                     calloutEnabled: true,
                     calloutTriggerNonce: Date.now(),
                   });

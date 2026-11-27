@@ -19,6 +19,7 @@ export type BarEdgeStyle = 'sharp' | 'angled';
 export type TickerSpeed = 'slow' | 'normal' | 'fast';
 
 export type TickerEntranceAnimation =
+  | 'cascade'
   | 'zoom'
   | 'swipe-left'
   | 'swipe-right'
@@ -302,7 +303,7 @@ export const DEFAULT_TICKER_SETTINGS: TickerBarSettings = {
   visibleDurationSec: 0,
   hiddenDurationSec: 20,
   triggerNonce: 0,
-  entranceAnimation: 'swipe-up',
+  entranceAnimation: 'cascade',
   bgOpacityPct: 96,
   bgPattern: 'logos',
   patternOpacityPct: 60,
@@ -602,6 +603,7 @@ export function normalizeBroadcastBarsSnapshot(
   const validLayouts: ShowcaseLayout[] = ['auto', 'hero', 'fan', 'row'];
   const validAnims: ShowcaseAnimation[] = ['pop', 'float-in', 'spotlight'];
   const validTickerEntrances: TickerEntranceAnimation[] = [
+    'cascade',
     'zoom',
     'swipe-left',
     'swipe-right',
