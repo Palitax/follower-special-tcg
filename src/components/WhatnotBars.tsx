@@ -24,12 +24,13 @@ export const WN = {
   yellow: '#FFE406',
   yellowDeep: '#F5CF00',
   yellowInk: '#1a1718',
-  surfaceTop: 'rgba(50, 46, 49, 0.96)',
-  surfaceBottom: 'rgba(30, 28, 30, 0.96)',
+  surfaceTop: 'rgba(62, 64, 70, 0.96)',
+  surfaceMid: 'rgba(36, 38, 43, 0.97)',
+  surfaceBottom: 'rgba(18, 19, 23, 0.98)',
   hairline: 'rgba(255, 255, 255, 0.11)',
-  highlight: 'rgba(255, 255, 255, 0.12)',
+  highlight: 'rgba(255, 255, 255, 0.14)',
   ink: '#ffffff',
-  inkMuted: 'rgba(255, 255, 255, 0.74)',
+  inkMuted: 'rgba(255, 255, 255, 0.76)',
   divider: 'rgba(255, 255, 255, 0.24)',
   shadow: '0 14px 30px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.3)',
   radiusCard: 18,
@@ -402,7 +403,7 @@ export const WhatnotLowerThird: React.FC<WhatnotLowerThirdProps> = ({
                   paddingTop: Math.round(tagOverlap * 0.25),
                   gap,
                   borderRadius: cardRadius,
-                  background: `linear-gradient(180deg, ${WN.surfaceTop} 0%, ${WN.surfaceBottom} 100%)`,
+                  background: `linear-gradient(180deg, ${WN.surfaceTop} 0%, ${WN.surfaceMid} 54%, ${WN.surfaceBottom} 100%)`,
                   border: `${borderPx}px solid ${WN.hairline}`,
                   boxShadow: `inset 0 ${borderPx}px 0 ${WN.highlight}, 0 ${Math.round(
                     14 * q
@@ -420,36 +421,27 @@ export const WhatnotLowerThird: React.FC<WhatnotLowerThirdProps> = ({
                     : { duration: 0.16, ease: EASE_OUT }
                 }
               >
-                {/* Monochrome embossed category logo pressed into the card background */}
-                <div
-                  className="pointer-events-none absolute inset-0 overflow-hidden"
-                  style={{
-                    maskImage:
-                      'linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.22) 32%, rgba(0,0,0,0.92) 72%, rgba(0,0,0,1) 100%)',
-                    WebkitMaskImage:
-                      'linear-gradient(90deg, rgba(0,0,0,0) 0%, rgba(0,0,0,0.22) 32%, rgba(0,0,0,0.92) 72%, rgba(0,0,0,1) 100%)',
-                  }}
-                >
+                {/* Clean oversized flat 2D tonal logo plane cropped along the right side (matching reference) */}
+                <div className="pointer-events-none absolute inset-0 overflow-hidden">
                   <AnimatePresence mode="wait">
                     <motion.div
-                      key={`emboss_${activeSlide.platform}`}
-                      initial={{ opacity: 0, scale: 0.92 }}
+                      key={`plane_${activeSlide.platform}`}
+                      initial={{ opacity: 0, scale: 0.94 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 1.04 }}
-                      transition={{ duration: 0.42, ease: EASE_OUT }}
+                      exit={{ opacity: 0, scale: 1.03 }}
+                      transition={{ duration: 0.38, ease: EASE_OUT }}
                       className="absolute flex items-center justify-center"
                       style={{
-                        right: Math.round(-cardH * 0.08),
+                        right: Math.round(-cardH * 0.22),
                         top: '50%',
-                        marginTop: -Math.round(cardH * 0.62),
+                        marginTop: -Math.round(cardH * 0.84),
                       }}
                     >
                       <EmbossedCategoryWatermark
                         platform={activeSlide.platform}
-                        size={Math.round(cardH * 1.24)}
-                        qualityScale={q}
+                        size={Math.round(cardH * 1.72)}
                         surface="charcoal"
-                        rotateDeg={-11}
+                        rotateDeg={14}
                       />
                     </motion.div>
                   </AnimatePresence>
@@ -675,21 +667,20 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
               padding: `0 ${Math.round(18 * Math.sqrt(innerScale) * q)}px`,
             }}
           >
-            {/* Subtle monochrome embossed category mark pressed behind each ticker segment */}
+            {/* Subtle flat 2D tonal category mark cropped behind each ticker segment */}
             <div
-              className="pointer-events-none absolute flex items-center justify-center opacity-75"
+              className="pointer-events-none absolute flex items-center justify-center opacity-80"
               style={{
-                right: Math.round(10 * q),
+                right: Math.round(6 * q),
                 top: '50%',
-                transform: 'translateY(-50%)',
+                transform: 'translateY(-48%)',
               }}
             >
               <EmbossedCategoryWatermark
                 platform={item.platform}
-                size={Math.round(H * 1.08)}
-                qualityScale={q}
+                size={Math.round(H * 1.45)}
                 surface="charcoal"
-                rotateDeg={-10}
+                rotateDeg={14}
               />
             </div>
 
@@ -738,7 +729,7 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
         width: barW ? `${barW}px` : undefined,
         height: `${H}px`,
         borderRadius: outerRadius,
-        background: `linear-gradient(180deg, ${WN.surfaceTop} 0%, ${WN.surfaceBottom} 100%)`,
+        background: `linear-gradient(180deg, ${WN.surfaceTop} 0%, ${WN.surfaceMid} 54%, ${WN.surfaceBottom} 100%)`,
         border: `${borderPx}px solid ${WN.hairline}`,
         boxShadow: `inset 0 ${borderPx}px 0 ${WN.highlight}, 0 ${Math.round(
           12 * q

@@ -136,10 +136,9 @@ export const LiveTickerBar: React.FC<LiveTickerBarProps> = ({
               >
                 <EmbossedCategoryWatermark
                   platform={item.platform}
-                  size={Math.round(poleH * 1.02)}
-                  qualityScale={q}
+                  size={Math.round(poleH * 1.35)}
                   surface="wood"
-                  rotateDeg={-9}
+                  rotateDeg={-12}
                 />
               </div>
 

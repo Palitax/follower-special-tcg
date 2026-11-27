@@ -107,8 +107,8 @@ function ShowcaseOverlaySurface() {
 
   const q = snapshot.showcase.qualityScale ?? 2;
   const s = Math.max(0.6, Math.min(1.8, (snapshot.showcase.scalePct ?? 100) / 100));
-  const renderedW = Math.round(760 * s * q);
-  const renderedH = Math.round(520 * s * q);
+  const renderedW = Math.round(780 * s * q);
+  const renderedH = Math.round(560 * s * q);
 
   const safeFitScale =
     viewport.w > 0 && viewport.h > 0

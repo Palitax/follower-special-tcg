@@ -8,6 +8,8 @@ import {
   ShowcaseLayout,
   ShowcasePreset,
   ShowcaseSettings,
+  ShowcaseTitleAnchor,
+  ShowcaseTitleBgStyle,
 } from '../types/broadcastBars';
 import { sound } from '../utils/sound';
 import {
@@ -629,24 +631,207 @@ export const ShowcaseEditorPanel: React.FC<ShowcaseEditorPanelProps> = ({
             </div>
           </div>
 
-          {/* Scale, Quality & Glow */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-2 border-t border-white/10 items-end">
-            <div className="space-y-1">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-300">Größe</span>
-                <span className="font-black text-amber-300">{settings.scalePct}%</span>
-              </div>
-              <input
-                type="range"
-                min={60}
-                max={160}
-                step={5}
-                value={settings.scalePct}
-                onChange={(e) => onUpdateSettings('scalePct', Number(e.target.value))}
-                className="w-full cursor-pointer"
-              />
+          {/* Title Position, Background Mode & Independent Text/Image Scaling */}
+          <div className="p-3 border border-sky-400/25 bg-sky-500/[0.04] space-y-3.5">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] font-black uppercase tracking-[0.14em] text-sky-300">
+                Titel-Position, Hintergrund &amp; Freie Skalierung
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  onUpdateSettings('titleAnchor', 'top');
+                  onUpdateSettings('titleOffsetY', 0);
+                  onUpdateSettings('titleOffsetX', 0);
+                  onUpdateSettings('imageOffsetY', 0);
+                  onUpdateSettings('textScalePct', 100);
+                  onUpdateSettings('imageScalePct', 100);
+                }}
+                className="px-2 py-0.5 border border-white/15 bg-black/50 hover:bg-white/10 text-[10px] font-bold text-slate-300"
+              >
+                Position zurücksetzen
+              </button>
             </div>
 
+            {/* Title Background Style & Sticker Toggle */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {(
+                [
+                  { id: 'card', label: 'Mit Karten-Hintergrund' },
+                  { id: 'none', label: 'Kein Hintergrund (Nur Text)' },
+                ] as { id: ShowcaseTitleBgStyle; label: string }[]
+              ).map((bg) => (
+                <button
+                  key={bg.id}
+                  type="button"
+                  onClick={() => {
+                    sound.playClick(620);
+                    onUpdateSettings('titleBgStyle', bg.id);
+                  }}
+                  className={`h-9 px-2.5 border text-[11px] font-bold transition-colors ${
+                    settings.titleBgStyle === bg.id
+                      ? 'bg-[#FFE406]/20 border-[#FFE406]/65 text-[#FFE406]'
+                      : 'bg-black/45 border-white/10 text-slate-300 hover:text-white'
+                  }`}
+                >
+                  {bg.label}
+                </button>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => onUpdateSettings('showSticker', !settings.showSticker)}
+                className={`h-9 px-2.5 border text-[11px] font-bold transition-colors ${
+                  settings.showSticker
+                    ? 'bg-sky-400/15 border-sky-400/60 text-sky-200'
+                    : 'bg-black/45 border-white/10 text-slate-400'
+                }`}
+              >
+                Gelber Sticker: {settings.showSticker ? 'An' : 'Aus'}
+              </button>
+            </div>
+
+            {/* Title Anchor Quick Position */}
+            <div className="space-y-1.5">
+              <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                Titel-Anker (Grundposition)
+              </span>
+              <div className="grid grid-cols-3 gap-1.5">
+                {(
+                  [
+                    { id: 'top', label: 'Oben' },
+                    { id: 'overlay', label: 'Mitte (über Bild)' },
+                    { id: 'bottom', label: 'Unten' },
+                  ] as { id: ShowcaseTitleAnchor; label: string }[]
+                ).map((anc) => (
+                  <button
+                    key={anc.id}
+                    type="button"
+                    onClick={() => {
+                      sound.playClick(600);
+                      onUpdateSettings('titleAnchor', anc.id);
+                      onUpdateSettings('titleOffsetY', 0);
+                    }}
+                    className={`h-8 px-2 border text-[11px] font-bold transition-colors ${
+                      settings.titleAnchor === anc.id
+                        ? 'bg-sky-400/20 border-sky-400/60 text-sky-200'
+                        : 'bg-black/45 border-white/10 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    {anc.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Free Position & Independent Scaling Sliders */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-300">Titel Hoch / Runter (Y)</span>
+                  <span className="font-black text-sky-300">
+                    {settings.titleOffsetY > 0 ? `+${settings.titleOffsetY}` : settings.titleOffsetY} px
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={-240}
+                  max={240}
+                  step={4}
+                  value={settings.titleOffsetY}
+                  onChange={(e) => onUpdateSettings('titleOffsetY', Number(e.target.value))}
+                  className="w-full cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-300">Titel Links / Rechts (X)</span>
+                  <span className="font-black text-sky-300">
+                    {settings.titleOffsetX > 0 ? `+${settings.titleOffsetX}` : settings.titleOffsetX} px
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={-200}
+                  max={200}
+                  step={4}
+                  value={settings.titleOffsetX}
+                  onChange={(e) => onUpdateSettings('titleOffsetX', Number(e.target.value))}
+                  className="w-full cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-300">Text-Größe (unabhängig)</span>
+                  <span className="font-black text-[#FFE406]">{settings.textScalePct}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={50}
+                  max={220}
+                  step={5}
+                  value={settings.textScalePct}
+                  onChange={(e) => onUpdateSettings('textScalePct', Number(e.target.value))}
+                  className="w-full cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-300">Bild-Größe (TTB / Karten)</span>
+                  <span className="font-black text-amber-300">{settings.imageScalePct}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={50}
+                  max={200}
+                  step={5}
+                  value={settings.imageScalePct}
+                  onChange={(e) => onUpdateSettings('imageScalePct', Number(e.target.value))}
+                  className="w-full cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-300">Bilder Hoch / Runter (Y)</span>
+                  <span className="font-black text-slate-200">
+                    {settings.imageOffsetY > 0 ? `+${settings.imageOffsetY}` : settings.imageOffsetY} px
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={-160}
+                  max={160}
+                  step={4}
+                  value={settings.imageOffsetY}
+                  onChange={(e) => onUpdateSettings('imageOffsetY', Number(e.target.value))}
+                  className="w-full cursor-pointer"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-300">Gesamt-Größe</span>
+                  <span className="font-black text-slate-200">{settings.scalePct}%</span>
+                </div>
+                <input
+                  type="range"
+                  min={60}
+                  max={160}
+                  step={5}
+                  value={settings.scalePct}
+                  onChange={(e) => onUpdateSettings('scalePct', Number(e.target.value))}
+                  className="w-full cursor-pointer"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Quality & Glow */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-white/10 items-end">
             <div className="space-y-1">
               <span className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">
                 OBS Schärfe

@@ -31,6 +31,10 @@ export type ShowcaseLayout = 'auto' | 'hero' | 'fan' | 'row';
 
 export type ShowcaseAnimation = 'pop' | 'float-in' | 'spotlight';
 
+export type ShowcaseTitleBgStyle = 'card' | 'none';
+
+export type ShowcaseTitleAnchor = 'top' | 'bottom' | 'overlay';
+
 export interface RotatorSlide {
   id: string;
   platform: SocialPlatform;
@@ -135,6 +139,22 @@ export interface ShowcaseSettings {
   animation: ShowcaseAnimation;
   /** Overall scale percentage (60–180) */
   scalePct: number;
+  /** Independent text & header scaling (50–220%) */
+  textScalePct: number;
+  /** Independent product / card image scaling (50–200%) */
+  imageScalePct: number;
+  /** Where the title sits relative to the images */
+  titleAnchor: ShowcaseTitleAnchor;
+  /** Free vertical title offset in logical px (-260 to +260) */
+  titleOffsetY: number;
+  /** Free horizontal title offset in logical px (-220 to +220) */
+  titleOffsetX: number;
+  /** Free vertical image offset in logical px (-160 to +160) */
+  imageOffsetY: number;
+  /** 'card' = charcoal HUD plate behind text; 'none' = pure floating text with zero background */
+  titleBgStyle: ShowcaseTitleBgStyle;
+  /** Whether to show the yellow eyebrow sticker above the headline */
+  showSticker: boolean;
   qualityScale: OverlayQualityScale;
   /** Soft ambient spotlight glow behind cutout TTB / card images */
   showGlow: boolean;
@@ -217,6 +237,14 @@ export const DEFAULT_SHOWCASE_SETTINGS: ShowcaseSettings = {
   autoRepeatRestSec: 0,
   animation: 'pop',
   scalePct: 100,
+  textScalePct: 100,
+  imageScalePct: 100,
+  titleAnchor: 'top',
+  titleOffsetY: 0,
+  titleOffsetX: 0,
+  imageOffsetY: 0,
+  titleBgStyle: 'card',
+  showSticker: true,
   qualityScale: 2,
   showGlow: true,
 };
@@ -494,6 +522,32 @@ export function normalizeBroadcastBarsSnapshot(
         60,
         Math.min(180, Number(rawSc?.scalePct ?? DEFAULT_SHOWCASE_SETTINGS.scalePct) || 100)
       ),
+      textScalePct: Math.max(
+        50,
+        Math.min(220, Number(rawSc?.textScalePct ?? DEFAULT_SHOWCASE_SETTINGS.textScalePct) || 100)
+      ),
+      imageScalePct: Math.max(
+        50,
+        Math.min(200, Number(rawSc?.imageScalePct ?? DEFAULT_SHOWCASE_SETTINGS.imageScalePct) || 100)
+      ),
+      titleAnchor:
+        rawSc?.titleAnchor === 'bottom' || rawSc?.titleAnchor === 'overlay'
+          ? rawSc.titleAnchor
+          : 'top',
+      titleOffsetY: Math.max(
+        -260,
+        Math.min(260, Number(rawSc?.titleOffsetY ?? 0) || 0)
+      ),
+      titleOffsetX: Math.max(
+        -220,
+        Math.min(220, Number(rawSc?.titleOffsetX ?? 0) || 0)
+      ),
+      imageOffsetY: Math.max(
+        -160,
+        Math.min(160, Number(rawSc?.imageOffsetY ?? 0) || 0)
+      ),
+      titleBgStyle: rawSc?.titleBgStyle === 'none' ? 'none' : 'card',
+      showSticker: rawSc?.showSticker !== false,
       qualityScale: normQualityScale(rawSc?.qualityScale, DEFAULT_SHOWCASE_SETTINGS.qualityScale),
       showGlow: rawSc?.showGlow !== false,
     },

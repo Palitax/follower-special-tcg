@@ -475,11 +475,11 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
   const scQ = snapshot.showcase.qualityScale ?? 2;
   const scS = Math.max(0.6, Math.min(1.8, (snapshot.showcase.scalePct ?? 100) / 100));
   const obsShowcaseW = Math.round(780 * scS * scQ);
-  const obsShowcaseH = Math.round(520 * scS * scQ);
+  const obsShowcaseH = Math.round(560 * scS * scQ);
 
   const showcasePreviewScale = useMemo(() => {
     const targetW = previewMode === 'portrait' ? 276 : 420;
-    const renderedW = Math.round(760 * scS * scQ);
+    const renderedW = Math.round(780 * scS * scQ);
     return Math.min(1 / scQ, targetW / Math.max(1, renderedW));
   }, [previewMode, scS, scQ]);
 

@@ -238,10 +238,9 @@ export const SocialRotatorBar: React.FC<SocialRotatorBarProps> = ({
                   >
                     <EmbossedCategoryWatermark
                       platform={activeSlide.platform}
-                      size={Math.round(plankH * 1.12)}
-                      qualityScale={q}
+                      size={Math.round(plankH * 1.45)}
                       surface="wood"
-                      rotateDeg={-10}
+                      rotateDeg={-13}
                     />
                   </motion.div>
                 </AnimatePresence>
