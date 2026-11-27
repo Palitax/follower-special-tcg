@@ -1,13 +1,13 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { TickerBarSettings, TickerItem, TickerSpeed } from '../types/broadcastBars';
-import {
-  EmbossedCategoryWatermark,
-  MANA_SIGNATURE_VEIN,
-  PLATFORM_THEMES,
-} from './SocialBrandIcons';
-import { PlatformBadge } from './WhatnotBars';
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
+import { TickerBarSettings, TickerItem } from '../types/broadcastBars';
+import { MANA_SIGNATURE_VEIN, PLATFORM_THEMES } from './SocialBrandIcons';
+import { PlatformBadge, resolveTickerEntranceVariants } from './WhatnotBars';
+import { BarBackgroundPatternLayer } from './BarBackgroundPattern';
+import { SmoothMarqueeTrack } from './SmoothMarqueeTrack';
+import { TickerCycleStatus, useTickerCycle } from './useTickerCycle';
 import { BranchRune, ManaWoodPlank, WOOD } from './ManaWoodPlank';
 
 interface LiveTickerBarProps {
@@ -15,13 +15,9 @@ interface LiveTickerBarProps {
   settings: TickerBarSettings;
   className?: string;
   scale?: number;
+  forcePreviewVisible?: boolean;
+  onCycleStatus?: (status: TickerCycleStatus) => void;
 }
-
-const SPEED_SECONDS_PER_ITEM: Record<TickerSpeed, number> = {
-  slow: 7.5,
-  normal: 5.2,
-  fast: 3.4,
-};
 
 const POLE_SEED = 2718;
 const PLAQUE_SEED = 1618;
@@ -35,18 +31,23 @@ export const LiveTickerBar: React.FC<LiveTickerBarProps> = ({
   settings,
   className = '',
   scale = 1,
+  forcePreviewVisible = false,
+  onCycleStatus,
 }) => {
+  const reduce = useReducedMotion() ?? false;
   const enabledItems = useMemo(
     () => items.filter((it) => it.enabled && (it.label.trim() || it.highlight.trim())),
     [items]
   );
 
-  const repeatedTrack = useMemo(() => {
-    if (enabledItems.length >= 4) return enabledItems;
-    return [...enabledItems, ...enabledItems];
-  }, [enabledItems]);
+  const uniquePlatforms = useMemo(
+    () => Array.from(new Set(enabledItems.map((it) => it.platform))),
+    [enabledItems]
+  );
 
-  const isShown = settings.visible && enabledItems.length > 0;
+  const { isShowing, playNonce } = useTickerCycle(settings, forcePreviewVisible, onCycleStatus);
+
+  const shouldRender = isShowing && enabledItems.length > 0;
   const containerRef = useRef<HTMLDivElement>(null);
   const [measuredWidth, setMeasuredWidth] = useState(1080);
 
@@ -64,11 +65,7 @@ export const LiveTickerBar: React.FC<LiveTickerBarProps> = ({
     });
     ro.observe(el);
     return () => ro.disconnect();
-  }, [isShown, settings.fullWidth]);
-
-  if (!isShown) {
-    return null;
-  }
+  }, [shouldRender, settings.fullWidth]);
 
   const q = settings.qualityScale ?? 2;
   const baseH = 52;
@@ -101,14 +98,18 @@ export const LiveTickerBar: React.FC<LiveTickerBarProps> = ({
   const textPx = Math.round(clamp(15 * innerScale, 11, 34) * q);
   const anchorFontPx = Math.round(clamp(13 * innerScale, 10, 28) * q);
 
-  const durationSec = Math.max(
-    14,
-    Math.round(repeatedTrack.length * SPEED_SECONDS_PER_ITEM[settings.speed])
+  const bgAlpha = clamp(settings.bgOpacityPct ?? 96, 0, 100) / 100;
+  const speedPxPerSec = settings.speedPxPerSec ?? 52;
+  const measureKey = `${enabledItems.map((i) => `${i.id}:${i.label}:${i.highlight}`).join('|')}_${q}_${innerScale.toFixed(2)}_${width}`;
+
+  const entranceV = useMemo(
+    () => resolveTickerEntranceVariants(settings.entranceAnimation ?? 'swipe-up', reduce, q),
+    [settings.entranceAnimation, reduce, q]
   );
 
   const renderSegment = (copyKey: string) => (
     <div className="flex items-center shrink-0">
-      {repeatedTrack.map((item, idx) => {
+      {enabledItems.map((item, idx) => {
         const theme = PLATFORM_THEMES[item.platform] ?? PLATFORM_THEMES.custom;
         const useMana = settings.veinColorMode === 'mana-blue';
         const glowRgb = useMana ? vein.accentRgb : theme.accentRgb;
@@ -126,22 +127,6 @@ export const LiveTickerBar: React.FC<LiveTickerBarProps> = ({
                 padding: `0 ${Math.round(20 * q)}px`,
               }}
             >
-              <div
-                className="pointer-events-none absolute flex items-center justify-center opacity-70"
-                style={{
-                  right: Math.round(12 * q),
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                }}
-              >
-                <EmbossedCategoryWatermark
-                  platform={item.platform}
-                  size={Math.round(poleH * 1.35)}
-                  surface="wood"
-                  rotateDeg={-12}
-                />
-              </div>
-
               <PlatformBadge
                 platform={item.platform}
                 size={badgeSize}
@@ -199,96 +184,134 @@ export const LiveTickerBar: React.FC<LiveTickerBarProps> = ({
       style={{
         width: settings.fullWidth ? undefined : `${width}px`,
         height: `${totalH}px`,
-        filter: `drop-shadow(0 ${Math.round(8 * q)}px ${Math.round(12 * q)}px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 ${Math.round(12 * q)}px rgba(${vein.accentRgb}, 0.16))`,
       }}
     >
-      <ManaWoodPlank
-        width={width}
-        height={totalH}
-        x0={poleX0}
-        y0={padY}
-        x1={width - Math.round(3 * q)}
-        y1={padY + poleH}
-        seed={POLE_SEED}
-        shading="pole"
-        veinHex={vein.accentHex}
-        veinSoftHex={vein.accentSoftHex}
-        showVeins={settings.showWoodVeins}
-        endStyle={endStyle}
-        lashings={lashings}
-        veinQuietZone={[viewportLeft, width - Math.round(38 * q)]}
-      />
-
-      {showAnchor && (
-        <div
-          className="absolute left-0 top-0"
-          style={{ width: plaqueW + Math.round(4 * q), height: totalH }}
-        >
-          <ManaWoodPlank
-            width={plaqueW + Math.round(4 * q)}
-            height={totalH}
-            x0={Math.round(2 * q)}
-            y0={Math.round(1.5 * q)}
-            x1={plaqueW}
-            y1={totalH - Math.round(1.5 * q)}
-            seed={PLAQUE_SEED}
-            veinHex={vein.accentHex}
-            veinSoftHex={vein.accentSoftHex}
-            showVeins={settings.showWoodVeins}
-            endStyle={endStyle}
-          />
-          <div
-            className="absolute inset-0 flex items-center justify-center"
-            style={{ gap: Math.round(8 * q) }}
+      <AnimatePresence mode="wait">
+        {shouldRender && (
+          <motion.div
+            key={`wood_ticker_${settings.entranceAnimation}_${playNonce}`}
+            variants={entranceV}
+            initial="hidden"
+            animate="show"
+            exit="exit"
+            className="relative w-full h-full"
+            style={{
+              filter:
+                bgAlpha > 0.05
+                  ? `drop-shadow(0 ${Math.round(8 * q)}px ${Math.round(12 * q)}px rgba(0, 0, 0, ${(
+                      0.7 * bgAlpha
+                    ).toFixed(3)}))`
+                  : undefined,
+              transformOrigin: 'center center',
+            }}
           >
-            <BranchRune
-              color={vein.accentSoftHex}
-              className="shrink-0"
+            {bgAlpha > 0.005 && (
+              <div className="pointer-events-none absolute inset-0" style={{ opacity: bgAlpha }}>
+                <ManaWoodPlank
+                  width={width}
+                  height={totalH}
+                  x0={poleX0}
+                  y0={padY}
+                  x1={width - Math.round(3 * q)}
+                  y1={padY + poleH}
+                  seed={POLE_SEED}
+                  shading="pole"
+                  veinHex={vein.accentHex}
+                  veinSoftHex={vein.accentSoftHex}
+                  showVeins={settings.showWoodVeins}
+                  endStyle={endStyle}
+                  lashings={lashings}
+                  veinQuietZone={[viewportLeft, width - Math.round(38 * q)]}
+                />
+              </div>
+            )}
+
+            <div
+              className="pointer-events-none absolute overflow-hidden"
               style={{
-                width: Math.round(10 * innerScale * q),
-                height: Math.round(14 * innerScale * q),
-                filter: `drop-shadow(0 0 ${Math.round(5 * q)}px rgba(${vein.accentRgb}, 0.95))`,
-              }}
-            />
-            <span
-              className="font-mana-display font-black tracking-[0.16em] uppercase whitespace-nowrap"
-              style={{
-                fontSize: anchorFontPx,
-                color: WOOD.parchment,
-                textShadow: `0 ${Math.round(2 * q)}px 0 rgba(8, 5, 11, 0.95), 0 0 ${Math.round(
-                  12 * q
-                )}px rgba(${vein.accentRgb}, 0.45)`,
+                left: viewportLeft,
+                right: Math.round(38 * q),
+                top: padY,
+                height: poleH,
               }}
             >
-              {anchorText}
-            </span>
-          </div>
-        </div>
-      )}
+              <BarBackgroundPatternLayer
+                pattern={settings.bgPattern ?? 'logos'}
+                opacityPct={settings.patternOpacityPct ?? 60}
+                qualityScale={q}
+                barHeightPx={poleH}
+                tickerPlatforms={uniquePlatforms}
+                surface="wood"
+              />
+            </div>
 
-      <div
-        className="absolute flex items-center overflow-hidden"
-        style={{
-          left: viewportLeft,
-          right: Math.round(38 * q),
-          top: padY,
-          height: poleH,
-          maskImage: 'linear-gradient(90deg, transparent 0%, #000 5%, #000 95%, transparent 100%)',
-          WebkitMaskImage:
-            'linear-gradient(90deg, transparent 0%, #000 5%, #000 95%, transparent 100%)',
-        }}
-      >
-        <div
-          className="mc-ticker-track flex items-center w-max"
-          style={{
-            animationDuration: `${durationSec}s`,
-            animationPlayState: settings.paused ? 'paused' : 'running',
-          }}
-        >
-          {renderSegment('a')}
-          {renderSegment('b')}
-        </div>
-      </div>
+            {showAnchor && (
+              <div
+                className="absolute left-0 top-0"
+                style={{ width: plaqueW + Math.round(4 * q), height: totalH }}
+              >
+                <ManaWoodPlank
+                  width={plaqueW + Math.round(4 * q)}
+                  height={totalH}
+                  x0={Math.round(2 * q)}
+                  y0={Math.round(1.5 * q)}
+                  x1={plaqueW}
+                  y1={totalH - Math.round(1.5 * q)}
+                  seed={PLAQUE_SEED}
+                  veinHex={vein.accentHex}
+                  veinSoftHex={vein.accentSoftHex}
+                  showVeins={settings.showWoodVeins}
+                  endStyle={endStyle}
+                />
+                <div
+                  className="absolute inset-0 flex items-center justify-center"
+                  style={{ gap: Math.round(8 * q) }}
+                >
+                  <BranchRune
+                    color={vein.accentSoftHex}
+                    className="shrink-0"
+                    style={{
+                      width: Math.round(10 * innerScale * q),
+                      height: Math.round(14 * innerScale * q),
+                      filter: `drop-shadow(0 0 ${Math.round(5 * q)}px rgba(${vein.accentRgb}, 0.95))`,
+                    }}
+                  />
+                  <span
+                    className="font-mana-display font-black tracking-[0.16em] uppercase whitespace-nowrap"
+                    style={{
+                      fontSize: anchorFontPx,
+                      color: WOOD.parchment,
+                      textShadow: `0 ${Math.round(2 * q)}px 0 rgba(8, 5, 11, 0.95), 0 0 ${Math.round(
+                        12 * q
+                      )}px rgba(${vein.accentRgb}, 0.45)`,
+                    }}
+                  >
+                    {anchorText}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div
+              className="absolute flex items-center overflow-hidden"
+              style={{
+                left: viewportLeft,
+                right: Math.round(38 * q),
+                top: padY,
+                height: poleH,
+              }}
+            >
+              <SmoothMarqueeTrack
+                speedPxPerSec={speedPxPerSec}
+                qualityScale={q}
+                paused={settings.paused}
+                renderSegment={renderSegment}
+                measureKey={measureKey}
+              />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 

@@ -11,6 +11,7 @@ import {
 import { SocialRotatorBar } from './SocialRotatorBar';
 import { LiveTickerBar } from './LiveTickerBar';
 import { WhatnotLowerThird, WhatnotTicker } from './WhatnotBars';
+import { TickerCycleStatus } from './useTickerCycle';
 
 interface BroadcastRotatorProps {
   design: BroadcastDesign;
@@ -36,6 +37,8 @@ interface BroadcastTickerProps {
   settings: TickerBarSettings;
   className?: string;
   scale?: number;
+  forcePreviewVisible?: boolean;
+  onCycleStatus?: (status: TickerCycleStatus) => void;
 }
 
 /** Renders the horizontal ticker in the selected design language */

@@ -18,6 +18,23 @@ export type BarEdgeStyle = 'sharp' | 'angled';
 
 export type TickerSpeed = 'slow' | 'normal' | 'fast';
 
+export type TickerEntranceAnimation =
+  | 'zoom'
+  | 'swipe-left'
+  | 'swipe-right'
+  | 'swipe-up'
+  | 'wipe'
+  | 'fade';
+
+export type BarBackgroundPattern =
+  | 'logos'
+  | 'waves'
+  | 'dots'
+  | 'diagonal'
+  | 'hex'
+  | 'grid'
+  | 'none';
+
 /** 'together' scales text + icon along with height; 'background-only' resizes only the container */
 export type OverlayResizeMode = 'together' | 'background-only';
 
@@ -71,6 +88,12 @@ export interface RotatorBarSettings {
   contentScale: number;
   /** HiDPI native render multiplier (1x, 1.5x, 2x) for razor-sharp OBS output */
   qualityScale: OverlayQualityScale;
+  /** Background opacity percentage (0 = completely invisible, 100 = fully opaque) */
+  bgOpacityPct: number;
+  /** Decorative background texture / pattern style */
+  bgPattern: BarBackgroundPattern;
+  /** Pattern visibility / opacity percentage (0–100), independent of bgOpacityPct */
+  patternOpacityPct: number;
   showWoodVeins: boolean;
 }
 
@@ -85,7 +108,24 @@ export interface TickerItem {
 export interface TickerBarSettings {
   visible: boolean;
   paused: boolean;
+  /** Legacy preset kept for backward compatibility; actual velocity uses speedPxPerSec */
   speed: TickerSpeed;
+  /** Continuous scroll velocity in logical px/sec (8 = ultra-slow crawl, 220 = fast) */
+  speedPxPerSec: number;
+  /** Seconds ticker stays visible per cycle (0 = always visible / continuous) */
+  visibleDurationSec: number;
+  /** Seconds ticker hides between cycles when visibleDurationSec > 0 */
+  hiddenDurationSec: number;
+  /** Monotonic timestamp bumped to immediately wake & replay entrance animation */
+  triggerNonce: number;
+  /** Entrance & exit animation style when showing/hiding */
+  entranceAnimation: TickerEntranceAnimation;
+  /** Background opacity percentage (0 = completely invisible, 100 = fully opaque) */
+  bgOpacityPct: number;
+  /** Decorative background texture / pattern style */
+  bgPattern: BarBackgroundPattern;
+  /** Pattern visibility / opacity percentage (0–100), independent of bgOpacityPct */
+  patternOpacityPct: number;
   veinColorMode: VeinColorMode;
   edgeStyle: BarEdgeStyle;
   showBrandAnchor: boolean;
@@ -190,6 +230,9 @@ export const DEFAULT_ROTATOR_SETTINGS: RotatorBarSettings = {
   resizeMode: 'together',
   contentScale: 105,
   qualityScale: 2,
+  bgOpacityPct: 96,
+  bgPattern: 'logos',
+  patternOpacityPct: 60,
   showWoodVeins: true,
 };
 
@@ -197,6 +240,14 @@ export const DEFAULT_TICKER_SETTINGS: TickerBarSettings = {
   visible: true,
   paused: false,
   speed: 'normal',
+  speedPxPerSec: 52,
+  visibleDurationSec: 0,
+  hiddenDurationSec: 20,
+  triggerNonce: 0,
+  entranceAnimation: 'swipe-up',
+  bgOpacityPct: 96,
+  bgPattern: 'logos',
+  patternOpacityPct: 60,
   veinColorMode: 'mana-blue',
   edgeStyle: 'angled',
   showBrandAnchor: true,
@@ -415,6 +466,37 @@ export function normalizeBroadcastBarsSnapshot(
 
   const validLayouts: ShowcaseLayout[] = ['auto', 'hero', 'fan', 'row'];
   const validAnims: ShowcaseAnimation[] = ['pop', 'float-in', 'spotlight'];
+  const validTickerEntrances: TickerEntranceAnimation[] = [
+    'zoom',
+    'swipe-left',
+    'swipe-right',
+    'swipe-up',
+    'wipe',
+    'fade',
+  ];
+  const validPatterns: BarBackgroundPattern[] = [
+    'logos',
+    'waves',
+    'dots',
+    'diagonal',
+    'hex',
+    'grid',
+    'none',
+  ];
+  const normPattern = (val: unknown, fallback: BarBackgroundPattern): BarBackgroundPattern =>
+    typeof val === 'string' && validPatterns.includes(val as BarBackgroundPattern)
+      ? (val as BarBackgroundPattern)
+      : fallback;
+  const legacySpeedToPx = (sp: unknown): number => {
+    if (sp === 'slow') return 32;
+    if (sp === 'fast') return 105;
+    return DEFAULT_TICKER_SETTINGS.speedPxPerSec;
+  };
+  const normPct = (val: unknown, fallback: number): number => {
+    if (val === 0) return 0;
+    const n = Number(val);
+    return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : fallback;
+  };
 
   const showcases: ShowcasePreset[] =
     Array.isArray(raw.showcases) && raw.showcases.length > 0
@@ -479,11 +561,48 @@ export function normalizeBroadcastBarsSnapshot(
         Math.min(220, Number(rawRot?.contentScale ?? DEFAULT_ROTATOR_SETTINGS.contentScale) || 105)
       ),
       qualityScale: normQualityScale(rawRot?.qualityScale, DEFAULT_ROTATOR_SETTINGS.qualityScale),
+      bgOpacityPct: normPct(rawRot?.bgOpacityPct, DEFAULT_ROTATOR_SETTINGS.bgOpacityPct),
+      bgPattern: normPattern(rawRot?.bgPattern, DEFAULT_ROTATOR_SETTINGS.bgPattern),
+      patternOpacityPct: normPct(
+        rawRot?.patternOpacityPct,
+        DEFAULT_ROTATOR_SETTINGS.patternOpacityPct
+      ),
     },
     slides,
     ticker: {
       ...DEFAULT_TICKER_SETTINGS,
       ...rawTick,
+      speedPxPerSec: Math.max(
+        8,
+        Math.min(
+          220,
+          Number(
+            rawTick?.speedPxPerSec !== undefined
+              ? rawTick.speedPxPerSec
+              : legacySpeedToPx(rawTick?.speed)
+          ) || DEFAULT_TICKER_SETTINGS.speedPxPerSec
+        )
+      ),
+      visibleDurationSec: Math.max(
+        0,
+        Math.min(300, Number(rawTick?.visibleDurationSec ?? DEFAULT_TICKER_SETTINGS.visibleDurationSec) || 0)
+      ),
+      hiddenDurationSec: Math.max(
+        0,
+        Math.min(600, Number(rawTick?.hiddenDurationSec ?? DEFAULT_TICKER_SETTINGS.hiddenDurationSec) || 0)
+      ),
+      triggerNonce: Number(rawTick?.triggerNonce ?? 0) || 0,
+      entranceAnimation: validTickerEntrances.includes(
+        rawTick?.entranceAnimation as TickerEntranceAnimation
+      )
+        ? (rawTick!.entranceAnimation as TickerEntranceAnimation)
+        : DEFAULT_TICKER_SETTINGS.entranceAnimation,
+      bgOpacityPct: normPct(rawTick?.bgOpacityPct, DEFAULT_TICKER_SETTINGS.bgOpacityPct),
+      bgPattern: normPattern(rawTick?.bgPattern, DEFAULT_TICKER_SETTINGS.bgPattern),
+      patternOpacityPct: normPct(
+        rawTick?.patternOpacityPct,
+        DEFAULT_TICKER_SETTINGS.patternOpacityPct
+      ),
       widthPx: Math.max(
         360,
         Math.min(1400, Number(rawTick?.widthPx ?? DEFAULT_TICKER_SETTINGS.widthPx) || 960)

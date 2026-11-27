@@ -13,8 +13,8 @@ import {
   ShowcaseSettings,
   SocialPlatform,
   TickerBarSettings,
+  TickerEntranceAnimation,
   TickerItem,
-  TickerSpeed,
   createDefaultBroadcastBarsSnapshot,
   normalizeBroadcastBarsSnapshot,
 } from '../types/broadcastBars';
@@ -26,6 +26,8 @@ import {
 import { BroadcastRotator, BroadcastTicker } from './BroadcastBars';
 import { PromoShowcaseOverlay } from './PromoShowcaseOverlay';
 import { ShowcaseEditorPanel } from './ShowcaseEditorPanel';
+import { BarSurfaceControls } from './BarSurfaceControls';
+import { TickerCycleStatus } from './useTickerCycle';
 import { PlatformBadge } from './WhatnotBars';
 import { PLATFORM_THEMES } from './SocialBrandIcons';
 import { sound } from '../utils/sound';
@@ -89,6 +91,28 @@ const DESIGN_OPTIONS: { id: BroadcastDesign; label: string; desc: string }[] = [
   { id: 'mana-wood', label: 'ManaCards Holz', desc: 'Fantasy-Holz mit leuchtenden Mana-Adern' },
 ];
 
+const TICKER_ENTRANCE_OPTIONS: {
+  id: TickerEntranceAnimation;
+  label: string;
+  desc: string;
+}[] = [
+  { id: 'swipe-up', label: 'Swipe Unten', desc: 'Gleitet sanft von unten rein' },
+  { id: 'swipe-left', label: 'Swipe Links', desc: 'Fährt von links ins Bild' },
+  { id: 'swipe-right', label: 'Swipe Rechts', desc: 'Fährt von rechts ins Bild' },
+  { id: 'zoom', label: 'Zoom / Pop', desc: 'Federt sauber aus der Mitte auf' },
+  { id: 'wipe', label: 'Wipe (Aufziehen)', desc: 'TV-Blende zieht von links auf' },
+  { id: 'fade', label: 'Sanftes Fade', desc: 'Ruhige weiche Überblendung' },
+];
+
+function describeTickerSpeed(pxPerSec: number): string {
+  if (pxPerSec <= 16) return 'Ultra-Langsam';
+  if (pxPerSec <= 30) return 'Sehr langsam';
+  if (pxPerSec <= 46) return 'Langsam';
+  if (pxPerSec <= 74) return 'Normal';
+  if (pxPerSec <= 120) return 'Flott';
+  return 'Schnell';
+}
+
 export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
   overlayKey,
   originUrl,
@@ -105,6 +129,13 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
     slideIndex: 0,
     totalEnabled: 0,
   });
+  const [tickerStatus, setTickerStatus] = useState<TickerCycleStatus>({
+    isShowing: true,
+    isResting: false,
+    remainingSec: 0,
+    cycleActive: false,
+  });
+  const [tickerPreviewAlwaysOn, setTickerPreviewAlwaysOn] = useState(false);
   const [showcasePreviewAlwaysOn, setShowcasePreviewAlwaysOn] = useState(true);
 
   const snapshotRef = useRef<BroadcastBarsSnapshot>(snapshot);
@@ -385,6 +416,17 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
         visible: true,
         paused: false,
         pinnedSlideId: null,
+        triggerNonce: Date.now(),
+      },
+    }));
+  }, [commitUpdate]);
+
+  const triggerTickerNow = useCallback(() => {
+    sound.playClick(760);
+    commitUpdate((cur) => ({
+      ticker: {
+        ...cur.ticker,
+        visible: true,
         triggerNonce: Date.now(),
       },
     }));
@@ -1025,6 +1067,18 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                 </div>
               </div>
 
+              {/* Background Opacity & Pattern Look (Whatnot design) */}
+              {snapshot.design === 'whatnot' && (
+                <BarSurfaceControls
+                  bgOpacityPct={snapshot.rotator.bgOpacityPct ?? 96}
+                  bgPattern={snapshot.rotator.bgPattern ?? 'logos'}
+                  patternOpacityPct={snapshot.rotator.patternOpacityPct ?? 60}
+                  onChangeBgOpacity={(v) => updateRotator('bgOpacityPct', v)}
+                  onChangePattern={(v) => updateRotator('bgPattern', v)}
+                  onChangePatternOpacity={(v) => updateRotator('patternOpacityPct', v)}
+                />
+              )}
+
               {/* Style Toggles Row (wood design only) */}
               {snapshot.design === 'mana-wood' && (
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] font-bold">
@@ -1487,25 +1541,43 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                   />
                 </div>
 
-                {/* Speed Picker */}
+                {/* Continuous Precision Speed Slider (ultra-slow 8 px/s up to fast 220 px/s) */}
                 <div className="space-y-1.5">
-                  <span className="block text-[11px] font-bold text-slate-300">
-                    Laufgeschwindigkeit
-                  </span>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {(
-                      [
-                        { id: 'slow', label: 'Langsam' },
-                        { id: 'normal', label: 'Normal' },
-                        { id: 'fast', label: 'Schnell' },
-                      ] as { id: TickerSpeed; label: string }[]
-                    ).map((sp) => (
+                  <div className="flex items-center justify-between text-xs gap-2">
+                    <span className="font-bold text-slate-300">Laufgeschwindigkeit</span>
+                    <span className="font-black text-sky-300">
+                      {snapshot.ticker.speedPxPerSec} px/s ·{' '}
+                      <span className="text-[#FFE406]">
+                        {describeTickerSpeed(snapshot.ticker.speedPxPerSec)}
+                      </span>
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min={8}
+                    max={220}
+                    step={2}
+                    value={snapshot.ticker.speedPxPerSec}
+                    onChange={(e) => updateTicker('speedPxPerSec', Number(e.target.value))}
+                    className="w-full cursor-pointer"
+                  />
+                  <div className="flex flex-wrap gap-1">
+                    {[
+                      { v: 14, label: 'Ultra-Langsam' },
+                      { v: 26, label: 'Sehr langsam' },
+                      { v: 44, label: 'Langsam' },
+                      { v: 62, label: 'Normal' },
+                      { v: 110, label: 'Schnell' },
+                    ].map((sp) => (
                       <button
-                        key={sp.id}
+                        key={sp.v}
                         type="button"
-                        onClick={() => updateTicker('speed', sp.id)}
-                        className={`h-9 border text-xs font-bold transition-colors ${
-                          snapshot.ticker.speed === sp.id
+                        onClick={() => {
+                          sound.playClick(620);
+                          updateTicker('speedPxPerSec', sp.v);
+                        }}
+                        className={`px-2 py-0.5 border text-[10px] font-bold transition-colors ${
+                          Math.abs(snapshot.ticker.speedPxPerSec - sp.v) <= 3
                             ? 'bg-sky-400/20 border-sky-400/60 text-sky-200'
                             : 'bg-black/45 border-white/10 text-slate-400 hover:text-white'
                         }`}
@@ -1516,6 +1588,162 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                   </div>
                 </div>
               </div>
+
+              {/* Auto Show / Hide Interval Cycle + Entrance Animation */}
+              <div className="p-3 border border-sky-400/25 bg-sky-500/[0.05] space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="block text-xs font-extrabold text-white">
+                      Automatisches Ein- &amp; Ausblenden + Animation
+                    </span>
+                    <span className="block text-[11px] text-slate-400 mt-0.5">
+                      Zeigt den Ticker für X Sekunden an, blendet ihn sauber aus und startet nach der Pause erneut.
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={triggerTickerNow}
+                    className="h-8 px-3 bg-[#FFE406] hover:bg-[#f5dc00] text-[#1a1718] font-black text-[11px] uppercase tracking-[0.08em] flex items-center gap-1.5 shrink-0"
+                  >
+                    <Zap className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>Animation testen</span>
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-300">Sichtbar für</span>
+                      <span className="font-black text-[#FFE406]">
+                        {snapshot.ticker.visibleDurationSec === 0
+                          ? 'Dauerhaft an'
+                          : `${snapshot.ticker.visibleDurationSec} Sek.`}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={300}
+                      step={5}
+                      value={snapshot.ticker.visibleDurationSec}
+                      onChange={(e) =>
+                        updateTicker('visibleDurationSec', Number(e.target.value))
+                      }
+                      className="w-full cursor-pointer"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-300">Pause / Ausgeblendet für</span>
+                      <span className="font-black text-sky-300">
+                        {snapshot.ticker.visibleDurationSec === 0
+                          ? 'Inaktiv'
+                          : `${snapshot.ticker.hiddenDurationSec} Sek.`}
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={5}
+                      max={600}
+                      step={5}
+                      disabled={snapshot.ticker.visibleDurationSec === 0}
+                      value={Math.max(5, snapshot.ticker.hiddenDurationSec)}
+                      onChange={(e) =>
+                        updateTicker('hiddenDurationSec', Number(e.target.value))
+                      }
+                      className="w-full cursor-pointer disabled:opacity-35"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { show: 0, hide: 20, label: 'Dauerhaft sichtbar' },
+                    { show: 20, hide: 20, label: '20s an · 20s aus' },
+                    { show: 30, hide: 45, label: '30s an · 45s aus' },
+                    { show: 45, hide: 90, label: '45s an · 90s aus' },
+                    { show: 60, hide: 120, label: '1 Min an · 2 Min aus' },
+                  ].map((preset) => {
+                    const active =
+                      snapshot.ticker.visibleDurationSec === preset.show &&
+                      (preset.show === 0 || snapshot.ticker.hiddenDurationSec === preset.hide);
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => {
+                          sound.playClick(640);
+                          commitUpdate((cur) => ({
+                            ticker: {
+                              ...cur.ticker,
+                              visible: true,
+                              visibleDurationSec: preset.show,
+                              hiddenDurationSec: preset.hide,
+                              triggerNonce: Date.now(),
+                            },
+                          }));
+                        }}
+                        className={`px-2.5 py-1 border text-[11px] font-bold transition-colors ${
+                          active
+                            ? 'bg-[#FFE406]/20 border-[#FFE406]/65 text-[#FFE406]'
+                            : 'bg-black/45 border-white/10 text-slate-300 hover:border-white/25'
+                        }`}
+                      >
+                        {preset.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Entrance Animation Picker */}
+                <div className="space-y-1.5 pt-1 border-t border-white/10">
+                  <span className="block text-[10.5px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                    Ein- &amp; Ausblend-Animation
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                    {TICKER_ENTRANCE_OPTIONS.map((anim) => {
+                      const active = snapshot.ticker.entranceAnimation === anim.id;
+                      return (
+                        <button
+                          key={anim.id}
+                          type="button"
+                          onClick={() => {
+                            sound.playClick(660);
+                            commitUpdate((cur) => ({
+                              ticker: {
+                                ...cur.ticker,
+                                visible: true,
+                                entranceAnimation: anim.id,
+                                triggerNonce: Date.now(),
+                              },
+                            }));
+                          }}
+                          className={`p-2 border text-left transition-colors ${
+                            active
+                              ? 'bg-sky-400/15 border-sky-400/65 text-white'
+                              : 'bg-black/45 border-white/10 text-slate-300 hover:border-white/25'
+                          }`}
+                        >
+                          <div className="text-[11px] font-extrabold">{anim.label}</div>
+                          <div className="text-[9.5px] text-slate-400 mt-0.5">{anim.desc}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Background Opacity & Pattern Selector (independent opacity sliders!) */}
+              <BarSurfaceControls
+                bgOpacityPct={snapshot.ticker.bgOpacityPct ?? 96}
+                bgPattern={snapshot.ticker.bgPattern ?? 'logos'}
+                patternOpacityPct={snapshot.ticker.patternOpacityPct ?? 60}
+                onChangeBgOpacity={(v) => updateTicker('bgOpacityPct', v)}
+                onChangePattern={(v) => updateTicker('bgPattern', v)}
+                onChangePatternOpacity={(v) => updateTicker('patternOpacityPct', v)}
+              />
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="space-y-1">
@@ -1842,6 +2070,8 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                   items={snapshot.tickerItems}
                   settings={snapshot.ticker}
                   scale={tickerPreviewScale}
+                  forcePreviewVisible={tickerPreviewAlwaysOn}
+                  onCycleStatus={setTickerStatus}
                 />
               </div>
             </div>
@@ -1948,20 +2178,60 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
 
             {/* Ticker Preview */}
             <div className="space-y-2 pt-3 border-t border-white/10">
-              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
                 <span>2 · Horizontal Ticker (/overlay/ticker)</span>
-                <span className="text-amber-300">
-                  {snapshot.ticker.paused ? 'Pausiert' : `Speed: ${snapshot.ticker.speed}`}
-                </span>
+                <div className="flex items-center gap-1.5">
+                  {tickerStatus.cycleActive && (
+                    <button
+                      type="button"
+                      onClick={() => setTickerPreviewAlwaysOn((v) => !v)}
+                      className="px-1.5 py-0.5 border border-white/15 bg-black/50 text-[9.5px] font-bold text-slate-200"
+                    >
+                      {tickerPreviewAlwaysOn ? 'Vorschau: Immer an' : 'Vorschau: Zyklus'}
+                    </button>
+                  )}
+                  {tickerStatus.isResting && (
+                    <button
+                      type="button"
+                      onClick={triggerTickerNow}
+                      className="px-1.5 py-0.5 bg-[#FFE406] text-black text-[9.5px] font-black"
+                    >
+                      Jetzt zeigen
+                    </button>
+                  )}
+                  <span className="text-amber-300">
+                    {snapshot.ticker.paused
+                      ? 'Pausiert'
+                      : tickerStatus.isResting
+                      ? `Pause (${tickerStatus.remainingSec}s)`
+                      : tickerStatus.cycleActive && !tickerPreviewAlwaysOn
+                      ? `${snapshot.ticker.speedPxPerSec} px/s · noch ${tickerStatus.remainingSec}s`
+                      : `${snapshot.ticker.speedPxPerSec} px/s`}
+                  </span>
+                </div>
               </div>
-              <div className="min-h-[56px] flex items-center justify-center overflow-hidden">
+              <div className="relative min-h-[56px] flex items-center justify-center overflow-hidden">
                 {snapshot.ticker.visible ? (
-                  <BroadcastTicker
-                    design={snapshot.design}
-                    items={snapshot.tickerItems}
-                    settings={snapshot.ticker}
-                    scale={tickerPreviewScale}
-                  />
+                  <>
+                    <BroadcastTicker
+                      design={snapshot.design}
+                      items={snapshot.tickerItems}
+                      settings={snapshot.ticker}
+                      scale={tickerPreviewScale}
+                      forcePreviewVisible={tickerPreviewAlwaysOn}
+                      onCycleStatus={setTickerStatus}
+                    />
+                    {tickerStatus.isResting && !tickerPreviewAlwaysOn && (
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-center px-3">
+                        <span className="text-xs font-bold text-slate-300 bg-black/70 border border-white/10 px-3 py-1.5">
+                          Ticker im Stream ausgeblendet · kommt wieder in{' '}
+                          <strong className="text-[#FFE406]">
+                            {tickerStatus.remainingSec}s
+                          </strong>
+                        </span>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <span className="text-xs font-bold text-slate-500">
                     Ticker im Stream ausgeblendet
@@ -1975,18 +2245,23 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
         {/* Quick OBS Setup Tips for Portrait Streams */}
         <div className="p-3.5 border border-white/10 bg-black/45 space-y-1.5 text-[11px] text-slate-300 leading-relaxed">
           <div className="text-[10px] font-black uppercase tracking-[0.16em] text-sky-300">
-            OBS Schärfe-Tipp (kein Verpixeln im Stream)
+            OBS Schärfe- &amp; 60-FPS-Tipp (kein Stocken &amp; kein Verpixeln)
           </div>
           <p>
-            1. Trage in OBS bei der Browser-Quelle die oben berechnete <strong>2× Retina-Auflösung</strong> ein:
+            1. <strong>Gegen Stocken beim Ticker in OBS:</strong> Aktiviere in den Eigenschaften der
+            Browser-Quelle <strong>„Benutzerdefinierte Bildrate verwenden“</strong> und stelle sie auf{' '}
+            <strong className="text-[#FFE406]">60 FPS</strong> (OBS nutzt standardmäßig nur 30 FPS!).
+            Prüfe außerdem unter <em>OBS → Einstellungen → Erweitert</em>, dass die{' '}
+            <strong>Hardwarebeschleunigung für Browserquellen</strong> aktiv ist.
+          </p>
+          <p>
+            2. Trage die oben berechnete <strong>2× Retina-Auflösung</strong> ein:
             Rotator <code className="text-sky-200">{obsRotatorW} × {obsRotatorH}</code>, Ticker{' '}
-            <code className="text-amber-200">{obsTickerW} × {obsTickerH}</code>.
+            <code className="text-amber-200">{obsTickerW} × {obsTickerH}</code> — und skaliere in OBS nur herunter.
           </p>
           <p>
-            2. Verkleinere die Quelle in OBS auf deine gewünschte Größe (Runterskalieren = gestochen scharf, Hochskalieren = pixelig).
-          </p>
-          <p>
-            3. Über <strong>Nur Hintergrund</strong> kannst du Breite &amp; Höhe der Karte frei ändern, ohne Text oder Logos zu vergrößern.
+            3. Über <strong>Hintergrund-Deckkraft (0 %)</strong> &amp; <strong>Muster-Sichtbarkeit</strong> kannst du
+            Text, Hintergrund und Muster (Wellen, Punkte, Carbon, Hexagon …) völlig unabhängig kombinieren.
           </p>
         </div>
       </aside>

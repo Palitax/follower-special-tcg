@@ -8,10 +8,13 @@ import {
   RotatorSlide,
   SocialPlatform,
   TickerBarSettings,
+  TickerEntranceAnimation,
   TickerItem,
-  TickerSpeed,
 } from '../types/broadcastBars';
-import { EmbossedCategoryWatermark, SocialBrandIcon } from './SocialBrandIcons';
+import { SocialBrandIcon } from './SocialBrandIcons';
+import { BarBackgroundPatternLayer } from './BarBackgroundPattern';
+import { SmoothMarqueeTrack } from './SmoothMarqueeTrack';
+import { TickerCycleStatus, useTickerCycle } from './useTickerCycle';
 import { useRotatorCycle } from './useRotatorCycle';
 
 /**
@@ -241,6 +244,120 @@ function clamp(v: number, lo: number, hi: number) {
   return Math.min(hi, Math.max(lo, v));
 }
 
+/** Computes charcoal card background, hairline border & shadow scaled cleanly from 0% (invisible) to 100% (opaque) */
+export function resolveCharcoalCardSurface(bgOpacityPct: number, borderPx: number, q: number) {
+  const alpha = clamp(bgOpacityPct, 0, 100) / 100;
+  if (alpha <= 0.005) {
+    return {
+      background: 'transparent',
+      border: `${borderPx}px solid transparent`,
+      boxShadow: 'none',
+      isClear: true,
+    };
+  }
+  const topA = (0.98 * alpha).toFixed(3);
+  const midA = (0.99 * alpha).toFixed(3);
+  const botA = alpha.toFixed(3);
+  const lineA = (0.11 * alpha).toFixed(3);
+  const hiA = (0.14 * alpha).toFixed(3);
+  const sh1A = (0.45 * alpha).toFixed(3);
+  const sh2A = (0.3 * alpha).toFixed(3);
+  return {
+    background: `linear-gradient(180deg, rgba(62, 64, 70, ${topA}) 0%, rgba(36, 38, 43, ${midA}) 54%, rgba(18, 19, 23, ${botA}) 100%)`,
+    border: `${borderPx}px solid rgba(255, 255, 255, ${lineA})`,
+    boxShadow: `inset 0 ${borderPx}px 0 rgba(255, 255, 255, ${hiA}), 0 ${Math.round(
+      14 * q
+    )}px ${Math.round(30 * q)}px rgba(0, 0, 0, ${sh1A}), 0 ${Math.round(
+      2 * q
+    )}px ${Math.round(6 * q)}px rgba(0, 0, 0, ${sh2A})`,
+    isClear: alpha < 0.45,
+  };
+}
+
+/** Shared entrance/exit motion variants for the horizontal Ticker (Zoom, Swipe, Wipe, Fade) */
+export function resolveTickerEntranceVariants(
+  animation: TickerEntranceAnimation,
+  reduce: boolean,
+  q: number
+): Variants {
+  if (reduce || animation === 'fade') {
+    return {
+      hidden: { opacity: 0 },
+      show: { opacity: 1, transition: { duration: 0.36, ease: EASE_OUT } },
+      exit: { opacity: 0, transition: { duration: 0.24, ease: EASE_OUT } },
+    };
+  }
+  switch (animation) {
+    case 'zoom':
+      return {
+        hidden: { opacity: 0, scale: 0.78 },
+        show: {
+          opacity: 1,
+          scale: 1,
+          transition: { type: 'spring', stiffness: 400, damping: 26 },
+        },
+        exit: { opacity: 0, scale: 0.84, transition: { duration: 0.22, ease: EASE_OUT } },
+      };
+    case 'swipe-left':
+      return {
+        hidden: { opacity: 0, x: -Math.round(140 * q) },
+        show: {
+          opacity: 1,
+          x: 0,
+          transition: { duration: 0.44, ease: EASE_OUT },
+        },
+        exit: {
+          opacity: 0,
+          x: -Math.round(120 * q),
+          transition: { duration: 0.26, ease: EASE_OUT },
+        },
+      };
+    case 'swipe-right':
+      return {
+        hidden: { opacity: 0, x: Math.round(140 * q) },
+        show: {
+          opacity: 1,
+          x: 0,
+          transition: { duration: 0.44, ease: EASE_OUT },
+        },
+        exit: {
+          opacity: 0,
+          x: Math.round(120 * q),
+          transition: { duration: 0.26, ease: EASE_OUT },
+        },
+      };
+    case 'wipe':
+      return {
+        hidden: { opacity: 0.2, clipPath: 'inset(0% 100% 0% 0%)' },
+        show: {
+          opacity: 1,
+          clipPath: 'inset(0% 0% 0% 0%)',
+          transition: { duration: 0.52, ease: EASE_OUT },
+        },
+        exit: {
+          opacity: 0,
+          clipPath: 'inset(0% 0% 0% 100%)',
+          transition: { duration: 0.3, ease: EASE_OUT },
+        },
+      };
+    case 'swipe-up':
+    default:
+      return {
+        hidden: { opacity: 0, y: Math.round(36 * q) },
+        show: {
+          opacity: 1,
+          y: 0,
+          transition: { type: 'spring', stiffness: 360, damping: 28 },
+        },
+        exit: {
+          opacity: 0,
+          y: Math.round(28 * q),
+          transition: { duration: 0.24, ease: EASE_OUT },
+        },
+      };
+  }
+}
+
 // ============================================================================
 // <WhatnotLowerThird /> — crisp HiDPI charcoal HUD card with independent W & H
 // ============================================================================
@@ -363,6 +480,9 @@ export const WhatnotLowerThird: React.FC<WhatnotLowerThirdProps> = ({
   const slideKey = `${activeSlide?.id ?? 'none'}_${turn}`;
   const scaledOuterW = Math.round(W * scale);
   const scaledOuterH = Math.round(totalH * scale);
+  const cardSurface = resolveCharcoalCardSurface(settings.bgOpacityPct ?? 96, borderPx, q);
+  const rotPattern = settings.bgPattern ?? 'logos';
+  const rotPatternOpacity = settings.patternOpacityPct ?? 60;
 
   return (
     <div
@@ -392,7 +512,7 @@ export const WhatnotLowerThird: React.FC<WhatnotLowerThirdProps> = ({
               exit={{ opacity: 0, y: reduce ? 0 : Math.round(8 * q) }}
               transition={{ type: 'spring', stiffness: 380, damping: 30 }}
             >
-              {/* Charcoal HUD card — independent width & height */}
+              {/* Charcoal HUD card — independent width, height, background opacity & pattern */}
               <motion.div
                 className="absolute left-0 overflow-hidden flex items-center"
                 style={{
@@ -403,13 +523,9 @@ export const WhatnotLowerThird: React.FC<WhatnotLowerThirdProps> = ({
                   paddingTop: Math.round(tagOverlap * 0.25),
                   gap,
                   borderRadius: cardRadius,
-                  background: `linear-gradient(180deg, ${WN.surfaceTop} 0%, ${WN.surfaceMid} 54%, ${WN.surfaceBottom} 100%)`,
-                  border: `${borderPx}px solid ${WN.hairline}`,
-                  boxShadow: `inset 0 ${borderPx}px 0 ${WN.highlight}, 0 ${Math.round(
-                    14 * q
-                  )}px ${Math.round(30 * q)}px rgba(0, 0, 0, 0.45), 0 ${Math.round(
-                    2 * q
-                  )}px ${Math.round(6 * q)}px rgba(0, 0, 0, 0.3)`,
+                  background: cardSurface.background,
+                  border: cardSurface.border,
+                  boxShadow: cardSurface.boxShadow,
                 }}
                 initial={false}
                 animate={{ width: cardW }}
@@ -421,34 +537,41 @@ export const WhatnotLowerThird: React.FC<WhatnotLowerThirdProps> = ({
                     : { duration: 0.16, ease: EASE_OUT }
                 }
               >
-                {/* Clean oversized flat 2D tonal logo plane cropped along the right side (matching reference) */}
-                <div className="pointer-events-none absolute inset-0 overflow-hidden">
-                  <AnimatePresence mode="wait">
-                    <motion.div
-                      key={`plane_${activeSlide.platform}`}
-                      initial={{ opacity: 0, scale: 0.94 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 1.03 }}
-                      transition={{ duration: 0.38, ease: EASE_OUT }}
-                      className="absolute flex items-center justify-center"
-                      style={{
-                        right: Math.round(-cardH * 0.22),
-                        top: '50%',
-                        marginTop: -Math.round(cardH * 0.84),
-                      }}
-                    >
-                      <EmbossedCategoryWatermark
-                        platform={activeSlide.platform}
-                        size={Math.round(cardH * 1.72)}
-                        surface="charcoal"
-                        rotateDeg={14}
-                      />
-                    </motion.div>
-                  </AnimatePresence>
-                </div>
+                {/* Configurable background texture or flat 2D tonal logo plane (independent opacity) */}
+                {rotPattern === 'logos' ? (
+                  <div className="pointer-events-none absolute inset-0 overflow-hidden">
+                    <AnimatePresence mode="wait">
+                      <motion.div
+                        key={`plane_${activeSlide.platform}`}
+                        initial={{ opacity: 0, scale: 0.94 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 1.03 }}
+                        transition={{ duration: 0.38, ease: EASE_OUT }}
+                        className="absolute inset-0"
+                      >
+                        <BarBackgroundPatternLayer
+                          pattern="logos"
+                          opacityPct={rotPatternOpacity}
+                          qualityScale={q}
+                          barHeightPx={cardH}
+                          singlePlatform={activeSlide.platform}
+                          surface="charcoal"
+                        />
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
+                ) : (
+                  <BarBackgroundPatternLayer
+                    pattern={rotPattern}
+                    opacityPct={rotPatternOpacity}
+                    qualityScale={q}
+                    barHeightPx={cardH}
+                    surface="charcoal"
+                  />
+                )}
 
-                {/* Soft light sweep on slide switch */}
-                {!reduce && (
+                {/* Soft light sweep on slide switch (only when card background is visible) */}
+                {!reduce && !cardSurface.isClear && (
                   <motion.div
                     key={`sheen_${slideKey}`}
                     className="pointer-events-none absolute inset-y-0"
@@ -511,6 +634,9 @@ export const WhatnotLowerThird: React.FC<WhatnotLowerThirdProps> = ({
                           lineHeight: `${headlineLH}px`,
                           letterSpacing: '-0.02em',
                           color: WN.ink,
+                          textShadow: cardSurface.isClear
+                            ? `0 ${Math.round(2 * q)}px ${Math.round(8 * q)}px rgba(0, 0, 0, 0.92)`
+                            : undefined,
                         }}
                       >
                         {activeSlide.headline}
@@ -524,6 +650,9 @@ export const WhatnotLowerThird: React.FC<WhatnotLowerThirdProps> = ({
                             fontSize: sublinePx,
                             lineHeight: `${sublineLH}px`,
                             color: WN.inkMuted,
+                            textShadow: cardSurface.isClear
+                              ? `0 ${Math.round(1.5 * q)}px ${Math.round(6 * q)}px rgba(0, 0, 0, 0.9)`
+                              : undefined,
                           }}
                         >
                           {activeSlide.subline}
@@ -586,20 +715,18 @@ export const WhatnotLowerThird: React.FC<WhatnotLowerThirdProps> = ({
 };
 
 // ============================================================================
-// <WhatnotTicker /> — HiDPI charcoal rail with independent W, H & resizeMode
+// <WhatnotTicker /> — OBS-smooth GPU marquee with cycle, animations & patterns
 // ============================================================================
-const SPEED_SECONDS_PER_ITEM: Record<TickerSpeed, number> = {
-  slow: 7.5,
-  normal: 5.2,
-  fast: 3.4,
-};
-
 interface WhatnotTickerProps {
   items: TickerItem[];
   settings: TickerBarSettings;
   className?: string;
   /** Optional preview scale factor in Studio Monitor (1 on live OBS) */
   scale?: number;
+  /** Keep visible in Studio Monitor even during hidden rest cycle */
+  forcePreviewVisible?: boolean;
+  /** Live cycle countdown callback for Studio Monitor */
+  onCycleStatus?: (status: TickerCycleStatus) => void;
 }
 
 export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
@@ -607,19 +734,21 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
   settings,
   className = '',
   scale = 1,
+  forcePreviewVisible = false,
+  onCycleStatus,
 }) => {
+  const reduce = useReducedMotion() ?? false;
   const enabledItems = useMemo(
     () => items.filter((it) => it.enabled && (it.label.trim() || it.highlight.trim())),
     [items]
   );
-  const repeatedTrack = useMemo(
-    () => (enabledItems.length >= 4 ? enabledItems : [...enabledItems, ...enabledItems]),
+
+  const uniquePlatforms = useMemo(
+    () => Array.from(new Set(enabledItems.map((it) => it.platform))),
     [enabledItems]
   );
 
-  if (!settings.visible || enabledItems.length === 0) {
-    return null;
-  }
+  const { isShowing, playNonce } = useTickerCycle(settings, forcePreviewVisible, onCycleStatus);
 
   const q = settings.qualityScale ?? 2;
   const baseH = 52;
@@ -648,14 +777,25 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
 
   const anchorText = settings.brandAnchorText.trim();
   const showAnchor = settings.showBrandAnchor && anchorText.length > 0;
-  const durationSec = Math.max(
-    14,
-    Math.round(repeatedTrack.length * SPEED_SECONDS_PER_ITEM[settings.speed])
+  const cardSurface = resolveCharcoalCardSurface(settings.bgOpacityPct ?? 96, borderPx, q);
+  const clearTextShadow = cardSurface.isClear
+    ? `0 ${Math.round(2 * q)}px ${Math.round(8 * q)}px rgba(0, 0, 0, 0.92), 0 0 ${Math.round(
+        3 * q
+      )}px rgba(0, 0, 0, 0.85)`
+    : undefined;
+
+  const entranceV = useMemo(
+    () => resolveTickerEntranceVariants(settings.entranceAnimation ?? 'swipe-up', reduce, q),
+    [settings.entranceAnimation, reduce, q]
   );
+
+  const shouldRender = isShowing && enabledItems.length > 0;
+  const speedPxPerSec = settings.speedPxPerSec ?? 52;
+  const measureKey = `${enabledItems.map((i) => `${i.id}:${i.label}:${i.highlight}`).join('|')}_${q}_${innerScale.toFixed(2)}_${settings.fullWidth}_${settings.widthPx}`;
 
   const renderSegment = (copyKey: string) => (
     <div className="flex items-center shrink-0">
-      {repeatedTrack.map((item, idx) => (
+      {enabledItems.map((item, idx) => (
         <div
           key={`${copyKey}_${item.id}_${idx}`}
           className="flex items-center shrink-0 whitespace-nowrap"
@@ -667,23 +807,6 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
               padding: `0 ${Math.round(18 * Math.sqrt(innerScale) * q)}px`,
             }}
           >
-            {/* Subtle flat 2D tonal category mark cropped behind each ticker segment */}
-            <div
-              className="pointer-events-none absolute flex items-center justify-center opacity-80"
-              style={{
-                right: Math.round(6 * q),
-                top: '50%',
-                transform: 'translateY(-48%)',
-              }}
-            >
-              <EmbossedCategoryWatermark
-                platform={item.platform}
-                size={Math.round(H * 1.45)}
-                surface="charcoal"
-                rotateDeg={14}
-              />
-            </div>
-
             <PlatformBadge
               platform={item.platform}
               size={badgeSize}
@@ -692,7 +815,12 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
             {item.label.trim() && (
               <span
                 className="relative z-10 font-extrabold uppercase"
-                style={{ fontSize: labelPx, letterSpacing: '0.05em', color: WN.yellow }}
+                style={{
+                  fontSize: labelPx,
+                  letterSpacing: '0.05em',
+                  color: WN.yellow,
+                  textShadow: clearTextShadow,
+                }}
               >
                 {item.label}
               </span>
@@ -700,7 +828,12 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
             {item.highlight.trim() && (
               <span
                 className="relative z-10 font-semibold"
-                style={{ fontSize: textPx, letterSpacing: '-0.01em', color: WN.ink }}
+                style={{
+                  fontSize: textPx,
+                  letterSpacing: '-0.01em',
+                  color: WN.ink,
+                  textShadow: clearTextShadow,
+                }}
               >
                 {item.highlight}
               </span>
@@ -720,66 +853,73 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
     </div>
   );
 
-  const barElement = (
-    <div
-      className={`relative flex items-center overflow-hidden select-none font-wn-sans mc-crisp-overlay ${
-        settings.fullWidth ? 'w-full' : ''
-      } ${className}`}
-      style={{
-        width: barW ? `${barW}px` : undefined,
-        height: `${H}px`,
-        borderRadius: outerRadius,
-        background: `linear-gradient(180deg, ${WN.surfaceTop} 0%, ${WN.surfaceMid} 54%, ${WN.surfaceBottom} 100%)`,
-        border: `${borderPx}px solid ${WN.hairline}`,
-        boxShadow: `inset 0 ${borderPx}px 0 ${WN.highlight}, 0 ${Math.round(
-          12 * q
-        )}px ${Math.round(28 * q)}px rgba(0, 0, 0, 0.45)`,
-      }}
-    >
-      {showAnchor && (
-        <div
-          className="relative z-10 shrink-0 flex items-center"
+  const animatedBar = (
+    <AnimatePresence mode="wait">
+      {shouldRender && (
+        <motion.div
+          key={`wn_ticker_${settings.entranceAnimation}_${playNonce}`}
+          variants={entranceV}
+          initial="hidden"
+          animate="show"
+          exit="exit"
+          className={`relative flex items-center overflow-hidden select-none font-wn-sans mc-crisp-overlay ${
+            settings.fullWidth ? 'w-full' : ''
+          } ${className}`}
           style={{
-            height: chipH,
-            marginLeft: inset,
-            padding: `0 ${Math.round(13 * Math.sqrt(innerScale) * q)}px`,
-            borderRadius: Math.round(Math.min(12, chipH / q * 0.3) * q),
-            background: `linear-gradient(150deg, #FFEE55 0%, ${WN.yellow} 45%, ${WN.yellowDeep} 100%)`,
-            boxShadow: `inset 0 ${borderPx}px 0 rgba(255,255,255,0.45), inset 0 -${Math.max(
-              1,
-              Math.round(1.5 * q)
-            )}px 0 rgba(0,0,0,0.14)`,
+            width: barW ? `${barW}px` : undefined,
+            height: `${H}px`,
+            borderRadius: outerRadius,
+            background: cardSurface.background,
+            border: cardSurface.border,
+            boxShadow: cardSurface.boxShadow,
+            transformOrigin: 'center center',
           }}
         >
-          <span
-            className="font-extrabold uppercase whitespace-nowrap"
-            style={{ fontSize: chipFontPx, letterSpacing: '0.04em', color: WN.yellowInk }}
-          >
-            {anchorText}
-          </span>
-        </div>
-      )}
+          {/* Static GPU-cached decorative pattern layer (independent opacity, zero scroll repaint) */}
+          <BarBackgroundPatternLayer
+            pattern={settings.bgPattern ?? 'logos'}
+            opacityPct={settings.patternOpacityPct ?? 60}
+            qualityScale={q}
+            barHeightPx={H}
+            tickerPlatforms={uniquePlatforms}
+            surface="charcoal"
+          />
 
-      <div
-        className="relative flex-1 min-w-0 h-full flex items-center overflow-hidden"
-        style={{
-          maskImage: 'linear-gradient(90deg, transparent 0%, #000 4%, #000 96%, transparent 100%)',
-          WebkitMaskImage:
-            'linear-gradient(90deg, transparent 0%, #000 4%, #000 96%, transparent 100%)',
-        }}
-      >
-        <div
-          className="mc-ticker-track flex items-center w-max"
-          style={{
-            animationDuration: `${durationSec}s`,
-            animationPlayState: settings.paused ? 'paused' : 'running',
-          }}
-        >
-          {renderSegment('a')}
-          {renderSegment('b')}
-        </div>
-      </div>
-    </div>
+          {showAnchor && (
+            <div
+              className="relative z-10 shrink-0 flex items-center"
+              style={{
+                height: chipH,
+                marginLeft: inset,
+                marginRight: Math.round(6 * q),
+                padding: `0 ${Math.round(13 * Math.sqrt(innerScale) * q)}px`,
+                borderRadius: Math.round(Math.min(12, (chipH / q) * 0.3) * q),
+                background: `linear-gradient(150deg, #FFEE55 0%, ${WN.yellow} 45%, ${WN.yellowDeep} 100%)`,
+                boxShadow: `inset 0 ${borderPx}px 0 rgba(255,255,255,0.45), inset 0 -${Math.max(
+                  1,
+                  Math.round(1.5 * q)
+                )}px 0 rgba(0,0,0,0.14)`,
+              }}
+            >
+              <span
+                className="font-extrabold uppercase whitespace-nowrap"
+                style={{ fontSize: chipFontPx, letterSpacing: '0.04em', color: WN.yellowInk }}
+              >
+                {anchorText}
+              </span>
+            </div>
+          )}
+
+          <SmoothMarqueeTrack
+            speedPxPerSec={speedPxPerSec}
+            qualityScale={q}
+            paused={settings.paused}
+            renderSegment={renderSegment}
+            measureKey={measureKey}
+          />
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 
   if (scale !== 1) {
@@ -794,15 +934,26 @@ export const WhatnotTicker: React.FC<WhatnotTickerProps> = ({
         <div
           style={{
             width: barW ? `${barW}px` : `${(100 / scale).toFixed(2)}%`,
+            height: `${H}px`,
             transform: `scale(${scale})`,
             transformOrigin: 'top left',
           }}
         >
-          {barElement}
+          {animatedBar}
         </div>
       </div>
     );
   }
 
-  return barElement;
+  return (
+    <div
+      className={settings.fullWidth ? 'w-full' : undefined}
+      style={{
+        width: barW ? `${barW}px` : undefined,
+        height: `${H}px`,
+      }}
+    >
+      {animatedBar}
+    </div>
+  );
 };

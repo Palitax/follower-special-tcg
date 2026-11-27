@@ -258,6 +258,8 @@ interface FlatCategoryWatermarkProps {
   surface?: 'charcoal' | 'wood';
   /** Gentle diagonal angle matching reference screenshot (default 14deg clockwise) */
   rotateDeg?: number;
+  /** Optional raw alpha multiplier (0..1) when parent layer handles overall pattern opacity */
+  opacityOverride?: number;
   className?: string;
 }
 
@@ -271,10 +273,14 @@ export const EmbossedCategoryWatermark: React.FC<FlatCategoryWatermarkProps> = (
   size,
   surface = 'charcoal',
   rotateDeg = 14,
+  opacityOverride,
   className = '',
 }) => {
+  const alpha = opacityOverride ?? (surface === 'wood' ? 0.56 : 0.58);
   const flatTone =
-    surface === 'wood' ? 'rgba(9, 5, 14, 0.56)' : 'rgba(9, 10, 14, 0.58)';
+    surface === 'wood'
+      ? `rgba(9, 5, 14, ${alpha.toFixed(3)})`
+      : `rgba(9, 10, 14, ${alpha.toFixed(3)})`;
 
   return (
     <div
