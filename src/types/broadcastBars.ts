@@ -27,6 +27,10 @@ export type RotatorWidthMode = 'fixed' | 'auto';
 /** Native HiDPI pixel multiplier so OBS Browser Sources never upscale blurry textures */
 export type OverlayQualityScale = 1 | 1.5 | 2;
 
+export type ShowcaseLayout = 'auto' | 'hero' | 'fan' | 'row';
+
+export type ShowcaseAnimation = 'pop' | 'float-in' | 'spotlight';
+
 export interface RotatorSlide {
   id: string;
   platform: SocialPlatform;
@@ -40,9 +44,13 @@ export interface RotatorBarSettings {
   visible: boolean;
   /** Seconds each slide stays visible before switching */
   intervalSec: number;
+  /** Seconds the rotator hides completely after playing through all slides once (0 = always visible / continuous) */
+  restDurationSec: number;
+  /** Monotonic timestamp bumped to immediately wake the rotator and start a fresh cycle */
+  triggerNonce: number;
   /** Pauses automatic cycling on stream (useful while holding on a slide) */
   paused: boolean;
-  /** Optional slide ID pinned immediately on stream (overrides cycle until unpinned) */
+  /** Optional slide ID pinned immediately on stream (overrides cycle & rest until unpinned) */
   pinnedSlideId: string | null;
   animationPreset: RotatorAnimationPreset;
   veinColorMode: VeinColorMode;
@@ -93,6 +101,45 @@ export interface TickerBarSettings {
   qualityScale: OverlayQualityScale;
 }
 
+export interface ShowcaseImage {
+  id: string;
+  /** data:image/webp;base64,... in memory or idb:img_<hash> on wire */
+  url: string;
+  label?: string;
+}
+
+export interface ShowcasePreset {
+  id: string;
+  /** Yellow sticker tag above headline (e.g. "HEUTIGES KGA") */
+  eyebrow: string;
+  /** Main bold headline (e.g. "Einzelkarten Giveaways heute sind:") */
+  headline: string;
+  /** Optional subtitle line */
+  subline: string;
+  /** Layout mode: 'auto' chooses hero (1 img), fan (2-5 imgs), or row (6+) */
+  layout: ShowcaseLayout;
+  /** Dropped transparent PNGs / product photos (up to 10 per showcase) */
+  images: ShowcaseImage[];
+}
+
+export interface ShowcaseSettings {
+  activePresetId: string;
+  /** Master visibility toggle in OBS */
+  visible: boolean;
+  /** Monotonic timestamp bumped whenever the streamer triggers "Einblenden" */
+  showTriggerId: number;
+  /** Seconds the showcase stays visible before smoothly hiding (0 = stay visible until manually hidden) */
+  displayDurationSec: number;
+  /** Optional cooldown in seconds before auto-showing again (0 = manual trigger only) */
+  autoRepeatRestSec: number;
+  animation: ShowcaseAnimation;
+  /** Overall scale percentage (60–180) */
+  scalePct: number;
+  qualityScale: OverlayQualityScale;
+  /** Soft ambient spotlight glow behind cutout TTB / card images */
+  showGlow: boolean;
+}
+
 export interface BroadcastBarsSnapshot {
   updatedAt: number;
   senderId: string;
@@ -101,6 +148,8 @@ export interface BroadcastBarsSnapshot {
   slides: RotatorSlide[];
   ticker: TickerBarSettings;
   tickerItems: TickerItem[];
+  showcase: ShowcaseSettings;
+  showcases: ShowcasePreset[];
 }
 
 export const DEFAULT_BROADCAST_DESIGN: BroadcastDesign = 'whatnot';
@@ -108,6 +157,8 @@ export const DEFAULT_BROADCAST_DESIGN: BroadcastDesign = 'whatnot';
 export const DEFAULT_ROTATOR_SETTINGS: RotatorBarSettings = {
   visible: true,
   intervalSec: 7,
+  restDurationSec: 0,
+  triggerNonce: 0,
   paused: false,
   pinnedSlideId: null,
   animationPreset: 'unfold',
@@ -137,6 +188,37 @@ export const DEFAULT_TICKER_SETTINGS: TickerBarSettings = {
   resizeMode: 'together',
   contentScale: 105,
   qualityScale: 2,
+};
+
+export const DEFAULT_SHOWCASE_PRESETS: ShowcasePreset[] = [
+  {
+    id: 'sc_kga',
+    eyebrow: 'HEUTIGES KGA',
+    headline: 'Heutiges Käufer-Giveaway',
+    subline: 'Jeder Kauf im Stream landet automatisch im Topf',
+    layout: 'auto',
+    images: [],
+  },
+  {
+    id: 'sc_singles',
+    eyebrow: 'GIVEAWAY LINEUP',
+    headline: 'Einzelkarten Giveaways heute sind:',
+    subline: 'Folgen & im Stream bleiben!',
+    layout: 'auto',
+    images: [],
+  },
+];
+
+export const DEFAULT_SHOWCASE_SETTINGS: ShowcaseSettings = {
+  activePresetId: 'sc_kga',
+  visible: false,
+  showTriggerId: 0,
+  displayDurationSec: 12,
+  autoRepeatRestSec: 0,
+  animation: 'pop',
+  scalePct: 100,
+  qualityScale: 2,
+  showGlow: true,
 };
 
 export const DEFAULT_ROTATOR_SLIDES: RotatorSlide[] = [
@@ -244,6 +326,11 @@ export function createDefaultBroadcastBarsSnapshot(senderId = 'init'): Broadcast
     slides: DEFAULT_ROTATOR_SLIDES.map((s) => ({ ...s })),
     ticker: { ...DEFAULT_TICKER_SETTINGS },
     tickerItems: DEFAULT_TICKER_ITEMS.map((t) => ({ ...t })),
+    showcase: { ...DEFAULT_SHOWCASE_SETTINGS },
+    showcases: DEFAULT_SHOWCASE_PRESETS.map((p) => ({
+      ...p,
+      images: p.images.map((im) => ({ ...im })),
+    })),
   };
 }
 
@@ -298,8 +385,40 @@ export function normalizeBroadcastBarsSnapshot(
         }))
     : base.tickerItems;
 
+  const validLayouts: ShowcaseLayout[] = ['auto', 'hero', 'fan', 'row'];
+  const validAnims: ShowcaseAnimation[] = ['pop', 'float-in', 'spotlight'];
+
+  const showcases: ShowcasePreset[] =
+    Array.isArray(raw.showcases) && raw.showcases.length > 0
+      ? raw.showcases
+          .filter((p) => p && typeof p === 'object')
+          .map((p, idx) => ({
+            id: typeof p.id === 'string' && p.id.trim() ? p.id : `sc_${idx + 1}`,
+            eyebrow: typeof p.eyebrow === 'string' ? p.eyebrow : '',
+            headline: typeof p.headline === 'string' ? p.headline : '',
+            subline: typeof p.subline === 'string' ? p.subline : '',
+            layout: validLayouts.includes(p.layout as ShowcaseLayout) ? p.layout : 'auto',
+            images: Array.isArray(p.images)
+              ? p.images
+                  .filter((im) => im && typeof im === 'object' && typeof im.url === 'string' && im.url.length > 0)
+                  .slice(0, 10)
+                  .map((im, iIdx) => ({
+                    id: typeof im.id === 'string' && im.id.trim() ? im.id : `sc_img_${iIdx + 1}`,
+                    url: im.url,
+                    label: typeof im.label === 'string' ? im.label : undefined,
+                  }))
+              : [],
+          }))
+      : base.showcases;
+
   const rawRot = raw.rotator && typeof raw.rotator === 'object' ? raw.rotator : undefined;
   const rawTick = raw.ticker && typeof raw.ticker === 'object' ? raw.ticker : undefined;
+  const rawSc = raw.showcase && typeof raw.showcase === 'object' ? raw.showcase : undefined;
+
+  const activePresetId =
+    rawSc?.activePresetId && showcases.some((p) => p.id === rawSc.activePresetId)
+      ? rawSc.activePresetId
+      : showcases[0]?.id ?? 'sc_kga';
 
   return {
     updatedAt: typeof raw.updatedAt === 'number' ? raw.updatedAt : 0,
@@ -312,6 +431,11 @@ export function normalizeBroadcastBarsSnapshot(
         3,
         Math.min(30, Number(rawRot?.intervalSec ?? DEFAULT_ROTATOR_SETTINGS.intervalSec) || 7)
       ),
+      restDurationSec: Math.max(
+        0,
+        Math.min(600, Number(rawRot?.restDurationSec ?? DEFAULT_ROTATOR_SETTINGS.restDurationSec) || 0)
+      ),
+      triggerNonce: Number(rawRot?.triggerNonce ?? 0) || 0,
       widthPx: Math.max(
         300,
         Math.min(1200, Number(rawRot?.widthPx ?? DEFAULT_ROTATOR_SETTINGS.widthPx) || 540)
@@ -349,5 +473,30 @@ export function normalizeBroadcastBarsSnapshot(
       qualityScale: normQualityScale(rawTick?.qualityScale, DEFAULT_TICKER_SETTINGS.qualityScale),
     },
     tickerItems,
+    showcase: {
+      ...DEFAULT_SHOWCASE_SETTINGS,
+      ...rawSc,
+      activePresetId,
+      visible: Boolean(rawSc?.visible),
+      showTriggerId: Number(rawSc?.showTriggerId ?? 0) || 0,
+      displayDurationSec: Math.max(
+        0,
+        Math.min(120, Number(rawSc?.displayDurationSec ?? DEFAULT_SHOWCASE_SETTINGS.displayDurationSec) || 0)
+      ),
+      autoRepeatRestSec: Math.max(
+        0,
+        Math.min(900, Number(rawSc?.autoRepeatRestSec ?? DEFAULT_SHOWCASE_SETTINGS.autoRepeatRestSec) || 0)
+      ),
+      animation: validAnims.includes(rawSc?.animation as ShowcaseAnimation)
+        ? (rawSc!.animation as ShowcaseAnimation)
+        : DEFAULT_SHOWCASE_SETTINGS.animation,
+      scalePct: Math.max(
+        60,
+        Math.min(180, Number(rawSc?.scalePct ?? DEFAULT_SHOWCASE_SETTINGS.scalePct) || 100)
+      ),
+      qualityScale: normQualityScale(rawSc?.qualityScale, DEFAULT_SHOWCASE_SETTINGS.qualityScale),
+      showGlow: rawSc?.showGlow !== false,
+    },
+    showcases,
   };
 }

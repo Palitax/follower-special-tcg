@@ -9,6 +9,8 @@ import {
   RotatorAnimationPreset,
   RotatorBarSettings,
   RotatorSlide,
+  ShowcasePreset,
+  ShowcaseSettings,
   SocialPlatform,
   TickerBarSettings,
   TickerItem,
@@ -19,8 +21,11 @@ import {
 import {
   BARS_STORAGE_KEY,
   BroadcastBarsSyncController,
+  hydrateBarsSnapshot,
 } from '../lib/barsLiveSync';
 import { BroadcastRotator, BroadcastTicker } from './BroadcastBars';
+import { PromoShowcaseOverlay } from './PromoShowcaseOverlay';
+import { ShowcaseEditorPanel } from './ShowcaseEditorPanel';
 import { PlatformBadge } from './WhatnotBars';
 import { PLATFORM_THEMES } from './SocialBrandIcons';
 import { sound } from '../utils/sound';
@@ -42,6 +47,7 @@ import {
   Smartphone,
   Trash2,
   Monitor,
+  Zap,
 } from 'lucide-react';
 
 interface BroadcastBarsStudioProps {
@@ -49,7 +55,7 @@ interface BroadcastBarsStudioProps {
   originUrl: string;
 }
 
-type EditorSubTab = 'rotator' | 'ticker';
+type EditorSubTab = 'rotator' | 'ticker' | 'showcase';
 type PreviewStageMode = 'checker' | 'dark' | 'portrait';
 
 const PLATFORM_OPTIONS: { id: SocialPlatform; label: string }[] = [
@@ -93,44 +99,61 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
   const [subTab, setSubTab] = useState<EditorSubTab>('rotator');
   const [previewMode, setPreviewMode] = useState<PreviewStageMode>('checker');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+  const [rotatorStatus, setRotatorStatus] = useState({
+    isResting: false,
+    restRemainingSec: 0,
+    slideIndex: 0,
+    totalEnabled: 0,
+  });
+  const [showcasePreviewAlwaysOn, setShowcasePreviewAlwaysOn] = useState(true);
 
   const snapshotRef = useRef<BroadcastBarsSnapshot>(snapshot);
   const controllerRef = useRef<BroadcastBarsSyncController | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    let controller: BroadcastBarsSyncController | null = null;
 
-    try {
-      const raw = localStorage.getItem(BARS_STORAGE_KEY);
-      if (raw) {
-        const parsed = normalizeBroadcastBarsSnapshot(JSON.parse(raw), 'studio_local');
-        snapshotRef.current = parsed;
-        setSnapshot(parsed);
+    async function bootstrap() {
+      try {
+        const raw = localStorage.getItem(BARS_STORAGE_KEY);
+        if (raw) {
+          const parsed = normalizeBroadcastBarsSnapshot(JSON.parse(raw), 'studio_local');
+          const hydrated = await hydrateBarsSnapshot(parsed);
+          if (!cancelled) {
+            snapshotRef.current = hydrated;
+            setSnapshot(hydrated);
+          }
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
+
+      if (cancelled) return;
+
+      controller = new BroadcastBarsSyncController({
+        role: 'studio',
+        overlayKey,
+        getLocalSnapshot: (clientId) => ({
+          ...snapshotRef.current,
+          senderId: clientId,
+        }),
+        onRemoteSnapshot: (incoming) => {
+          if (cancelled) return;
+          snapshotRef.current = incoming;
+          setSnapshot(incoming);
+        },
+      });
+
+      controllerRef.current = controller;
+      void controller.start();
     }
 
-    const controller = new BroadcastBarsSyncController({
-      role: 'studio',
-      overlayKey,
-      getLocalSnapshot: (clientId) => ({
-        ...snapshotRef.current,
-        senderId: clientId,
-      }),
-      onRemoteSnapshot: (incoming) => {
-        if (cancelled) return;
-        snapshotRef.current = incoming;
-        setSnapshot(incoming);
-      },
-    });
-
-    controllerRef.current = controller;
-    void controller.start();
+    void bootstrap();
 
     return () => {
       cancelled = true;
-      controller.stop();
+      controller?.stop();
       controllerRef.current = null;
     };
   }, [overlayKey]);
@@ -279,6 +302,94 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
     [commitUpdate]
   );
 
+  const updateShowcaseSettings = useCallback(
+    <K extends keyof ShowcaseSettings>(key: K, value: ShowcaseSettings[K]) => {
+      commitUpdate((cur) => ({
+        showcase: { ...cur.showcase, [key]: value },
+      }));
+    },
+    [commitUpdate]
+  );
+
+  const triggerShowShowcase = useCallback(
+    (presetId?: string) => {
+      commitUpdate((cur) => ({
+        showcase: {
+          ...cur.showcase,
+          activePresetId: presetId || cur.showcase.activePresetId,
+          visible: true,
+          showTriggerId: Date.now(),
+        },
+      }));
+    },
+    [commitUpdate]
+  );
+
+  const hideShowcase = useCallback(() => {
+    commitUpdate((cur) => ({
+      showcase: { ...cur.showcase, visible: false },
+    }));
+  }, [commitUpdate]);
+
+  const updateShowcasePreset = useCallback(
+    (presetId: string, patch: Partial<ShowcasePreset>) => {
+      commitUpdate((cur) => ({
+        showcases: cur.showcases.map((p) => (p.id === presetId ? { ...p, ...patch } : p)),
+      }));
+    },
+    [commitUpdate]
+  );
+
+  const addShowcasePreset = useCallback(() => {
+    sound.playClick(720);
+    const id = `sc_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+    commitUpdate((cur) => ({
+      showcases: [
+        ...cur.showcases,
+        {
+          id,
+          eyebrow: 'HIGHLIGHT',
+          headline: 'Neues Giveaway-Highlight',
+          subline: '',
+          layout: 'auto',
+          images: [],
+        },
+      ],
+      showcase: { ...cur.showcase, activePresetId: id },
+    }));
+  }, [commitUpdate]);
+
+  const deleteShowcasePreset = useCallback(
+    (presetId: string) => {
+      sound.playClick(450);
+      commitUpdate((cur) => {
+        const remaining = cur.showcases.filter((p) => p.id !== presetId);
+        if (remaining.length === 0) return {};
+        return {
+          showcases: remaining,
+          showcase:
+            cur.showcase.activePresetId === presetId
+              ? { ...cur.showcase, activePresetId: remaining[0].id }
+              : cur.showcase,
+        };
+      });
+    },
+    [commitUpdate]
+  );
+
+  const triggerRotatorCycleNow = useCallback(() => {
+    sound.playClick(760);
+    commitUpdate((cur) => ({
+      rotator: {
+        ...cur.rotator,
+        visible: true,
+        paused: false,
+        pinnedSlideId: null,
+        triggerNonce: Date.now(),
+      },
+    }));
+  }, [commitUpdate]);
+
   const resetDefaults = useCallback(() => {
     sound.playClick(520);
     const defaults = createDefaultBroadcastBarsSnapshot(
@@ -299,6 +410,7 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
     return {
       rotator: `${base}/overlay/rotator${qs}`,
       ticker: `${base}/overlay/ticker${qs}`,
+      showcase: `${base}/overlay/showcase${qs}`,
       combined: `${base}/overlay/rotator${comboQs}`,
     };
   }, [originUrl, overlayKey]);
@@ -355,14 +467,30 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
     return Math.min(1 / tickQ, targetBoxWidth / renderedW);
   }, [previewMode, snapshot.ticker.fullWidth, snapshot.ticker.widthPx, tickQ]);
 
+  const activeShowcasePreset =
+    snapshot.showcases.find((p) => p.id === snapshot.showcase.activePresetId) ??
+    snapshot.showcases[0] ??
+    null;
+
+  const scQ = snapshot.showcase.qualityScale ?? 2;
+  const scS = Math.max(0.6, Math.min(1.8, (snapshot.showcase.scalePct ?? 100) / 100));
+  const obsShowcaseW = Math.round(780 * scS * scQ);
+  const obsShowcaseH = Math.round(520 * scS * scQ);
+
+  const showcasePreviewScale = useMemo(() => {
+    const targetW = previewMode === 'portrait' ? 276 : 420;
+    const renderedW = Math.round(760 * scS * scQ);
+    return Math.min(1 / scQ, targetW / Math.max(1, renderedW));
+  }, [previewMode, scS, scQ]);
+
   return (
     <div className="relative z-20 flex-1 min-h-0 flex flex-col xl:flex-row overflow-hidden">
       {/* ===================================================================
-          LEFT: OBS URLS + ROTATOR / TICKER EDITOR
+          LEFT: OBS URLS + ROTATOR / TICKER / SHOWCASE EDITOR
          =================================================================== */}
       <section className="flex-1 min-w-0 min-h-0 overflow-y-auto studio-scroll p-4 sm:p-6 space-y-5">
         {/* OBS Browser-Source Quick Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {[
             {
               id: 'rotator',
@@ -379,8 +507,15 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
               accent: 'border-amber-400/35 bg-amber-500/[0.06]',
             },
             {
+              id: 'showcase',
+              title: 'KGA / Showcase',
+              sizeHint: `OBS: ${obsShowcaseW} × ${obsShowcaseH} px (${scQ}×)`,
+              url: obsUrls.showcase,
+              accent: 'border-[#FFE406]/45 bg-[#FFE406]/[0.07]',
+            },
+            {
               id: 'combined',
-              title: 'Kombi-Dock (Beide)',
+              title: 'Kombi (Rot+Tick)',
               sizeHint: `OBS: ${obsComboW} × ${obsComboH} px`,
               url: obsUrls.combined,
               accent: 'border-purple-400/35 bg-purple-500/[0.06]',
@@ -510,6 +645,23 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
               }`}
             >
               Ticker Bar ({activeTickerCount}/{snapshot.tickerItems.length})
+            </button>
+            <button
+              type="button"
+              role="tab"
+              id="bars-tab-showcase"
+              aria-selected={subTab === 'showcase'}
+              onClick={() => {
+                sound.playClick(640);
+                setSubTab('showcase');
+              }}
+              className={`mc-studio-tab px-4 py-2 text-xs font-black uppercase tracking-[0.14em] transition-colors select-none ${
+                subTab === 'showcase'
+                  ? 'text-[#FFE406] bg-[#FFE406]/10'
+                  : 'text-slate-400 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              KGA / Showcase ({snapshot.showcases.length})
             </button>
           </div>
 
@@ -757,7 +909,7 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                 {/* Interval Slider */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-300">Wechsel-Takt</span>
+                    <span className="font-bold text-slate-300">Wechsel-Takt pro Slide</span>
                     <span className="font-black text-sky-300">
                       alle {snapshot.rotator.intervalSec} Sek.
                     </span>
@@ -771,6 +923,75 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                     onChange={(e) => updateRotator('intervalSec', Number(e.target.value))}
                     className="w-full cursor-pointer"
                   />
+                </div>
+              </div>
+
+              {/* Intermittent Cooldown / Rest Duration between full cycles */}
+              <div className="p-3 border border-sky-400/25 bg-sky-500/[0.05] space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <span className="block text-xs font-extrabold text-white">
+                      Pause zwischen Durchläufen (Overlay zeitweise ausblenden)
+                    </span>
+                    <span className="block text-[11px] text-slate-400 mt-0.5">
+                      Spielt alle aktiven Socials einmal komplett ab und blendet die Bar danach für die gewählte Pause aus.
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={triggerRotatorCycleNow}
+                    className="h-8 px-3 bg-[#FFE406] hover:bg-[#f5dc00] text-[#1a1718] font-black text-[11px] uppercase tracking-[0.08em] flex items-center gap-1.5 shrink-0"
+                  >
+                    <Zap className="w-3.5 h-3.5 stroke-[2.5]" />
+                    <span>Jetzt Durchlauf starten</span>
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-300">Ruhepause nach Durchlauf</span>
+                  <span className="font-black text-[#FFE406]">
+                    {snapshot.rotator.restDurationSec === 0
+                      ? 'Aus (dauerhaft sichtbar)'
+                      : `${snapshot.rotator.restDurationSec} Sek. unsichtbar`}
+                  </span>
+                </div>
+
+                <input
+                  type="range"
+                  min={0}
+                  max={600}
+                  step={5}
+                  value={snapshot.rotator.restDurationSec}
+                  onChange={(e) => updateRotator('restDurationSec', Number(e.target.value))}
+                  className="w-full cursor-pointer"
+                />
+
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { sec: 0, label: 'Dauerhaft (0s)' },
+                    { sec: 20, label: '20 Sek.' },
+                    { sec: 45, label: '45 Sek.' },
+                    { sec: 60, label: '1 Min.' },
+                    { sec: 120, label: '2 Min.' },
+                    { sec: 300, label: '5 Min.' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.sec}
+                      type="button"
+                      onClick={() => {
+                        sound.playClick(620);
+                        updateRotator('restDurationSec', opt.sec);
+                      }}
+                      className={`px-2.5 py-1 border text-[11px] font-bold transition-colors ${
+                        snapshot.rotator.restDurationSec === opt.sec
+                          ? 'bg-[#FFE406]/20 border-[#FFE406]/65 text-[#FFE406]'
+                          : 'bg-black/45 border-white/10 text-slate-300 hover:border-white/25'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 
@@ -1495,6 +1716,26 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
             </div>
           </div>
         </div>
+
+        {/* ===============================================================
+            PANEL 3: KGA / PRODUCT & SINGLE-CARD SHOWCASE
+           =============================================================== */}
+        <div
+          role="tabpanel"
+          aria-labelledby="bars-tab-showcase"
+          hidden={subTab !== 'showcase'}
+        >
+          <ShowcaseEditorPanel
+            settings={snapshot.showcase}
+            presets={snapshot.showcases}
+            onUpdateSettings={updateShowcaseSettings}
+            onTriggerShow={triggerShowShowcase}
+            onHide={hideShowcase}
+            onUpdatePreset={updateShowcasePreset}
+            onAddPreset={addShowcasePreset}
+            onDeletePreset={deleteShowcasePreset}
+          />
+        </div>
       </section>
 
       {/* ===================================================================
@@ -1567,20 +1808,32 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
               </span>
             </div>
 
-            {/* Simulated Card Playmat Center + Positioned Horizontal Rotator */}
-            <div className="flex-1 flex flex-col items-center justify-between py-4 px-2">
+            {/* Simulated Card Playmat Center + Positioned Horizontal Rotator + Optional Showcase */}
+            <div className="flex-1 flex flex-col items-center justify-between py-3 px-2 gap-2">
               <div className="w-full flex justify-center">
                 <BroadcastRotator
                   design={snapshot.design}
                   slides={snapshot.slides}
                   settings={snapshot.rotator}
                   scale={previewScale}
+                  onCycleStatus={setRotatorStatus}
                 />
               </div>
 
-              <div className="text-center px-4 py-6 border border-dashed border-white/10 text-[10px] uppercase tracking-[0.2em] text-slate-500">
-                Kamera / Spielmatte
-              </div>
+              {subTab === 'showcase' || snapshot.showcase.visible ? (
+                <div className="w-full flex justify-center">
+                  <PromoShowcaseOverlay
+                    preset={activeShowcasePreset}
+                    settings={snapshot.showcase}
+                    scale={showcasePreviewScale}
+                    forcePreviewVisible={subTab === 'showcase' && showcasePreviewAlwaysOn}
+                  />
+                </div>
+              ) : (
+                <div className="text-center px-4 py-6 border border-dashed border-white/10 text-[10px] uppercase tracking-[0.2em] text-slate-500">
+                  Kamera / Spielmatte
+                </div>
+              )}
 
               {/* Horizontal Ticker positioned cleanly above Whatnot chat zone */}
               <div className="w-full flex justify-center">
@@ -1608,26 +1861,83 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
               previewMode === 'checker' ? 'obs-checkerboard' : 'bg-[#08090e]'
             }`}
           >
+            {/* Showcase Preview (prominent when on Showcase tab or live) */}
+            {(subTab === 'showcase' || snapshot.showcase.visible) && (
+              <div className="space-y-2 pb-4 border-b border-white/10">
+                <div className="flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                  <span>KGA / Showcase (/overlay/showcase)</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowcasePreviewAlwaysOn((v) => !v)}
+                      className="px-1.5 py-0.5 border border-white/15 bg-black/50 text-[9.5px] font-bold text-slate-200"
+                    >
+                      {showcasePreviewAlwaysOn ? 'Vorschau: Immer an' : 'Vorschau: Echtzeit'}
+                    </button>
+                    <span className={snapshot.showcase.visible ? 'text-[#FFE406]' : 'text-slate-500'}>
+                      {snapshot.showcase.visible ? 'LIVE' : 'Standby'}
+                    </span>
+                  </div>
+                </div>
+                <div className="min-h-[210px] flex items-center justify-center overflow-hidden">
+                  <PromoShowcaseOverlay
+                    preset={activeShowcasePreset}
+                    settings={snapshot.showcase}
+                    scale={showcasePreviewScale}
+                    forcePreviewVisible={showcasePreviewAlwaysOn}
+                  />
+                </div>
+              </div>
+            )}
+
             {/* Rotator Preview */}
             <div className="space-y-2">
               <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
                 <span>1 · Social Rotator (/overlay/rotator)</span>
-                <span className="text-sky-300">
-                  {snapshot.rotator.paused
-                    ? 'Pausiert'
-                    : pinnedSlide
-                    ? 'Gepinnt'
-                    : `${snapshot.rotator.intervalSec}s Takt`}
-                </span>
+                <div className="flex items-center gap-2">
+                  {rotatorStatus.isResting && (
+                    <button
+                      type="button"
+                      onClick={triggerRotatorCycleNow}
+                      className="px-1.5 py-0.5 bg-[#FFE406] text-black text-[9.5px] font-black"
+                    >
+                      Jetzt zeigen
+                    </button>
+                  )}
+                  <span className={rotatorStatus.isResting ? 'text-amber-300' : 'text-sky-300'}>
+                    {snapshot.rotator.paused
+                      ? 'Pausiert'
+                      : pinnedSlide
+                      ? 'Gepinnt'
+                      : rotatorStatus.isResting
+                      ? `Ruhepause (${rotatorStatus.restRemainingSec}s)`
+                      : snapshot.rotator.restDurationSec > 0
+                      ? `Slide ${rotatorStatus.slideIndex + 1}/${Math.max(1, rotatorStatus.totalEnabled)} · danach ${snapshot.rotator.restDurationSec}s Pause`
+                      : `${snapshot.rotator.intervalSec}s Takt`}
+                  </span>
+                </div>
               </div>
-              <div className="min-h-[96px] flex items-center justify-center overflow-hidden">
+              <div className="relative min-h-[96px] flex items-center justify-center overflow-hidden">
                 {snapshot.rotator.visible ? (
-                  <BroadcastRotator
-                    design={snapshot.design}
-                    slides={snapshot.slides}
-                    settings={snapshot.rotator}
-                    scale={previewScale}
-                  />
+                  <>
+                    <BroadcastRotator
+                      design={snapshot.design}
+                      slides={snapshot.slides}
+                      settings={snapshot.rotator}
+                      scale={previewScale}
+                      onCycleStatus={setRotatorStatus}
+                    />
+                    {rotatorStatus.isResting && (
+                      <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-center px-3">
+                        <span className="text-xs font-bold text-slate-300 bg-black/70 border border-white/10 px-3 py-1.5">
+                          Im Stream unsichtbar · nächster Durchlauf in{' '}
+                          <strong className="text-[#FFE406]">
+                            {rotatorStatus.restRemainingSec}s
+                          </strong>
+                        </span>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <span className="text-xs font-bold text-slate-500">
                     Rotator im Stream ausgeblendet

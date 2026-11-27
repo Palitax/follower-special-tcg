@@ -18,6 +18,12 @@ interface BroadcastRotatorProps {
   settings: RotatorBarSettings;
   previewSlideId?: string | null;
   scale?: number;
+  onCycleStatus?: (status: {
+    isResting: boolean;
+    restRemainingSec: number;
+    slideIndex: number;
+    totalEnabled: number;
+  }) => void;
 }
 
 /** Renders the social rotator in the selected design language */

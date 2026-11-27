@@ -14,9 +14,11 @@ export const dynamic = 'force-dynamic';
 
 interface ServerBarsStore {
   state: BroadcastBarsSnapshot | null;
+  images: Record<string, string>;
 }
 
-const TMP_BARS_FILE = path.join(os.tmpdir(), 'manacards-broadcast-bars-v1.json');
+const TMP_BARS_FILE = path.join(os.tmpdir(), 'manacards-broadcast-bars-v2.json');
+const MAX_CACHED_IMAGES = 120;
 
 declare global {
   // eslint-disable-next-line no-var
@@ -25,17 +27,21 @@ declare global {
 
 async function getStore(): Promise<ServerBarsStore> {
   if (globalThis.__mcBroadcastBarsStore) {
+    if (!globalThis.__mcBroadcastBarsStore.images) {
+      globalThis.__mcBroadcastBarsStore.images = {};
+    }
     return globalThis.__mcBroadcastBarsStore;
   }
   try {
     const raw = await fs.readFile(TMP_BARS_FILE, 'utf8');
-    const parsed = JSON.parse(raw) as ServerBarsStore;
+    const parsed = JSON.parse(raw) as Partial<ServerBarsStore>;
     globalThis.__mcBroadcastBarsStore = {
       state: parsed?.state ?? null,
+      images: parsed?.images && typeof parsed.images === 'object' ? parsed.images : {},
     };
     return globalThis.__mcBroadcastBarsStore;
   } catch {
-    globalThis.__mcBroadcastBarsStore = { state: null };
+    globalThis.__mcBroadcastBarsStore = { state: null, images: {} };
     return globalThis.__mcBroadcastBarsStore;
   }
 }
@@ -70,6 +76,17 @@ export async function GET(request: NextRequest) {
   }
 
   const store = await getStore();
+
+  // Image hydration endpoint for OBS Showcase overlays
+  const imageId = request.nextUrl.searchParams.get('image');
+  if (imageId) {
+    const dataUrl = store.images[imageId] ?? null;
+    return NextResponse.json(
+      { imageId, dataUrl },
+      { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+    );
+  }
+
   const sinceParam = request.nextUrl.searchParams.get('since');
   if (sinceParam !== null) {
     const since = Number(sinceParam);
@@ -102,13 +119,37 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const store = await getStore();
+    let changed = false;
+
+    if (body?.images && typeof body.images === 'object') {
+      for (const [id, dataUrl] of Object.entries(body.images as Record<string, unknown>)) {
+        if (
+          typeof id === 'string' &&
+          typeof dataUrl === 'string' &&
+          dataUrl.startsWith('data:image/')
+        ) {
+          store.images[id] = dataUrl;
+          changed = true;
+        }
+      }
+      const keys = Object.keys(store.images);
+      if (keys.length > MAX_CACHED_IMAGES) {
+        for (const oldKey of keys.slice(0, keys.length - MAX_CACHED_IMAGES)) {
+          delete store.images[oldKey];
+        }
+      }
+    }
 
     if (body?.state && typeof body.state.updatedAt === 'number') {
       const incoming = body.state as BroadcastBarsSnapshot;
       if (isNewer(incoming, store.state)) {
         store.state = incoming;
-        await persistStore(store);
+        changed = true;
       }
+    }
+
+    if (changed) {
+      await persistStore(store);
     }
 
     return NextResponse.json(

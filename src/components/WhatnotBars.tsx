@@ -249,6 +249,13 @@ interface WhatnotLowerThirdProps {
   previewSlideId?: string | null;
   /** Preview downscale factor inside Studio Monitor (1 on live OBS overlay) */
   scale?: number;
+  /** Optional callback to display live active/resting countdown inside Studio Monitor */
+  onCycleStatus?: (status: {
+    isResting: boolean;
+    restRemainingSec: number;
+    slideIndex: number;
+    totalEnabled: number;
+  }) => void;
 }
 
 export const WhatnotLowerThird: React.FC<WhatnotLowerThirdProps> = ({
@@ -256,9 +263,15 @@ export const WhatnotLowerThird: React.FC<WhatnotLowerThirdProps> = ({
   settings,
   previewSlideId = null,
   scale = 1,
+  onCycleStatus,
 }) => {
   const reduce = useReducedMotion() ?? false;
-  const { activeSlide, turn } = useRotatorCycle(slides, settings, previewSlideId);
+  const { activeSlide, turn, isResting, restRemainingSec, slideIndex, totalEnabled } =
+    useRotatorCycle(slides, settings, previewSlideId);
+
+  useEffect(() => {
+    onCycleStatus?.({ isResting, restRemainingSec, slideIndex, totalEnabled });
+  }, [onCycleStatus, isResting, restRemainingSec, slideIndex, totalEnabled]);
 
   // Native HiDPI render scale (1x, 1.5x, 2x) eliminates pixelation in OBS
   const q = settings.qualityScale ?? 2;
@@ -303,7 +316,7 @@ export const WhatnotLowerThird: React.FC<WhatnotLowerThirdProps> = ({
   const sublineLH = Math.round(sublinePx * 1.32);
   const tagFontPx = Math.round(clamp(11 * innerScale, 9, 22) * q);
 
-  const show = settings.visible && !!activeSlide;
+  const show = settings.visible && !!activeSlide && !isResting;
   const textRef = useRef<HTMLDivElement>(null);
   const tagRef = useRef<HTMLDivElement>(null);
   const [textW, setTextW] = useState(0);

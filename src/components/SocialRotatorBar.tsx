@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import {
   RotatorAnimationPreset,
@@ -17,6 +17,12 @@ interface SocialRotatorBarProps {
   settings: RotatorBarSettings;
   previewSlideId?: string | null;
   scale?: number;
+  onCycleStatus?: (status: {
+    isResting: boolean;
+    restRemainingSec: number;
+    slideIndex: number;
+    totalEnabled: number;
+  }) => void;
 }
 
 const EASE_OUT = [0.22, 1, 0.36, 1] as const;
@@ -73,10 +79,16 @@ export const SocialRotatorBar: React.FC<SocialRotatorBarProps> = ({
   settings,
   previewSlideId = null,
   scale = 1,
+  onCycleStatus,
 }) => {
   const reduceMotion = useReducedMotion() ?? false;
-  const { activeSlide, turn } = useRotatorCycle(slides, settings, previewSlideId);
+  const { activeSlide, turn, isResting, restRemainingSec, slideIndex, totalEnabled } =
+    useRotatorCycle(slides, settings, previewSlideId);
   const activeId = activeSlide?.id ?? null;
+
+  useEffect(() => {
+    onCycleStatus?.({ isResting, restRemainingSec, slideIndex, totalEnabled });
+  }, [onCycleStatus, isResting, restRemainingSec, slideIndex, totalEnabled]);
 
   const q = settings.qualityScale ?? 2;
   const baseH = 84;
@@ -112,7 +124,7 @@ export const SocialRotatorBar: React.FC<SocialRotatorBarProps> = ({
     [x0, x1]
   );
 
-  const show = settings.visible && !!activeSlide;
+  const show = settings.visible && !!activeSlide && !isResting;
   const palette = resolveVeinPalette(activeSlide?.platform ?? 'custom', settings.veinColorMode);
   const preset = settings.animationPreset;
   const textMotion = getTextMotion(preset, reduceMotion);

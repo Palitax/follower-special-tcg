@@ -572,6 +572,26 @@ input:not([type="range"]):user-invalid {
   }
 }
 
+/* Gentle levitation for transparent TTB / Card Showcase items (GPU transform only) */
+@keyframes mcShowcaseFloat {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+.mc-showcase-float {
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .mc-showcase-float {
+    animation: mcShowcaseFloat var(--sc-float-dur, 4.4s) ease-in-out var(--sc-float-delay, 0s) infinite;
+  }
+}
+
 /* Accessible studio mode tabs — border underline indicator (never color alone) */
 .mc-studio-tab {
   position: relative;
