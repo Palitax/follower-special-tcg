@@ -9,15 +9,27 @@ import {
 import { WN } from './WhatnotBars';
 import { EmbossedCategoryWatermark } from './SocialBrandIcons';
 
+export interface ShowcasePhaseStatus {
+  isShowing: boolean;
+  isResting: boolean;
+  remainingSec: number;
+  activeLabel: string;
+  stepIndex: number;
+  totalSteps: number;
+}
+
 interface PromoShowcaseOverlayProps {
+  /** Currently selected single preset (used in 'single' mode and Studio edit preview) */
   preset: ShowcasePreset | null;
+  /** Full list of presets (used in 'rotate' mode to cycle KGA -> Einzelkarten -> Pause in one OBS source) */
+  presets?: ShowcasePreset[];
   settings: ShowcaseSettings;
   /** Scale multiplier when fitting inside OBS viewport or Studio preview */
   scale?: number;
-  /** Keep visible in Studio preview even when OBS master visible is off */
+  /** Keep selected preset pinned & visible in Studio preview while editing */
   forcePreviewVisible?: boolean;
   /** Optional status callback for Studio Monitor countdown */
-  onPhaseStatus?: (status: { isShowing: boolean; remainingSec: number }) => void;
+  onPhaseStatus?: (status: ShowcasePhaseStatus) => void;
 }
 
 const EASE_OUT = [0.22, 1, 0.36, 1] as const;
@@ -33,19 +45,43 @@ interface ShowcaseCardCustom {
 }
 
 export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
-  preset,
+  preset: selectedPreset,
+  presets,
   settings,
   scale = 1,
   forcePreviewVisible = false,
   onPhaseStatus,
 }) => {
   const reduce = useReducedMotion() ?? false;
+  const isRotateMode = settings.cycleMode === 'rotate';
+
+  const cyclePresets = useMemo(() => {
+    if (!isRotateMode || !presets || presets.length === 0) {
+      return selectedPreset ? [selectedPreset] : [];
+    }
+    const eligible = presets.filter(
+      (p) =>
+        p.includeInCycle !== false &&
+        (p.images.length > 0 || p.headline.trim().length > 0 || p.eyebrow.trim().length > 0)
+    );
+    if (eligible.length > 0) return eligible;
+    return selectedPreset ? [selectedPreset] : [presets[0]];
+  }, [isRotateMode, presets, selectedPreset]);
+
   const [phase, setPhase] = useState<'showing' | 'resting' | 'hidden'>(() =>
     settings.visible ? 'showing' : 'hidden'
   );
+  const [cycleIdx, setCycleIdx] = useState(0);
   const [remainingSec, setRemainingSec] = useState(0);
   const [playNonce, setPlayNonce] = useState(0);
   const lastTriggerRef = useRef<number>(settings.showTriggerId);
+
+  // Clamp cycle index if preset list shrinks
+  useEffect(() => {
+    if (cycleIdx >= cyclePresets.length) {
+      setCycleIdx(0);
+    }
+  }, [cycleIdx, cyclePresets.length]);
 
   useEffect(() => {
     if (!settings.visible) {
@@ -56,6 +92,7 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
 
     if (settings.showTriggerId !== lastTriggerRef.current) {
       lastTriggerRef.current = settings.showTriggerId;
+      setCycleIdx(0);
       setPhase('showing');
       setPlayNonce((n) => n + 1);
       return;
@@ -64,16 +101,32 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
     setPhase((cur) => (cur === 'hidden' ? 'showing' : cur));
   }, [settings.visible, settings.showTriggerId]);
 
+  const preset: ShowcasePreset | null = forcePreviewVisible
+    ? selectedPreset
+    : isRotateMode
+    ? cyclePresets[cycleIdx % Math.max(1, cyclePresets.length)] ?? selectedPreset
+    : selectedPreset;
+
   useEffect(() => {
-    if (forcePreviewVisible || !settings.visible) {
+    if (forcePreviewVisible || !settings.visible || cyclePresets.length === 0) {
       setRemainingSec(0);
       return;
     }
 
-    const displaySec = Math.max(0, settings.displayDurationSec);
     const repeatRestSec = Math.max(0, settings.autoRepeatRestSec);
 
     if (phase === 'showing') {
+      const currentItem = isRotateMode
+        ? cyclePresets[cycleIdx % cyclePresets.length]
+        : selectedPreset;
+      const displaySec = isRotateMode
+        ? Math.max(
+            3,
+            currentItem?.durationSec ||
+              (settings.displayDurationSec > 0 ? settings.displayDurationSec : 12)
+          )
+        : Math.max(0, settings.displayDurationSec);
+
       if (displaySec === 0) {
         setRemainingSec(0);
         return;
@@ -88,8 +141,17 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
 
       const done = setTimeout(() => {
         clearInterval(tick);
-        if (repeatRestSec > 0) {
+        if (isRotateMode && cycleIdx < cyclePresets.length - 1) {
+          // Smoothly transition to the next preset in the sequence (e.g. KGA -> Einzelkarten)
+          setCycleIdx((i) => i + 1);
+          setPlayNonce((n) => n + 1);
+        } else if (repeatRestSec > 0) {
+          // End of full cycle -> hide & rest for autoRepeatRestSec before restarting from index 0
           setPhase('resting');
+        } else if (isRotateMode) {
+          // Continuous rotation without rest pause
+          setCycleIdx(0);
+          setPlayNonce((n) => n + 1);
         } else {
           setPhase('hidden');
           setRemainingSec(0);
@@ -112,6 +174,7 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
 
       const wake = setTimeout(() => {
         clearInterval(tick);
+        setCycleIdx(0);
         setPhase('showing');
         setPlayNonce((n) => n + 1);
       }, repeatRestSec * 1000);
@@ -126,17 +189,38 @@ export const PromoShowcaseOverlay: React.FC<PromoShowcaseOverlayProps> = ({
     settings.visible,
     settings.displayDurationSec,
     settings.autoRepeatRestSec,
+    isRotateMode,
+    cycleIdx,
+    cyclePresets,
+    selectedPreset,
     phase,
     playNonce,
   ]);
 
+  const isResting = Boolean(!forcePreviewVisible && settings.visible && phase === 'resting');
   const isActuallyShowing = Boolean(
     preset && (forcePreviewVisible || (settings.visible && phase === 'showing'))
   );
 
   useEffect(() => {
-    onPhaseStatus?.({ isShowing: isActuallyShowing, remainingSec });
-  }, [onPhaseStatus, isActuallyShowing, remainingSec]);
+    onPhaseStatus?.({
+      isShowing: isActuallyShowing,
+      isResting,
+      remainingSec,
+      activeLabel: preset?.eyebrow.trim() || preset?.headline.trim() || 'Showcase',
+      stepIndex: isRotateMode ? cycleIdx : 0,
+      totalSteps: isRotateMode ? cyclePresets.length : 1,
+    });
+  }, [
+    onPhaseStatus,
+    isActuallyShowing,
+    isResting,
+    remainingSec,
+    preset,
+    isRotateMode,
+    cycleIdx,
+    cyclePresets.length,
+  ]);
 
   const validImages = useMemo(
     () =>

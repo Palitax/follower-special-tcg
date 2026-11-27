@@ -132,6 +132,7 @@ function ShowcaseOverlaySurface() {
       ) : (
         <PromoShowcaseOverlay
           preset={activePreset}
+          presets={snapshot.showcases}
           settings={snapshot.showcase}
           scale={safeFitScale}
         />

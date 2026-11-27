@@ -27,7 +27,7 @@ import {
   hydrateBarsSnapshot,
 } from '../lib/barsLiveSync';
 import { BroadcastRotator, BroadcastTicker } from './BroadcastBars';
-import { PromoShowcaseOverlay } from './PromoShowcaseOverlay';
+import { PromoShowcaseOverlay, ShowcasePhaseStatus } from './PromoShowcaseOverlay';
 import { ShowcaseEditorPanel } from './ShowcaseEditorPanel';
 import { WhatnotHudEditorPanel } from './WhatnotHudEditorPanel';
 import {
@@ -148,6 +148,14 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
   });
   const [tickerPreviewAlwaysOn, setTickerPreviewAlwaysOn] = useState(false);
   const [showcasePreviewAlwaysOn, setShowcasePreviewAlwaysOn] = useState(true);
+  const [showcaseStatus, setShowcaseStatus] = useState<ShowcasePhaseStatus>({
+    isShowing: false,
+    isResting: false,
+    remainingSec: 0,
+    activeLabel: '',
+    stepIndex: 0,
+    totalSteps: 1,
+  });
   const [hudShowGhostUi, setHudShowGhostUi] = useState(true);
   const [hudForceCallouts, setHudForceCallouts] = useState(true);
   const [selectedHudWidget, setSelectedHudWidget] = useState<HudWidgetKey>('shop');
@@ -360,6 +368,10 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
 
   const triggerShowShowcase = useCallback(
     (presetId?: string) => {
+      if (!presetId) {
+        // Starting full rotation cycle -> let Studio Monitor show the live rotation sequence
+        setShowcasePreviewAlwaysOn(false);
+      }
       commitUpdate((cur) => ({
         showcase: {
           ...cur.showcase,
@@ -401,6 +413,8 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
           subline: '',
           layout: 'auto',
           images: [],
+          includeInCycle: true,
+          durationSec: 12,
         },
       ],
       showcase: { ...cur.showcase, activePresetId: id },
@@ -2342,9 +2356,11 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                 <div className="w-full flex justify-center">
                   <PromoShowcaseOverlay
                     preset={activeShowcasePreset}
+                    presets={snapshot.showcases}
                     settings={snapshot.showcase}
                     scale={showcasePreviewScale}
                     forcePreviewVisible={subTab === 'showcase' && showcasePreviewAlwaysOn}
+                    onPhaseStatus={setShowcaseStatus}
                   />
                 </div>
               ) : (
@@ -2384,7 +2400,7 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
             {/* Showcase Preview (prominent when on Showcase tab or live) */}
             {(subTab === 'showcase' || snapshot.showcase.visible) && (
               <div className="space-y-2 pb-4 border-b border-white/10">
-                <div className="flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
+                <div className="flex flex-wrap items-center justify-between gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
                   <span>KGA / Showcase (/overlay/showcase)</span>
                   <div className="flex items-center gap-2">
                     <button
@@ -2392,20 +2408,51 @@ export const BroadcastBarsStudio: React.FC<BroadcastBarsStudioProps> = ({
                       onClick={() => setShowcasePreviewAlwaysOn((v) => !v)}
                       className="px-1.5 py-0.5 border border-white/15 bg-black/50 text-[9.5px] font-bold text-slate-200"
                     >
-                      {showcasePreviewAlwaysOn ? 'Vorschau: Immer an' : 'Vorschau: Echtzeit'}
+                      {showcasePreviewAlwaysOn ? 'Vorschau: Bearbeiten (Fix)' : 'Vorschau: Wechsel live'}
                     </button>
-                    <span className={snapshot.showcase.visible ? 'text-[#FFE406]' : 'text-slate-500'}>
-                      {snapshot.showcase.visible ? 'LIVE' : 'Standby'}
+                    <span
+                      className={
+                        showcaseStatus.isResting
+                          ? 'text-amber-300'
+                          : snapshot.showcase.visible
+                          ? 'text-[#FFE406]'
+                          : 'text-slate-500'
+                      }
+                    >
+                      {!snapshot.showcase.visible
+                        ? 'Standby'
+                        : showcasePreviewAlwaysOn
+                        ? 'LIVE'
+                        : showcaseStatus.isResting
+                        ? `Pause (${showcaseStatus.remainingSec}s)`
+                        : snapshot.showcase.cycleMode === 'rotate'
+                        ? `Wechsel ${showcaseStatus.stepIndex + 1}/${Math.max(
+                            1,
+                            showcaseStatus.totalSteps
+                          )} (${showcaseStatus.remainingSec}s)`
+                        : showcaseStatus.remainingSec > 0
+                        ? `LIVE (${showcaseStatus.remainingSec}s)`
+                        : 'LIVE'}
                     </span>
                   </div>
                 </div>
-                <div className="min-h-[210px] flex items-center justify-center overflow-hidden">
+                <div className="relative min-h-[210px] flex items-center justify-center overflow-hidden">
                   <PromoShowcaseOverlay
                     preset={activeShowcasePreset}
+                    presets={snapshot.showcases}
                     settings={snapshot.showcase}
                     scale={showcasePreviewScale}
                     forcePreviewVisible={showcasePreviewAlwaysOn}
+                    onPhaseStatus={setShowcaseStatus}
                   />
+                  {showcaseStatus.isResting && !showcasePreviewAlwaysOn && (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center text-center px-3">
+                      <span className="text-xs font-bold text-slate-300 bg-black/70 border border-white/10 px-3 py-1.5">
+                        Im Stream unsichtbar · nächster Durchlauf in{' '}
+                        <strong className="text-[#FFE406]">{showcaseStatus.remainingSec}s</strong>
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

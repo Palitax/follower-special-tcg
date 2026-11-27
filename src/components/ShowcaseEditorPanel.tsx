@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 import {
   OverlayQualityScale,
   ShowcaseAnimation,
+  ShowcaseCycleMode,
   ShowcaseImage,
   ShowcaseLayout,
   ShowcasePreset,
@@ -212,13 +213,17 @@ export const ShowcaseEditorPanel: React.FC<ShowcaseEditorPanelProps> = ({
               type="button"
               onClick={() => {
                 sound.playClick(760);
-                onTriggerShow(activePreset?.id);
+                onTriggerShow(
+                  settings.cycleMode === 'rotate' ? undefined : activePreset?.id
+                );
               }}
               className="h-9 px-4 bg-[#FFE406] hover:bg-[#f5dc00] text-[#1a1718] font-black text-xs uppercase tracking-[0.1em] flex items-center gap-1.5 transition-colors"
             >
               <Zap className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>
-                {settings.displayDurationSec > 0
+                {settings.cycleMode === 'rotate'
+                  ? 'Wechsel-Zyklus starten'
+                  : settings.displayDurationSec > 0
                   ? `Jetzt einblenden (${settings.displayDurationSec}s)`
                   : 'Im Stream einblenden'}
               </span>
@@ -251,6 +256,86 @@ export const ShowcaseEditorPanel: React.FC<ShowcaseEditorPanelProps> = ({
           </div>
         </div>
 
+        {/* Cycle Mode Switcher: Single vs. Auto-Rotate (KGA -> Einzelkarten -> Pause) */}
+        <div className="p-3 border border-sky-400/30 bg-sky-500/[0.06] space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <span className="block text-[11px] font-black uppercase tracking-[0.12em] text-white">
+                Ablauf-Modus in OBS (eine gemeinsame Quelle)
+              </span>
+              <span className="block text-[10.5px] text-slate-300 mt-0.5">
+                Wechselt automatisch in deiner einen OBS-Quelle zwischen KGA, Einzelkarten und Pause.
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {(
+              [
+                {
+                  id: 'rotate',
+                  label: 'Alle im Wechsel (KGA → Einzelkarten → Pause)',
+                  desc: 'Spielt alle aktivierten Einblendungen nacheinander ab, macht X Sek. Pause und startet von vorn',
+                },
+                {
+                  id: 'single',
+                  label: 'Nur ausgewählte Einblendung',
+                  desc: 'Zeigt nur das aktuell ausgewählte Showcase an',
+                },
+              ] as { id: ShowcaseCycleMode; label: string; desc: string }[]
+            ).map((m) => {
+              const active = (settings.cycleMode ?? 'single') === m.id;
+              return (
+                <button
+                  key={m.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => {
+                    sound.playClick(660);
+                    onUpdateSettings('cycleMode', m.id);
+                    if (m.id === 'rotate') {
+                      onTriggerShow();
+                    }
+                  }}
+                  className={`p-2.5 border text-left transition-colors ${
+                    active
+                      ? 'bg-[#FFE406]/15 border-[#FFE406]/70 text-white'
+                      : 'bg-black/45 border-white/10 text-slate-300 hover:border-white/25'
+                  }`}
+                >
+                  <div className="text-xs font-extrabold">{m.label}</div>
+                  <div className="text-[10px] text-slate-400 mt-0.5">{m.desc}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          {settings.cycleMode === 'rotate' && (
+            <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-white/10 text-[10.5px]">
+              <span className="font-bold uppercase tracking-wider text-slate-400 mr-1">
+                Ablauf:
+              </span>
+              {presets
+                .filter((p) => p.includeInCycle !== false)
+                .map((p, idx) => (
+                  <React.Fragment key={`seq_${p.id}`}>
+                    {idx > 0 && <span className="text-slate-500 font-black">→</span>}
+                    <span className="px-2 py-0.5 bg-black/55 border border-sky-400/40 text-sky-200 font-bold">
+                      {p.eyebrow || p.headline || `Slide ${idx + 1}`}{' '}
+                      <strong className="text-[#FFE406]">({p.durationSec ?? 12}s)</strong>
+                    </span>
+                  </React.Fragment>
+                ))}
+              <span className="text-slate-500 font-black">→</span>
+              <span className="px-2 py-0.5 bg-black/55 border border-white/15 text-slate-300 font-bold">
+                {settings.autoRepeatRestSec > 0
+                  ? `Pause (${settings.autoRepeatRestSec}s) → ↺`
+                  : 'Direkt von vorn ↺'}
+              </span>
+            </div>
+          )}
+        </div>
+
         {/* Preset Tabs */}
         <div className="space-y-2 pt-2 border-t border-white/10">
           <div className="flex items-center justify-between gap-2">
@@ -270,6 +355,7 @@ export const ShowcaseEditorPanel: React.FC<ShowcaseEditorPanelProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {presets.map((p) => {
               const isSelected = p.id === activePreset?.id;
+              const inCycle = p.includeInCycle !== false;
               return (
                 <div
                   key={p.id}
@@ -292,11 +378,28 @@ export const ShowcaseEditorPanel: React.FC<ShowcaseEditorPanelProps> = ({
                     </div>
                     <div className="text-[10.5px] text-slate-400 mt-0.5">
                       {p.images.length} Bild{p.images.length === 1 ? '' : 'er'} ·{' '}
-                      {p.eyebrow || 'Ohne Sticker'}
+                      {p.durationSec ?? 12}s Dauer · {p.eyebrow || 'Ohne Sticker'}
                     </div>
                   </button>
 
                   <div className="flex items-center gap-1 shrink-0">
+                    {settings.cycleMode === 'rotate' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          sound.playClick(620);
+                          onUpdatePreset(p.id, { includeInCycle: !inCycle });
+                        }}
+                        className={`h-7 px-2 border text-[10px] font-black uppercase transition-colors ${
+                          inCycle
+                            ? 'bg-emerald-500/20 border-emerald-400/50 text-emerald-200'
+                            : 'bg-white/5 border-white/15 text-slate-500'
+                        }`}
+                        title="In den automatischen Wechsel einbeziehen"
+                      >
+                        {inCycle ? 'Im Wechsel' : 'Aus'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => {
@@ -540,66 +643,118 @@ export const ShowcaseEditorPanel: React.FC<ShowcaseEditorPanelProps> = ({
             </div>
           </div>
 
-          {/* Auto-Hide Duration & Auto-Repeat Interval */}
+          {/* Auto-Hide Duration (per-preset in rotate mode!) & Pause After Full Cycle */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-white/10">
-            <div className="space-y-1.5">
-              <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-300">Anzeigedauer pro Einblendung</span>
-                <span className="font-black text-[#FFE406]">
-                  {settings.displayDurationSec === 0
-                    ? 'Dauerhaft'
-                    : `${settings.displayDurationSec} Sek.`}
-                </span>
+            {settings.cycleMode === 'rotate' ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs gap-2">
+                  <span className="font-bold text-slate-300 truncate">
+                    Anzeigedauer ({activePreset.eyebrow || activePreset.headline || 'Aktiv'})
+                  </span>
+                  <span className="font-black text-[#FFE406] shrink-0">
+                    {activePreset.durationSec ?? 12} Sek.
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={3}
+                  max={90}
+                  step={1}
+                  value={activePreset.durationSec ?? 12}
+                  onChange={(e) =>
+                    onUpdatePreset(activePreset.id, { durationSec: Number(e.target.value) })
+                  }
+                  className="w-full cursor-pointer"
+                />
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { v: 6, l: '6s' },
+                    { v: 10, l: '10s' },
+                    { v: 15, l: '15s' },
+                    { v: 20, l: '20s' },
+                    { v: 30, l: '30s' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => onUpdatePreset(activePreset.id, { durationSec: opt.v })}
+                      className={`px-2 py-0.5 text-[10px] font-bold border ${
+                        (activePreset.durationSec ?? 12) === opt.v
+                          ? 'bg-[#FFE406]/20 border-[#FFE406]/60 text-[#FFE406]'
+                          : 'bg-black/40 border-white/10 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {opt.l}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <input
-                type="range"
-                min={0}
-                max={60}
-                step={2}
-                value={settings.displayDurationSec}
-                onChange={(e) =>
-                  onUpdateSettings('displayDurationSec', Number(e.target.value))
-                }
-                className="w-full cursor-pointer"
-              />
-              <div className="flex flex-wrap gap-1">
-                {[
-                  { v: 0, l: 'Dauerhaft' },
-                  { v: 8, l: '8s' },
-                  { v: 12, l: '12s' },
-                  { v: 20, l: '20s' },
-                  { v: 30, l: '30s' },
-                ].map((opt) => (
-                  <button
-                    key={opt.v}
-                    type="button"
-                    onClick={() => onUpdateSettings('displayDurationSec', opt.v)}
-                    className={`px-2 py-0.5 text-[10px] font-bold border ${
-                      settings.displayDurationSec === opt.v
-                        ? 'bg-[#FFE406]/20 border-[#FFE406]/60 text-[#FFE406]'
-                        : 'bg-black/40 border-white/10 text-slate-400 hover:text-white'
-                    }`}
-                  >
-                    {opt.l}
-                  </button>
-                ))}
+            ) : (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-300">Anzeigedauer pro Einblendung</span>
+                  <span className="font-black text-[#FFE406]">
+                    {settings.displayDurationSec === 0
+                      ? 'Dauerhaft'
+                      : `${settings.displayDurationSec} Sek.`}
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min={0}
+                  max={60}
+                  step={2}
+                  value={settings.displayDurationSec}
+                  onChange={(e) =>
+                    onUpdateSettings('displayDurationSec', Number(e.target.value))
+                  }
+                  className="w-full cursor-pointer"
+                />
+                <div className="flex flex-wrap gap-1">
+                  {[
+                    { v: 0, l: 'Dauerhaft' },
+                    { v: 8, l: '8s' },
+                    { v: 12, l: '12s' },
+                    { v: 20, l: '20s' },
+                    { v: 30, l: '30s' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.v}
+                      type="button"
+                      onClick={() => onUpdateSettings('displayDurationSec', opt.v)}
+                      className={`px-2 py-0.5 text-[10px] font-bold border ${
+                        settings.displayDurationSec === opt.v
+                          ? 'bg-[#FFE406]/20 border-[#FFE406]/60 text-[#FFE406]'
+                          : 'bg-black/40 border-white/10 text-slate-400 hover:text-white'
+                      }`}
+                    >
+                      {opt.l}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
-                <span className="font-bold text-slate-300">Auto-Wiederholung (Pause)</span>
+                <span className="font-bold text-slate-300">
+                  {settings.cycleMode === 'rotate'
+                    ? 'Pause nach Durchlauf (unsichtbar)'
+                    : 'Auto-Wiederholung (Pause)'}
+                </span>
                 <span className="font-black text-sky-300">
                   {settings.autoRepeatRestSec === 0
-                    ? 'Nur manuell'
-                    : `alle ${settings.autoRepeatRestSec} Sek.`}
+                    ? settings.cycleMode === 'rotate'
+                      ? '0s (endlos)'
+                      : 'Nur manuell'
+                    : `${settings.autoRepeatRestSec} Sek. Pause`}
                 </span>
               </div>
               <input
                 type="range"
                 min={0}
                 max={600}
-                step={10}
+                step={5}
                 value={settings.autoRepeatRestSec}
                 onChange={(e) =>
                   onUpdateSettings('autoRepeatRestSec', Number(e.target.value))
@@ -608,11 +763,11 @@ export const ShowcaseEditorPanel: React.FC<ShowcaseEditorPanelProps> = ({
               />
               <div className="flex flex-wrap gap-1">
                 {[
-                  { v: 0, l: 'Manuell' },
+                  { v: 0, l: settings.cycleMode === 'rotate' ? '0s (Endlos)' : 'Manuell' },
+                  { v: 15, l: '15s' },
                   { v: 30, l: '30s' },
                   { v: 60, l: '60s' },
                   { v: 180, l: '3m' },
-                  { v: 300, l: '5m' },
                 ].map((opt) => (
                   <button
                     key={opt.v}

@@ -115,6 +115,9 @@ export type ShowcaseTitleBgStyle = 'card' | 'none';
 
 export type ShowcaseTitleAnchor = 'top' | 'bottom' | 'overlay';
 
+/** 'single' shows only activePresetId; 'rotate' cycles through all enabled presets then pauses */
+export type ShowcaseCycleMode = 'single' | 'rotate';
+
 export interface RotatorSlide {
   id: string;
   platform: SocialPlatform;
@@ -227,10 +230,16 @@ export interface ShowcasePreset {
   layout: ShowcaseLayout;
   /** Dropped transparent PNGs / product photos (up to 10 per showcase) */
   images: ShowcaseImage[];
+  /** Whether this preset is included when cycleMode === 'rotate' */
+  includeInCycle: boolean;
+  /** Individual display duration in seconds for this preset during rotation (3–120s) */
+  durationSec: number;
 }
 
 export interface ShowcaseSettings {
   activePresetId: string;
+  /** 'single' shows only activePresetId; 'rotate' plays all included presets in sequence then pauses */
+  cycleMode: ShowcaseCycleMode;
   /** Master visibility toggle in OBS */
   visible: boolean;
   /** Monotonic timestamp bumped whenever the streamer triggers "Einblenden" */
@@ -333,6 +342,8 @@ export const DEFAULT_SHOWCASE_PRESETS: ShowcasePreset[] = [
     subline: 'Jeder Kauf im Stream landet automatisch im Topf',
     layout: 'auto',
     images: [],
+    includeInCycle: true,
+    durationSec: 12,
   },
   {
     id: 'sc_singles',
@@ -341,11 +352,14 @@ export const DEFAULT_SHOWCASE_PRESETS: ShowcasePreset[] = [
     subline: 'Folgen & im Stream bleiben!',
     layout: 'auto',
     images: [],
+    includeInCycle: true,
+    durationSec: 12,
   },
 ];
 
 export const DEFAULT_SHOWCASE_SETTINGS: ShowcaseSettings = {
   activePresetId: 'sc_kga',
+  cycleMode: 'single',
   visible: false,
   showTriggerId: 0,
   displayDurationSec: 12,
@@ -663,6 +677,11 @@ export function normalizeBroadcastBarsSnapshot(
                     label: typeof im.label === 'string' ? im.label : undefined,
                   }))
               : [],
+            includeInCycle: p.includeInCycle !== false,
+            durationSec: Math.max(
+              3,
+              Math.min(120, Number(p.durationSec ?? 12) || 12)
+            ),
           }))
       : base.showcases;
 
@@ -830,6 +849,7 @@ export function normalizeBroadcastBarsSnapshot(
       ...DEFAULT_SHOWCASE_SETTINGS,
       ...rawSc,
       activePresetId,
+      cycleMode: rawSc?.cycleMode === 'rotate' ? 'rotate' : 'single',
       visible: Boolean(rawSc?.visible),
       showTriggerId: Number(rawSc?.showTriggerId ?? 0) || 0,
       displayDurationSec: Math.max(
